@@ -22,7 +22,9 @@ FetchContent_MakeAvailable(googletest)
 FetchContent_MakeAvailable(mdspan)
 FetchContent_MakeAvailable(generator)
 
-add_executable(ExpressionSolver src/main.cpp)
+add_executable(ExpressionSolver src/main.cpp
+        include/values.hpp
+        include/operations.hpp)
 target_include_directories(ExpressionSolver PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${mdspan_SOURCE_DIR}/include
