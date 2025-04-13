@@ -9,7 +9,7 @@
 template <typename T> class Constant {
   T value;
 public:
-  constexpr Constant(T value) : value(value) {}
+  constexpr explicit Constant(T value) : value(value) {}
   constexpr operator T() const { return value; }
   constexpr auto eval() const { return value; }
   constexpr auto derivative() const { return Constant{T{}}; }
@@ -21,7 +21,7 @@ public:
 template <typename T> class Variable {
   T value;
 public:
-  constexpr Variable(T value) : value(value) {}
+  constexpr explicit Variable(T value) : value(value) {}
   constexpr operator T() const { return value; }
   constexpr T eval() const { return value; }
   constexpr T derivative() const { auto ret = T{}; return Constant{++ret}; }

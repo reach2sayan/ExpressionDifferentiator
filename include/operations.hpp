@@ -82,8 +82,7 @@ struct SumOp
 
 template <typename T, typename Expression1, typename Expression2>
 constexpr inline auto Sum(Expression1 e1, Expression2 e2) {
-  return Expression<SumOp<T>, Expression1, Expression2>(std::move(e1),
-                                                        std::move(e2));
+  return Expression<SumOp<T>, Expression1, Expression2>{std::move(e1), std::move(e2)};
 }
 
 template <typename T>
@@ -92,7 +91,7 @@ constexpr auto ExpOp<T>::derivative(const Expression1 &e1,
                                     const Expression2 &e2) {
   using e1_deriv_t = decltype(e1.derivative());
   using e2_deriv_t = decltype(e2.derivative());
-  auto e0 = Exp<T, e1_deriv_t, e2_deriv_t>(e1, e2);
+  auto e0 = Exp(e1, e2);
   auto c0 = Constant<T>(0);
   auto s1 = Sum<T, decltype(e0), decltype(c0)>(e0, c0);
   auto s2 = Sum<T, decltype(e0), decltype(s1)>(e0, s1);
@@ -125,21 +124,21 @@ constexpr auto MultiplyOp<T>::derivative(const Expression1 &e1,
   using e2_deriv_t = decltype(e2.derivative());
   auto lmul = Multiply<T, e1_deriv_t, Expression2>(e1.derivative(), e2);
   auto rmul = Multiply<T, Expression1, e2_deriv_t>(e1, e2.derivative());
-  return Sum<T,decltype(lmul),decltype(rmul)>(lmul, rmul);
+  return Sum<T, decltype(lmul), decltype(rmul)>(lmul, rmul);
 }
 
 template <typename T>
 struct NegateOp : UnaryOp<T, [](const T &a) -> T { return -a; }, '-'> {};
 
+template <typename T, typename Expression1>
+constexpr inline auto Negate(Expression1 e) {
+  return std::move(e);
+}
+
 template <typename T, typename Expression1, typename Expression2>
 constexpr inline auto Multiply(Expression1 e1, Expression2 e2) {
   return Expression<MultiplyOp<T>, Expression1, Expression2>(std::move(e1),
                                                              std::move(e2));
-}
-
-template <typename T, typename Expression1>
-constexpr inline auto Negate(Expression1 e) {
-  return Expression<NegateOp<T>, Expression1>(std::move(e));
 }
 
 template <typename T, typename Expression1, typename Expression2>
@@ -148,4 +147,7 @@ constexpr inline auto Exp(Expression1 e1, Expression2 e2) {
                                                         std::move(e2));
 }
 
+template <typename T, typename TExpression>
+constexpr inline auto Negate(TExpression e)
+    -> Expression<NegateOp<T>, TExpression>;
 #endif // OPERATIONS_HPP
