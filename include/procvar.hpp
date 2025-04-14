@@ -17,19 +17,42 @@ template <typename T> class ProcVar {
   var_type<T> value;
   template <typename U>
   ProcVar(var_type<U> &&v) : value{std::forward<decltype(v)>(v)} {}
-  T get_value() const {
+  constexpr T get_value() const {
     return std::visit([](auto &&v) -> T { return v; }, value);
   }
-  friend auto operator+(ProcVar a, const ProcVar &b) {
+
+  constexpr void set_value(T v);
+
+  friend constexpr auto operator+(const ProcVar &a, const ProcVar &b) {
     auto expr = Sum<T>(a, b);
     return expr;
   }
+  friend constexpr auto operator*(const ProcVar &a, const ProcVar &b) {
+    auto expr = Multiply<T>(a, b);
+    return expr;
+  }
+  friend constexpr auto operator-(const ProcVar &a, const ProcVar &b) {
+    auto expr = Sum<T>(a, Multiply<T>(Constant(-1),b));
+    return expr;
+  }
+
+  friend std::ostream &operator<<(std::ostream &out, const ProcVar<T> &c) {
+    if (std::holds_alternative<Variable<T>>(c.value)) {
+      out << std::get<Variable<T>>(c.value);
+      return out;
+    } else if (std::holds_alternative<Constant<T>>(c.value)) {
+      out << std::get<Constant<T>>(c.value);
+      return out;
+    } else {
+      std::unreachable();
+    }
+  }
 
 public:
-  ProcVar(Variable<T> v) : ProcVar{var_type<T>{v}} {}
-  ProcVar(Constant<T> v) : ProcVar{var_type<T>{v}} {}
+  constexpr ProcVar(Variable<T> v) : ProcVar{var_type<T>{v}} {}
+  constexpr ProcVar(Constant<T> v) : ProcVar{var_type<T>{v}} {}
   constexpr operator T() const { return get_value(); }
-  constexpr void set_value(T v);
+  constexpr ProcVar& operator=(T v) { set_value(v); return *this; }
   constexpr auto derivative() const {
     return std::visit([](auto &&v) -> T { return v.derivative(); }, value);
   }

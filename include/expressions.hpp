@@ -11,10 +11,6 @@
 
 template <typename Op, typename... E> class Expression {
   std::tuple<E...> inner_expressions;
-
-public:
-  using value_type = typename Op::value_type;
-  constexpr Expression(E... e);
   friend std::ostream &operator<<(std::ostream &out, const Expression &e) {
     out << '(';
     std::apply([&out](const auto &...e) { Op::print(out, e...); },
@@ -22,6 +18,10 @@ public:
     out << ')';
     return out;
   }
+
+public:
+  using value_type = typename Op::value_type;
+  constexpr Expression(E... e);
   constexpr auto eval() const;
   constexpr operator value_type() const { return eval(); }
   constexpr auto derivative() const;

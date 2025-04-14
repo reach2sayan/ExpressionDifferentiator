@@ -74,12 +74,12 @@ TEST(ProcVarTest, GetValue) {
 
 TEST(ProcVarTest, SpecifyValue) {
   ProcVar<int> a{Constant<int>{4}};
-  a.set_value(2);
+  a = 2;
   EXPECT_EQ(a, 4);
 }
 
 TEST(ProcVarTest, FixedToSpecifyValue) {
   ProcVar<int> a{Constant<int>{4}};
-  a.set_value(2);
+  a = 2;
   EXPECT_EQ(a, 4);
 }

@@ -27,8 +27,13 @@ int main() {
   ProcVar<int> a{Variable<int>{2}};
   ProcVar<int> b{Constant<int>{3}};
   auto tmp = a + b;
+  auto tmp2 = a * b;
 
   std::cout << tmp << std::endl;
   std::cout << tmp.derivative() << std::endl;
   std::cout << tmp.eval() << std::endl;
+
+  std::cout << tmp2 << std::endl;
+  std::cout << tmp2.derivative() << std::endl;
+  std::cout << tmp2.eval() << std::endl;
 }
