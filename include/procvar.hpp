@@ -15,8 +15,10 @@ template <typename T> using var_type = std::variant<Variable<T>, Constant<T>>;
 
 template <typename T> class ProcVar {
   var_type<T> value;
+
   template <typename U>
-  ProcVar(var_type<U> &&v) : value{std::forward<decltype(v)>(v)} {}
+  constexpr ProcVar(var_type<U> &&v) : value{std::forward<decltype(v)>(v)} {}
+
   constexpr T get_value() const {
     return std::visit([](auto &&v) -> T { return v; }, value);
   }
@@ -33,6 +35,10 @@ template <typename T> class ProcVar {
   }
   friend constexpr auto operator-(const ProcVar &a, const ProcVar &b) {
     auto expr = Sum<T>(a, Multiply<T>(Constant(-1),b));
+    return expr;
+  }
+  friend constexpr auto operator^(const ProcVar &a, const ProcVar &b) {
+    auto expr = Exp<T>(a, b);
     return expr;
   }
 
