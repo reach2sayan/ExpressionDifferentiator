@@ -25,33 +25,32 @@ template <typename T> class ProcVar {
 
   constexpr void set_value(T v);
 
-  friend constexpr auto operator+(const ProcVar &a, const ProcVar &b) {
-    auto expr = Sum<T>(a, b);
-    return expr;
+  template<typename Expression1, typename Expression2>
+  friend constexpr auto operator+(const Expression1 &a, const Expression2 &b) {
+    return Sum<T>(a, b);
   }
-  friend constexpr auto operator*(const ProcVar &a, const ProcVar &b) {
-    auto expr = Multiply<T>(a, b);
-    return expr;
+  template<typename Expression1, typename Expression2>
+  friend constexpr auto operator*(const Expression1 &a, const Expression2 &b) {
+    return Multiply<T>(a, b);
   }
-  friend constexpr auto operator-(const ProcVar &a, const ProcVar &b) {
-    auto expr = Sum<T>(a, Multiply<T>(Constant(-1),b));
-    return expr;
+  template<typename Expression1, typename Expression2>
+  friend constexpr auto operator-(const Expression1 &a, const Expression2 &b) {
+    return Sum<T>(a, Multiply<T>(Constant(-1),b));
   }
-  friend constexpr auto operator^(const ProcVar &a, const ProcVar &b) {
-    auto expr = Exp<T>(a, b);
-    return expr;
+  template<typename Expression1, typename Expression2>
+  friend constexpr auto operator^(const Expression1 &a, const Expression2 &b) {
+    return Exp<T>(a, b);
   }
 
   friend std::ostream &operator<<(std::ostream &out, const ProcVar<T> &c) {
     if (std::holds_alternative<Variable<T>>(c.value)) {
       out << std::get<Variable<T>>(c.value);
-      return out;
     } else if (std::holds_alternative<Constant<T>>(c.value)) {
       out << std::get<Constant<T>>(c.value);
-      return out;
     } else {
-      std::unreachable();
+      throw std::bad_variant_access{};
     }
+    return out;
   }
 
 public:
@@ -68,7 +67,7 @@ template <typename T> constexpr void ProcVar<T>::set_value(T v) {
   if (std::holds_alternative<Variable<T>>(value)) {
     std::get<Variable<T>>(value).set(v);
   } else {
-    std::unreachable();
+    throw std::bad_variant_access{};
   }
 }
 

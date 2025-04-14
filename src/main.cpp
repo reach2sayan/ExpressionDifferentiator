@@ -26,7 +26,8 @@ int main() {
   std::cout << derv.eval() << std::endl;
   ProcVar<int> a{Variable<int>{2}};
   ProcVar<int> b{Constant<int>{3}};
-  auto tmp = a + b;
+  ProcVar<int> c{Constant<int>{5}};
+  auto tmp = a + b + c;
   auto tmp2 = a * b;
 
   std::cout << tmp << std::endl;

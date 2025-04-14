@@ -6,7 +6,7 @@
 #define EXPRESSIONS_HPP
 
 #include <functional>
-#include <iostream>
+#include <ostream>
 #include <tuple>
 
 template <typename Op, typename... E> class Expression {
