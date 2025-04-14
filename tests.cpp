@@ -4,6 +4,7 @@
 
 #include "matrix.hpp"
 #include "operations.hpp"
+#include "procvar.hpp"
 #include "values.hpp"
 
 #include <gtest/gtest.h>
@@ -64,4 +65,21 @@ TEST(ExpressionTest, DerivativeTest) {
   auto derv = expr.derivative();
   EXPECT_EQ(expr,target);
   EXPECT_EQ(derv,2);
+}
+
+TEST(ProcVarTest, GetValue) {
+  ProcVar<int> a{Variable<int>{2}};
+  EXPECT_EQ(a, 2);
+}
+
+TEST(ProcVarTest, SpecifyValue) {
+  ProcVar<int> a{Constant<int>{4}};
+  a.set_value(2);
+  EXPECT_EQ(a, 4);
+}
+
+TEST(ProcVarTest, FixedToSpecifyValue) {
+  ProcVar<int> a{Constant<int>{4}};
+  a.set_value(2);
+  EXPECT_EQ(a, 4);
 }

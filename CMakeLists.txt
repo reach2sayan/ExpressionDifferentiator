@@ -24,7 +24,9 @@ FetchContent_MakeAvailable(generator)
 
 add_executable(ExpressionSolver src/main.cpp
         include/values.hpp
-        include/operations.hpp)
+        include/operations.hpp
+        include/procvar.hpp)
+
 target_include_directories(ExpressionSolver PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${mdspan_SOURCE_DIR}/include

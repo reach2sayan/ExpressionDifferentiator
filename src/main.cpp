@@ -1,8 +1,7 @@
 #include <iostream>
 
 #include "matrix.hpp"
-#include "operations.hpp"
-#include "values.hpp"
+#include "procvar.hpp"
 
 std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
@@ -25,4 +24,11 @@ int main() {
   auto derv = expr.derivative();
   std::cout << derv << std::endl;
   std::cout << derv.eval() << std::endl;
+  ProcVar<int> a{Variable<int>{2}};
+  ProcVar<int> b{Constant<int>{3}};
+  auto tmp = a + b;
+
+  std::cout << tmp << std::endl;
+  std::cout << tmp.derivative() << std::endl;
+  std::cout << tmp.eval() << std::endl;
 }
