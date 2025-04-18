@@ -2,9 +2,7 @@
 // Created by sayan on 4/13/25.
 //
 
-#ifndef VALUES_HPP
-#define VALUES_HPP
-
+#pragma once
 #include <ostream>
 
 template <typename T> class Variable;
@@ -15,6 +13,7 @@ template <typename T> class Constant {
   friend std::ostream &operator<<(std::ostream &out, const Constant<T> &c) {
     return out << c.value;
   }
+
 public:
   constexpr explicit Constant(T value) : value(value), fixed(true) {}
   constexpr operator T() const { return value; }
@@ -28,6 +27,7 @@ template <typename T> class Variable {
   friend std::ostream &operator<<(std::ostream &out, const Variable<T> &c) {
     return out << 'v';
   }
+
 public:
   constexpr explicit Variable(T value) : value(value), fixed(false) {}
   constexpr T eval() const { return value; }
@@ -41,5 +41,3 @@ public:
     return Constant{++ret};
   }
 };
-
-#endif // VALUES_HPP

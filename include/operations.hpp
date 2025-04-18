@@ -2,13 +2,8 @@
 // Created by sayan on 4/13/25.
 //
 
-#ifndef OPERATIONS_HPP
-#define OPERATIONS_HPP
-//
-// Created by sayan on 4/13/25.
-//
+#pragma once
 #include "expressions.hpp"
-#include "matrix.hpp"
 #include "values.hpp"
 #include <cmath>
 #include <type_traits>
@@ -144,4 +139,3 @@ constexpr inline auto Exp(Expression1 e1, Expression2 e2) {
 template <typename T, typename TExpression>
 constexpr inline auto Negate(TExpression e)
     -> Expression<NegateOp<T>, TExpression>;
-#endif // OPERATIONS_HPP

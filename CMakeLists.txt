@@ -25,7 +25,8 @@ FetchContent_MakeAvailable(generator)
 add_library(expression_solver SHARED src/main.cpp
         include/values.hpp
         include/operations.hpp
-        include/procvar.hpp)
+        include/procvar.hpp
+        include/equation.hpp)
 
 target_include_directories(expression_solver PRIVATE
         ${CMAKE_SOURCE_DIR}/include

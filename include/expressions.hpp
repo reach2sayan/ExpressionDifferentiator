@@ -2,8 +2,7 @@
 // Created by sayan on 4/13/25.
 //
 
-#ifndef EXPRESSIONS_HPP
-#define EXPRESSIONS_HPP
+#pragma once
 
 #include <functional>
 #include <ostream>
@@ -43,5 +42,3 @@ constexpr auto Expression<Op, E...>::derivative() const {
       [](const auto &...e) { return Op::derivative(e...); },
       inner_expressions);
 }
-
-#endif // EXPRESSIONS_HPP

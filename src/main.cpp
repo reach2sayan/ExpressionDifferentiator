@@ -2,11 +2,15 @@
 
 #include "matrix.hpp"
 #include "procvar.hpp"
+#include "equation.hpp"
 
 std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
 std::array<int, 16> data2 = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
+
+#define PV(x) ProcVar(x, VariableTag{})
+#define PC(x) ProcVar(x, ConstantTag{})
 
 int main() {
   matrix<int, 4, 4> m1(data1);
@@ -24,8 +28,9 @@ int main() {
   auto derv = expr.derivative();
   std::cout << derv << std::endl;
   std::cout << derv.eval() << std::endl;
-  auto a = ProcVar{2, VariableTag{}};
-  ProcVar<int> b{3, ConstantTag{}};
+  auto a = PV(2);
+  auto b = PC(3);
+  auto oter = PV(4.0);
   ProcVar<int> c{5, ConstantTag{}};
   auto tmp = a + b + c;
   auto tmp2 = a * b;
@@ -37,4 +42,7 @@ int main() {
   std::cout << tmp2 << std::endl;
   std::cout << tmp2.derivative() << std::endl;
   std::cout << tmp2.eval() << std::endl;
+
+  Equation e(tmp);
+  std::cout << (int)e << std::endl;
 }
