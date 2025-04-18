@@ -4,10 +4,13 @@
 
 #pragma once
 #include <ostream>
+#include <type_traits>
 
 #define VALUE_TYPE_MISMATCH_ASSERT(T, U)                                       \
   static_assert(                                                               \
-      std::is_same_v<typename T::value_type, typename U::value_type>,          \
+      std::is_same_v<typename T::value_type, typename U::value_type> ||        \
+      std::is_convertible_v<typename T::value_type,typename U::value_type> ||  \
+      std::is_convertible_v<typename U::value_type,typename T::value_type>,    \
       "Both expressions must have the same value type");
 
 struct Operators {
@@ -58,7 +61,10 @@ public:
   template <typename U> constexpr void set(U &&value) {
     value = std::forward<U>(value);
   }
-
+  constexpr decltype(auto) operator=(T v) {
+    value = std::move(v);
+    return *this;
+  }
   constexpr T derivative() const {
     auto ret = T{};
     return Constant{++ret};

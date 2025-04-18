@@ -68,18 +68,18 @@ TEST(ExpressionTest, DerivativeTest) {
 }
 
 TEST(ProcVarTest, GetValue) {
-  ProcVar<int> a{2, VariableTag{}};
+  Variable<int> a{2};
   EXPECT_EQ(a, 2);
 }
 
 TEST(ProcVarTest, SpecifyValue) {
-  ProcVar<int> a{4, ConstantTag{}};
+  Variable<int> a{4};
   a = 2;
-  EXPECT_EQ(a, 4);
+  EXPECT_EQ(a, 2);
 }
 
 TEST(ProcVarTest, FixedToSpecifyValue) {
-  ProcVar<int> a{4, VariableTag{}};
+  Variable<int> a{4};
   a = 2;
   EXPECT_EQ(a, 4);
 }

@@ -77,7 +77,8 @@ struct SumOp
 
 template <typename T, typename Expression1, typename Expression2>
 constexpr inline auto Sum(Expression1 e1, Expression2 e2) {
-  return Expression<SumOp<T>, Expression1, Expression2>{std::move(e1), std::move(e2)};
+  return Expression<SumOp<T>, Expression1, Expression2>{std::move(e1),
+                                                        std::move(e2)};
 }
 
 template <typename T>
@@ -116,15 +117,12 @@ constexpr auto MultiplyOp<T>::derivative(const Expression1 &e1,
   return Sum<T>(std::move(lmul), std::move(rmul));
 }
 
-template <typename T>
-struct NegateOp : UnaryOp<T, [](const T &a) -> T { return -a; }, '-'> {};
-
 template <typename T, typename Expression1>
 constexpr inline auto Negate(Expression1 e) {
-  auto negative_one = T{};
-  --negative_one;
+  auto zero = T{};
+  auto negative_one = std::move(--zero);
   auto c = Constant<T>(std::move(negative_one));
-  return Expression<MultiplyOp<T>,decltype(c), Expression1>(std::move(c),
+  return Expression<MultiplyOp<T>, decltype(c), Expression1>(std::move(c),
                                                              std::move(e));
 }
 

@@ -5,6 +5,13 @@
 #ifndef PROCVAR_HPP
 #define PROCVAR_HPP
 
+
+template <typename T> class ProcVar {
+  [[deprecated("Use values.hpp instead")]];
+};
+
+#define DEPRECATED_PROCVAR 1
+#if !defined(DEPRECATED_PROCVAR)
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "values.hpp"
@@ -99,5 +106,5 @@ template <typename T, typename Expression1, typename Expression2>
 constexpr auto operator^(const Expression1 &a, const Expression2 &b) {
   return Exp<T>(a, b);
 }
-
+#endif
 #endif // PROCVAR_HPP
