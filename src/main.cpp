@@ -24,9 +24,9 @@ int main() {
   auto derv = expr.derivative();
   std::cout << derv << std::endl;
   std::cout << derv.eval() << std::endl;
-  ProcVar<int> a{Variable<int>{2}};
-  ProcVar<int> b{Constant<int>{3}};
-  ProcVar<int> c{Constant<int>{5}};
+  auto a = ProcVar{2, VariableTag{}};
+  ProcVar<int> b{3, ConstantTag{}};
+  ProcVar<int> c{5, ConstantTag{}};
   auto tmp = a + b + c;
   auto tmp2 = a * b;
 

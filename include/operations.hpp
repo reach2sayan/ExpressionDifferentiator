@@ -89,24 +89,20 @@ template <typename T>
 template <typename Expression1, typename Expression2>
 constexpr auto ExpOp<T>::derivative(const Expression1 &e1,
                                     const Expression2 &e2) {
-  using e1_deriv_t = decltype(e1.derivative());
-  using e2_deriv_t = decltype(e2.derivative());
-  auto e0 = Exp(e1, e2);
+  auto e0 = Exp<T>(e1, e2);
   auto c0 = Constant<T>(0);
-  auto s1 = Sum<T, decltype(e0), decltype(c0)>(e0, c0);
-  auto s2 = Sum<T, decltype(e0), decltype(s1)>(e0, s1);
-  auto s3 = Sum<T, decltype(e0), decltype(s2)>(e0, s2);
-  auto s4 = Sum<T, decltype(e0), decltype(s3)>(e0, s3);
-  return Sum<T, decltype(e0), decltype(s4)>(e0, s4);
+  auto s1 = Sum<T>(e0, c0);
+  auto s2 = Sum<T>(e0, s1);
+  auto s3 = Sum<T>(e0, s2);
+  auto s4 = Sum<T>(e0, s3);
+  return Sum<T>(e0, s4);
 }
 
 template <typename T>
 template <typename Expression1, typename Expression2>
 constexpr auto SumOp<T>::derivative(const Expression1 &e1,
                                     const Expression2 &e2) {
-  using e1_deriv_t = decltype(e1.derivative());
-  using e2_deriv_t = decltype(e2.derivative());
-  return Sum<T, e1_deriv_t, e2_deriv_t>(e1.derivative(), e2.derivative());
+  return Sum<T>(e1.derivative(), e2.derivative());
 }
 
 template <typename T>
@@ -120,11 +116,9 @@ template <typename T>
 template <typename Expression1, typename Expression2>
 constexpr auto MultiplyOp<T>::derivative(const Expression1 &e1,
                                          const Expression2 &e2) {
-  using e1_deriv_t = decltype(e1.derivative());
-  using e2_deriv_t = decltype(e2.derivative());
-  auto lmul = Multiply<T, e1_deriv_t, Expression2>(e1.derivative(), e2);
-  auto rmul = Multiply<T, Expression1, e2_deriv_t>(e1, e2.derivative());
-  return Sum<T, decltype(lmul), decltype(rmul)>(lmul, rmul);
+  auto lmul = Multiply<T>(e1.derivative(), e2);
+  auto rmul = Multiply<T>(e1, e2.derivative());
+  return Sum<T>(std::move(lmul), std::move(rmul));
 }
 
 template <typename T>

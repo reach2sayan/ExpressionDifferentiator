@@ -12,12 +12,14 @@
 #include <variant>
 
 template <typename T> using var_type = std::variant<Variable<T>, Constant<T>>;
+struct VariableTag {};
+struct ConstantTag {};
 
 template <typename T> class ProcVar {
   var_type<T> value;
 
   template <typename U>
-  constexpr ProcVar(var_type<U> &&v) : value{std::forward<decltype(v)>(v)} {}
+  constexpr ProcVar(U &&v) : value{var_type<T>{std::forward<U>(v)}} {}
 
   constexpr T get_value() const {
     return std::visit([](auto &&v) -> T { return v; }, value);
@@ -25,19 +27,19 @@ template <typename T> class ProcVar {
 
   constexpr void set_value(T v);
 
-  template<typename Expression1, typename Expression2>
+  template <typename Expression1, typename Expression2>
   friend constexpr auto operator+(const Expression1 &a, const Expression2 &b) {
     return Sum<T>(a, b);
   }
-  template<typename Expression1, typename Expression2>
+  template <typename Expression1, typename Expression2>
   friend constexpr auto operator*(const Expression1 &a, const Expression2 &b) {
     return Multiply<T>(a, b);
   }
-  template<typename Expression1, typename Expression2>
+  template <typename Expression1, typename Expression2>
   friend constexpr auto operator-(const Expression1 &a, const Expression2 &b) {
-    return Sum<T>(a, Multiply<T>(Constant(-1),b));
+    return Sum<T>(a, Multiply<T>(Constant(-1), b));
   }
-  template<typename Expression1, typename Expression2>
+  template <typename Expression1, typename Expression2>
   friend constexpr auto operator^(const Expression1 &a, const Expression2 &b) {
     return Exp<T>(a, b);
   }
@@ -54,10 +56,14 @@ template <typename T> class ProcVar {
   }
 
 public:
-  constexpr ProcVar(Variable<T> v) : ProcVar{var_type<T>{v}} {}
-  constexpr ProcVar(Constant<T> v) : ProcVar{var_type<T>{v}} {}
+  constexpr ProcVar(T v, VariableTag) : ProcVar{Variable<T>{std::move(v)}} {}
+  constexpr ProcVar(T v, ConstantTag) : ProcVar{Constant<T>{std::move(v)}} {}
+
   constexpr operator T() const { return get_value(); }
-  constexpr ProcVar& operator=(T v) { set_value(v); return *this; }
+  constexpr ProcVar &operator=(T v) {
+    set_value(std::move(v));
+    return *this;
+  }
   constexpr auto derivative() const {
     return std::visit([](auto &&v) -> T { return v.derivative(); }, value);
   }
@@ -65,10 +71,11 @@ public:
 
 template <typename T> constexpr void ProcVar<T>::set_value(T v) {
   if (std::holds_alternative<Variable<T>>(value)) {
-    std::get<Variable<T>>(value).set(v);
+    std::get<Variable<T>>(value).set(std::move(v));
   } else {
     throw std::bad_variant_access{};
   }
 }
+
 
 #endif // PROCVAR_HPP
