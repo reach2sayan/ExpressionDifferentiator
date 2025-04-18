@@ -28,7 +28,6 @@ template <typename T> class ProcVar {
   constexpr T get_value() const {
     return std::visit([](auto &&v) -> T { return v; }, value);
   }
-
   constexpr void set_value(T v);
 
   template <typename Expression1, typename Expression2>

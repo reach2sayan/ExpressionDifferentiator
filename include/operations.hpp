@@ -121,7 +121,11 @@ struct NegateOp : UnaryOp<T, [](const T &a) -> T { return -a; }, '-'> {};
 
 template <typename T, typename Expression1>
 constexpr inline auto Negate(Expression1 e) {
-  return std::move(e);
+  auto negative_one = T{};
+  --negative_one;
+  auto c = Constant<T>(std::move(negative_one));
+  return Expression<MultiplyOp<T>,decltype(c), Expression1>(std::move(c),
+                                                             std::move(e));
 }
 
 template <typename T, typename Expression1, typename Expression2>
@@ -135,7 +139,3 @@ constexpr inline auto Exp(Expression1 e1, Expression2 e2) {
   return Expression<ExpOp<T>, Expression1, Expression2>(std::move(e1),
                                                         std::move(e2));
 }
-
-template <typename T, typename TExpression>
-constexpr inline auto Negate(TExpression e)
-    -> Expression<NegateOp<T>, TExpression>;

@@ -1,7 +1,8 @@
 #include <iostream>
 
 #include "matrix.hpp"
-#include "procvar.hpp"
+#include "values.hpp"
+//#include "procvar.hpp"
 #include "equation.hpp"
 
 std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
@@ -9,8 +10,9 @@ std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
 std::array<int, 16> data2 = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
 
-#define PV(x) ProcVar(x, VariableTag{})
-#define PC(x) ProcVar(x, ConstantTag{})
+//#define PV(x) ProcVar(x, VariableTag{})
+#define PV(x) Variable(x)
+#define PC(x) Constant(x)
 
 int main() {
   matrix<int, 4, 4> m1(data1);
@@ -30,9 +32,10 @@ int main() {
   std::cout << derv.eval() << std::endl;
   auto a = PV(2);
   auto b = PC(3);
-  auto oter = PV(4.0);
-  ProcVar<int> c{5, ConstantTag{}};
-  auto tmp = a + b + c;
+  auto oter = PV(4);
+  //ProcVar<int> c{5, ConstantTag{}};
+  auto tmp = a + b + oter;
+  static_assert(tmp.var_count == 2);
   auto tmp2 = a * b;
 
   std::cout << tmp << std::endl;
