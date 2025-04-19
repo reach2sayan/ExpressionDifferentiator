@@ -88,20 +88,20 @@ constexpr auto make_const_variable(const MonoExpression<Op, LHS> &expr)
 }
 
 template <typename T, char C, std::size_t N>
-void make_labels_array(const Variable<T, C> &, std::array<char, N> &out,
-                       std::size_t &index) {
+constexpr void make_labels_array(const Variable<T, C> &,
+                                 std::array<char, N> &out, std::size_t &index) {
   out[index++] = C;
 }
 
 template <typename T, std::size_t N>
-void make_labels_array(const Constant<T> &, std::array<char, N> &,
-                       std::size_t &) {
+constexpr void make_labels_array(const Constant<T> &, std::array<char, N> &,
+                                 std::size_t &) {
   // no-op
 }
 
 template <typename Op, typename LHS, typename RHS, std::size_t N>
-void make_labels_array(const Expression<Op, LHS, RHS> &expr,
-                       std::array<char, N> &out, std::size_t &index) {
+constexpr void make_labels_array(const Expression<Op, LHS, RHS> &expr,
+                                 std::array<char, N> &out, std::size_t &index) {
   make_labels_array(expr.expressions().first, out, index);
   make_labels_array(expr.expressions().second, out, index);
 }
