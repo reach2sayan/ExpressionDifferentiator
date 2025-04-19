@@ -3,8 +3,7 @@
 //
 
 #pragma once
-template <typename T>
-struct DivideOp;
+template <typename T> struct DivideOp;
 
 #define VALUE_TYPE_MISMATCH_ASSERT(T, U)                                       \
   static_assert(                                                               \
@@ -40,11 +39,9 @@ struct Operators {
   friend constexpr auto operator^(const LHS &a, const RHS &b);
 
   template <typename LHS, typename RHS>
-  friend constexpr Expression<DivideOp<typename LHS::value_type>, LHS, RHS> operator/(const LHS &a, const RHS &b);
+  friend constexpr Expression<DivideOp<typename LHS::value_type>, LHS, RHS>
+  operator/(const LHS &a, const RHS &b);
 };
-
-template <typename> class Variable;
-template <typename> class ProcVar;
 
 template <typename T> class Constant : public Operators {
   const T value;
@@ -127,3 +124,25 @@ constexpr auto operator^(const LHS &a, const RHS &b) {
 // #define PV(x) Variable(x)
 #define PV(x) Variable(x)
 #define PC(x) Constant(x)
+
+#define DEFINE_CONST_UDL(type, suffix)                                         \
+  constexpr Constant<type> operator"" _##suffix(unsigned long long val) {      \
+    return Constant<type>{static_cast<type>(val)};                             \
+  }                                                                            \
+  constexpr Constant<type> operator"" _##suffix(long double val) {             \
+    return Constant<type>{static_cast<type>(val)};                             \
+  }
+
+#define DEFINE_VAR_UDL(type, suffix)                                           \
+  constexpr Variable<type> operator"" _##suffix(unsigned long long val) {      \
+    return Variable<type>{static_cast<type>(val)};                             \
+  }                                                                            \
+  constexpr Variable<type> operator"" _##suffix(long double val) {             \
+    return Variable<type>{static_cast<type>(val)};                             \
+  }
+
+DEFINE_CONST_UDL(int, ci)
+DEFINE_CONST_UDL(double, cd)
+
+DEFINE_VAR_UDL(int, vi)
+DEFINE_VAR_UDL(double, vd)

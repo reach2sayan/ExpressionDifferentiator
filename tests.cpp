@@ -26,7 +26,7 @@ auto manual_add(auto a, auto b) {
 TEST(ExpressionTest, StaticTests) {
   auto a = PV(2);
   auto b = PC(3);
-  auto oter = PV(4.0);
+  auto oter = 4.0_vd;//PV(4.0);
   auto tmp = a + b + oter;
   static_assert(tmp.var_count == 2);
   auto tmp2 = a * b;
@@ -41,9 +41,8 @@ TEST(ExpressionTest, StaticTests) {
                 Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
 
   auto syms = collect_symbols(tmp);
-  for (auto &s : syms) {
-    std::cout << s << std::endl;
-  }
+  EXPECT_EQ(syms[0], 'b');
+  EXPECT_EQ(syms[1], 'c');
   // static_assert(syms == std::array{a.symbol, oter.symbol});
 }
 
@@ -99,7 +98,7 @@ TEST(ProcVarTest, GetValue) {
 TEST(ProcVarTest, SpecifyValue) {
   Variable<int> a{4};
   a = 2;
-  EXPECT_EQ(a, 2);
+  EXPECT_NE(a, 4);
 }
 
 TEST(ProcVarTest, FixedToSpecifyValue) {

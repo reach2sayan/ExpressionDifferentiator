@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include <functional>
 #include <cmath>
+#include <functional>
 #include <utility>
 
 template <typename Op, typename LHS, typename RHS> class Expression;
@@ -49,7 +49,7 @@ struct BinaryOp : Op<T, OpType::Binary> {
   }
 };
 
-template <typename Op> struct Derivative {
+template <typename Op> [[deprecated]] struct Derivative {
   constexpr static size_t count = [](OpType op) {
     return std::to_underlying(op) + 1;
   }(Op::op_type);

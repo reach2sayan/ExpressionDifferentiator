@@ -7,7 +7,7 @@
 
 
 template <typename T> class ProcVar {
-  [[deprecated("Use values.hpp instead")]];
+  [[deprecated("Use ProcessVar instead")]];
 };
 
 #define DEPRECATED_PROCVAR 1
@@ -107,4 +107,5 @@ constexpr auto operator^(const Expression1 &a, const Expression2 &b) {
   return Exp<T>(a, b);
 }
 #endif
+
 #endif // PROCVAR_HPP
