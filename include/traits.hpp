@@ -51,20 +51,6 @@ template <char symbol, typename T>
 using replace_matching_variable_t =
     typename replace_matching_variable<symbol, T>::type;
 
-template <typename Expr> consteval std::size_t count_symbols(const Expr &) {
-  return 0;
-}
-
-template <typename T> consteval std::size_t count_symbols(const Variable<T> &) {
-  return 1;
-}
-
-template <typename Op, typename LHS, typename RHS>
-constexpr std::size_t count_symbols(const Expression<Op, LHS, RHS> &expr) {
-  return count_symbols(expr.expressions().first) +
-         count_symbols(expr.expressions().second);
-}
-
 template <typename Expr, std::size_t N>
 constexpr void collect_symbols_impl(const Expr &, std::array<char, N> &,
                                     std::size_t &) {}

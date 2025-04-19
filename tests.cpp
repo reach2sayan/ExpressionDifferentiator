@@ -101,6 +101,12 @@ TEST(ProcVarTest, SpecifyValue) {
   EXPECT_NE(a, 4);
 }
 
+TEST(ProcVarTest, UdlCompAndAssign) {
+  Variable<int> a{4};
+  auto b = 4_vi;
+  EXPECT_EQ(a, b);
+}
+
 TEST(ProcVarTest, FixedToSpecifyValue) {
   Variable<int> a{4};
   a = 2;

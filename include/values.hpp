@@ -121,7 +121,6 @@ constexpr auto operator^(const LHS &a, const RHS &b) {
   return Exp<value_type>(a, b);
 }
 
-// #define PV(x) Variable(x)
 #define PV(x) Variable(x)
 #define PC(x) Constant(x)
 
