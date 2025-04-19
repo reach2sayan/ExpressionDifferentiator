@@ -140,6 +140,5 @@ constexpr auto operator^(const LHS &a, const RHS &b) {
 
 DEFINE_CONST_UDL(int, ci)
 DEFINE_CONST_UDL(double, cd)
-
 DEFINE_VAR_UDL(int, vi, 'c')
 DEFINE_VAR_UDL(double, vd, 'v')
