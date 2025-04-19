@@ -84,17 +84,72 @@ auto replace_variable(const MonoExpression<Op, LHS> &expr)
 }
 
 template <typename T, char C, std::size_t N>
-void collect_vars_array(const Variable<T, C>&, std::array<char, N>& out, std::size_t& index) {
+void collect_vars_array(const Variable<T, C> &, std::array<char, N> &out,
+                        std::size_t &index) {
   out[index++] = C;
 }
 
 template <typename T, std::size_t N>
-void collect_vars_array(const Constant<T>&, std::array<char, N>&, std::size_t&) {
+void collect_vars_array(const Constant<T> &, std::array<char, N> &,
+                        std::size_t &) {
   // no-op
 }
 
 template <typename Op, typename LHS, typename RHS, std::size_t N>
-void collect_vars_array(const Expression<Op, LHS, RHS>& expr, std::array<char, N>& out, std::size_t& index) {
+void collect_vars_array(const Expression<Op, LHS, RHS> &expr,
+                        std::array<char, N> &out, std::size_t &index) {
   collect_vars_array(expr.expressions().first, out, index);
   collect_vars_array(expr.expressions().second, out, index);
+}
+
+template <char symbol, typename Expr> struct constify_unmatched_var;
+
+template <char symbol, typename T>
+struct constify_unmatched_var<symbol, Variable<T, symbol>> {
+  using type = Variable<T, symbol>;
+};
+
+template <char symbol, typename T, char othersymbol>
+struct constify_unmatched_var<symbol, Variable<T, othersymbol>> {
+  using type = Constant<T>;
+};
+
+template <char symbol, typename T>
+struct constify_unmatched_var<symbol, Constant<T>> {
+  using type = Constant<T>;
+};
+
+template <char symbol, typename Op, typename LHS, typename RHS>
+struct constify_unmatched_var<symbol, Expression<Op, LHS, RHS>> {
+  using type =
+      Expression<Op, typename constify_unmatched_var<symbol, LHS>::type,
+                 typename constify_unmatched_var<symbol, RHS>::type>;
+};
+
+template <char symbol, typename Expr>
+using constify_unmatched_var_t =
+    typename constify_unmatched_var<symbol, Expr>::type;
+
+template <char symbol, typename T>
+constexpr auto transform_unmatched_var(const Variable<T, symbol> &v) {
+  return v;
+}
+
+template <char symbol, typename T, char othersymbol>
+constexpr auto transform_unmatched_var(const Variable<T, othersymbol> &var)
+    -> std::enable_if_t<(symbol != othersymbol), Constant<T>> {
+  return Constant<T>{var};
+}
+
+template <char Symbol, typename T>
+constexpr auto transform_unmatched_var(const Constant<T> &c) {
+  return c;
+}
+
+template <char symbol, typename Op, typename LHS, typename RHS>
+constexpr auto transform_unmatched_var(const Expression<Op, LHS, RHS> &expr)
+    -> constify_unmatched_var_t<symbol, Expression<Op, LHS, RHS>> {
+  auto new_lhs = transform_unmatched_var<symbol>(expr.expressions().first);
+  auto new_rhs = transform_unmatched_var<symbol>(expr.expressions().second);
+  return {new_lhs, new_rhs};
 }

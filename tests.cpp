@@ -126,11 +126,14 @@ TEST(ProcVarTest, FixedToSpecifyValue) {
 
 TEST(EquationTest, SetUpBasic) {
   constexpr auto a = 1_ci;
-  constexpr auto b = 2_vi;
-  constexpr auto c = 3_vi;
+  constexpr Variable<int,'x'> b{2};
+  constexpr Variable<int,'y'> c{3};
   constexpr auto sum_exp = a * b * c;
   constexpr Equation eq{sum_exp};
   auto arr = collect_vars(eq.get_expression());
-  for (auto c: arr)
-    std::cout << c << std::endl;
+  auto arr2 = transform_unmatched_var<'y'>(sum_exp);
+  auto arr3 = transform_unmatched_var<'x'>(sum_exp);
+  std::cout << sum_exp << "\n";
+  std::cout << arr2 << "\n";
+  std::cout << arr3 << "\n";
 }
