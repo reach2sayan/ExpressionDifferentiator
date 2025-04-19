@@ -56,7 +56,10 @@ constexpr auto replace_variable(const Variable<T, symbol> &var) {
 
 template <char symbol, typename T, char othersymbol>
 constexpr auto replace_variable(const Variable<T, othersymbol> &var)
-    -> std::enable_if_t<(symbol != othersymbol), Variable<T, othersymbol>> {
+    -> std::enable_if_t<(symbol != othersymbol),
+                        Variable<T, othersymbol>> { // without the enable_if_t
+                                                    // it is ambiguous for two
+                                                    // variables with same label
   return var;
 }
 
@@ -78,4 +81,20 @@ template <char symbol, typename Op, typename LHS>
 auto replace_variable(const MonoExpression<Op, LHS> &expr)
     -> MonoExpression<Op, replace_matching_variable_t<symbol, LHS>> {
   return {replace_variable<symbol>(expr.expressions())};
+}
+
+template <typename T, char C, std::size_t N>
+void collect_vars_array(const Variable<T, C>&, std::array<char, N>& out, std::size_t& index) {
+  out[index++] = C;
+}
+
+template <typename T, std::size_t N>
+void collect_vars_array(const Constant<T>&, std::array<char, N>&, std::size_t&) {
+  // no-op
+}
+
+template <typename Op, typename LHS, typename RHS, std::size_t N>
+void collect_vars_array(const Expression<Op, LHS, RHS>& expr, std::array<char, N>& out, std::size_t& index) {
+  collect_vars_array(expr.expressions().first, out, index);
+  collect_vars_array(expr.expressions().second, out, index);
 }

@@ -6,6 +6,7 @@
 #include "procvar.hpp"
 #include "traits.hpp"
 #include "values.hpp"
+#include "equation.hpp"
 #include <gtest/gtest.h>
 
 TEST(ExpressionTest, StaticTests) {
@@ -25,7 +26,6 @@ TEST(ExpressionTest, StaticTests) {
   auto res = x * y + c;
   auto res2 = replace_variable<'c'>(res);
   ASSERT_EQ(res2, res);
-
 }
 
 TEST(ExpressionTest, SumTest) {
@@ -122,4 +122,15 @@ TEST(ProcVarTest, FixedToSpecifyValue) {
   Variable<int,'a'> a{4};
   a = 2;
   ASSERT_EQ(a, 2);
+}
+
+TEST(EquationTest, SetUpBasic) {
+  constexpr auto a = 1_ci;
+  constexpr auto b = 2_vi;
+  constexpr auto c = 3_vi;
+  constexpr auto sum_exp = a * b * c;
+  constexpr Equation eq{sum_exp};
+  auto arr = collect_vars(eq.get_expression());
+  for (auto c: arr)
+    std::cout << c << std::endl;
 }
