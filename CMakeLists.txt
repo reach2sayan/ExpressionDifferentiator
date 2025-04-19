@@ -49,5 +49,5 @@ target_include_directories(tests PRIVATE
         ${mdspan_SOURCE_DIR}/include
         ${generator_SOURCE_DIR}/include)
 
-add_test(NAME alltest COMMAND tests)
+add_test(NAME tests COMMAND tests)
 enable_testing()

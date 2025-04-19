@@ -46,7 +46,6 @@ template <typename> class ProcVar;
 
 template <typename T> class Constant : public Operators {
   const T value;
-  const bool fixed;
   friend std::ostream &operator<<(std::ostream &out, const Constant<T> &c) {
     return out << std::to_string(c.value) << std::string_view{"_c"};
   }
@@ -54,7 +53,7 @@ template <typename T> class Constant : public Operators {
 public:
   using value_type = T;
   constexpr static size_t var_count = 0;
-  constexpr explicit Constant(T value) : value(value), fixed(true) {}
+  constexpr explicit Constant(T value) : value(value) {}
   constexpr operator T() const { return value; }
   constexpr auto eval() const { return value; }
   constexpr auto derivative() const { return Constant{T{}}; }
@@ -62,16 +61,15 @@ public:
 
 template <typename T> class Variable : public Operators {
   T value;
-  const bool fixed;
-  char symbol;
   friend std::ostream &operator<<(std::ostream &out, const Variable<T> &c) {
     return out << std::to_string(c.value) << "_" << c.symbol;
   }
 
 public:
   using value_type = T;
+  const char symbol;
   constexpr static size_t var_count = 1;
-  constexpr explicit Variable(T value) : value(value), fixed(false), symbol(cgenerator()) {}
+  constexpr explicit Variable(T value) : value(value), symbol(cgenerator()) {}
   constexpr T eval() const { return value; }
   constexpr operator T() const { return value; }
   template <typename U> constexpr void set(U &&value) {
