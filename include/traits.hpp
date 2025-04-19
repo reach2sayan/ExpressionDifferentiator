@@ -15,13 +15,15 @@ template <typename T, char symbol = 'X'> struct make_all_constant {
   using type = T;
 };
 
-template <typename T, char symbol> struct make_all_constant<Variable<T, symbol>> {
+template <typename T, char symbol>
+struct make_all_constant<Variable<T, symbol>> {
   using type = Constant<T>;
 };
 
 template <typename Op, typename... TExpressions>
 struct make_all_constant<Expression<Op, TExpressions...>> {
-  using type = Expression<Op, typename make_all_constant<TExpressions>::type...>;
+  using type =
+      Expression<Op, typename make_all_constant<TExpressions>::type...>;
 };
 
 template <typename TExpression>
@@ -87,19 +89,19 @@ constexpr auto make_const_variable(const MonoExpression<Op, LHS> &expr)
 
 template <typename T, char C, std::size_t N>
 void make_labels_array(const Variable<T, C> &, std::array<char, N> &out,
-                        std::size_t &index) {
+                       std::size_t &index) {
   out[index++] = C;
 }
 
 template <typename T, std::size_t N>
 void make_labels_array(const Constant<T> &, std::array<char, N> &,
-                        std::size_t &) {
+                       std::size_t &) {
   // no-op
 }
 
 template <typename Op, typename LHS, typename RHS, std::size_t N>
 void make_labels_array(const Expression<Op, LHS, RHS> &expr,
-                        std::array<char, N> &out, std::size_t &index) {
+                       std::array<char, N> &out, std::size_t &index) {
   make_labels_array(expr.expressions().first, out, index);
   make_labels_array(expr.expressions().second, out, index);
 }

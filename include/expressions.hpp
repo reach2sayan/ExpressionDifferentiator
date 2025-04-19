@@ -37,7 +37,6 @@ template <typename Op, typename Exp>
 constexpr MonoExpression<Op, Exp>::MonoExpression(Exp expr)
     : expression{std::move(expr)} {}
 
-
 template <typename Op, typename LHS, typename RHS>
 class Expression : public BaseExpression<Op> {
   std::pair<LHS, RHS> inner_expressions;

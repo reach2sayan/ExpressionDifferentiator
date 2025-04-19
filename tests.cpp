@@ -2,23 +2,25 @@
 // Created by sayan on 4/13/25.
 //
 
+#include "equation.hpp"
 #include "operations.hpp"
 #include "procvar.hpp"
 #include "traits.hpp"
 #include "values.hpp"
-#include "equation.hpp"
 #include <gtest/gtest.h>
 
 TEST(ExpressionTest, StaticTests) {
-  static_assert(std::is_same_v<
-                as_const_expression<
-                    Expression<MultiplyOp<int>, Variable<int,'x'>, Constant<int>>>,
-                Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
+  static_assert(
+      std::is_same_v<
+          as_const_expression<
+              Expression<MultiplyOp<int>, Variable<int, 'x'>, Constant<int>>>,
+          Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
 
-  static_assert(std::is_same_v<
-                as_const_expression<
-                    Expression<MultiplyOp<int>, Variable<int,'x'>, Variable<int,'y'>>>,
-                Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
+  static_assert(
+      std::is_same_v<
+          as_const_expression<Expression<MultiplyOp<int>, Variable<int, 'x'>,
+                                         Variable<int, 'y'>>>,
+          Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
 
   auto x = 4_vi;
   auto y = 2_vi;
@@ -107,30 +109,30 @@ TEST(ProcVarTest, GetValue) {
 }
 
 TEST(ProcVarTest, SpecifyValue) {
-  Variable<int,'a'> a{4};
+  Variable<int, 'a'> a{4};
   a = 2;
   ASSERT_NE(a, 4);
 }
 
 TEST(ProcVarTest, UdlCompAndAssign) {
-  Variable<int,'a'> a{4};
+  Variable<int, 'a'> a{4};
   auto b = 4_vi;
   ASSERT_EQ(a, b);
 }
 
 TEST(ProcVarTest, FixedToSpecifyValue) {
-  Variable<int,'a'> a{4};
+  Variable<int, 'a'> a{4};
   a = 2;
   ASSERT_EQ(a, 2);
 }
 
 TEST(EquationTest, SetUpBasic) {
   constexpr auto a = 1_ci;
-  constexpr Variable<int,'x'> b{2};
-  constexpr Variable<int,'y'> c{3};
+  constexpr Variable<int, 'x'> b{2};
+  constexpr Variable<int, 'y'> c{3};
   constexpr auto sum_exp = a * b * c;
   constexpr Equation eq{sum_exp};
-  auto arr = collect_vars(eq.get_expression());
+  auto arr = collect_variable_labels(eq.get_expression());
   auto arr2 = make_all_constant_except<'y'>(sum_exp);
   auto arr3 = make_all_constant_except<'x'>(sum_exp);
   std::cout << sum_exp << "\n";

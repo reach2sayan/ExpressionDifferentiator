@@ -17,10 +17,10 @@ template <typename> class ProcVar {
 #include <utility>
 #include <variant>
 
-#define VALUE_TYPE_MISMATCH_ASSERT(T, U) \
-static_assert(std::is_same_v<typename T::value_type, \
-                             typename U::value_type>, \
-              "Both expressions must have the same value type");
+#define VALUE_TYPE_MISMATCH_ASSERT(T, U)                                       \
+  static_assert(                                                               \
+      std::is_same_v<typename T::value_type, typename U::value_type>,          \
+      "Both expressions must have the same value type");
 
 template <typename T> using var_type = std::variant<Variable<T>, Constant<T>>;
 struct VariableTag {};
@@ -98,8 +98,7 @@ template <typename Expression1, typename Expression2>
 constexpr auto operator-(const Expression1 &a, const Expression2 &b) {
   VALUE_TYPE_MISMATCH_ASSERT(Expression1, Expression2);
   using value_type = typename Expression1::value_type;
-  return Sum<value_type>(
-      a, Multiply<value_type>(Constant(-1), b));
+  return Sum<value_type>(a, Multiply<value_type>(Constant(-1), b));
 }
 template <typename T, typename Expression1, typename Expression2>
 constexpr auto operator^(const Expression1 &a, const Expression2 &b) {

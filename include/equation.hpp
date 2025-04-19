@@ -3,31 +3,65 @@
 //
 
 #pragma once
-#include "operations.hpp"
 #include "expressions.hpp"
+#include "operations.hpp"
 #include "traits.hpp"
+#include <ranges>
+#include <array>
+#include <tuple>
 
-template <typename TExpression> class Equation {
-  TExpression expression;
-  friend constexpr auto collect_vars(const TExpression& expr);
-  //std::array<TExpression, NUMVAR> derivatives;
-public:
-  using value_type = typename TExpression::value_type;
-  constexpr static size_t NUMVAR = TExpression::var_count;
-  constexpr operator value_type() const { return expression; }
-  constexpr const TExpression& get_expression() const { return expression; }
-  constexpr Equation(TExpression e) : expression{std::move(e)} {}
-};
-
-template <typename TExpression>
-constexpr auto construct_derivatives(const TExpression &e) {
-  constexpr auto numvar = TExpression::var_count;
-  for (size_t i = 0; i < numvar; ++i) {
-  }
+template <typename T, std::size_t N, std::size_t... Is>
+constexpr std::array<T, N> make_filled_array_impl(const T& value, std::index_sequence<Is...>) {
+  return { ((void)Is, value)... };
 }
 
+// Public API
+template <typename T, std::size_t N>
+constexpr std::array<T, N> make_filled_array(const T& value) {
+  return make_filled_array_impl<T, N>(value, std::make_index_sequence<N>{});
+}
+
+
 template <typename TExpression>
-constexpr auto collect_vars(const TExpression &expression) {
+constexpr auto construct_derivatives(const TExpression &e);
+
+template <typename TExpression>
+constexpr auto collect_variable_labels(const TExpression &expression);
+
+template <typename TExpression> class Equation {
+public:
+  constexpr static size_t var_count = std::decay_t<TExpression>::var_count;
+private:
+  TExpression expression;
+  //std::array<TExpression, var_count> derivatives;
+public:
+  using value_type = typename TExpression::value_type;
+
+  constexpr operator value_type() const { return expression; }
+  constexpr const TExpression &get_expression() const { return expression; }
+
+  template <typename TTExpression>
+  constexpr Equation(TTExpression &&e)
+      : expression{std::forward<TTExpression>(e)} {}
+      //  derivatives{construct_derivatives(e)} {}
+};
+
+template <typename T> Equation(T &&) -> Equation<std::decay_t<T>>;
+
+/*
+template <typename TExpression>
+constexpr auto construct_derivatives(const TExpression &e) {
+  auto labels = collect_variable_labels(e);
+  auto derivatives = make_filled_array<std::decay_t<TExpression>, labels.size()>(e);
+  size_t i = 0;
+  for (auto label : labels) {
+    derivatives[i++] = make_all_constant_except<label>(e);
+  }
+  return derivatives;
+}*/
+
+template <typename TExpression>
+constexpr auto collect_variable_labels(const TExpression &expression) {
   constexpr std::size_t N = TExpression::var_count;
   std::array<char, N> result{};
   std::size_t index = 0;
