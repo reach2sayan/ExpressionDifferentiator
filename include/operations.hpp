@@ -137,8 +137,9 @@ template <typename LHS, typename RHS>
 constexpr auto DivideOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
   auto num_l = Multiply<T>(lhs.derivative(), rhs); // f'(x)g(x)
   auto num_r = Multiply<T>(lhs, rhs.derivative()); // f(x) * g'(x)
-  auto numerator = Minus<T>(std::move(num_l), std::move(num_r)); // f'(x)g(x) - f(x)g'(x)
-  auto denominator = Multiply<T>(rhs, rhs); // g(x)^2
+  auto numerator =
+      Minus<T>(std::move(num_l), std::move(num_r)); // f'(x)g(x) - f(x)g'(x)
+  auto denominator = Multiply<T>(rhs, rhs);         // g(x)^2
   return Divide<T>(std::move(numerator), std::move(denominator));
 }
 

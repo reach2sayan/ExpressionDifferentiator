@@ -77,10 +77,6 @@ TEST(ExpressionTest, DivideTest) {
   auto b = 2.0_cd;
   auto divide = a / b;
   auto d = divide.derivative();
-  std::cout << divide << "\n";
-  std::cout << divide.eval() << "\n";
-  std::cout << d << "\n";
-  std::cout << d.eval();
   EXPECT_EQ(divide, 2.0);
   EXPECT_EQ(d, 0.5);
 }

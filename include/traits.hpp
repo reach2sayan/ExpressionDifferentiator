@@ -17,10 +17,9 @@ template <typename T> struct make_constant<Variable<T>> {
   using type = Constant<T>;
 };
 
-template <typename Op, typename LHS, typename RHS>
-struct make_constant<Expression<Op, LHS, RHS>> {
-  using type = Expression<Op, typename make_constant<LHS>::type,
-                          typename make_constant<RHS>::type>;
+template <typename Op, typename... TExpressions>
+struct make_constant<Expression<Op, TExpressions...>> {
+  using type = Expression<Op, typename make_constant<TExpressions>::type...>;
 };
 
 template <typename TExpression>
@@ -40,11 +39,10 @@ struct replace_matching_variable<symbol, Variable<T>> {
                                   Variable<T>>;
 };
 
-template <char symbol, typename Op, typename LHS, typename RHS>
-struct replace_matching_variable<symbol, Expression<Op, LHS, RHS>> {
-  using type =
-      Expression<Op, typename replace_matching_variable<symbol, LHS>::type,
-                 typename replace_matching_variable<symbol, RHS>::type>;
+template <char symbol, typename Op, typename... TExpressions>
+struct replace_matching_variable<symbol, Expression<Op, TExpressions...>> {
+  using type = Expression<
+      Op, typename replace_matching_variable<symbol, TExpressions>::type...>;
 };
 
 template <char symbol, typename T>
@@ -66,6 +64,12 @@ constexpr void collect_symbols_impl(const Expression<Op, LHS, RHS> &expr,
                                     std::array<char, N> &out, std::size_t &i) {
   collect_symbols_impl(expr.expressions().first, out, i);
   collect_symbols_impl(expr.expressions().second, out, i);
+}
+
+template <typename Op, typename Expr, std::size_t N>
+constexpr void collect_symbols_impl(const MonoExpression<Op, Expr> &expr,
+                                    std::array<char, N> &out, std::size_t &i) {
+  collect_symbols_impl(expr.expressions(), out, i);
 }
 
 template <typename Expr> constexpr auto collect_symbols(const Expr &expr) {
