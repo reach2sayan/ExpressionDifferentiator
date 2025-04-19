@@ -26,7 +26,7 @@ auto manual_add(auto a, auto b) {
 TEST(ExpressionTest, StaticTests) {
   auto a = PV(2);
   auto b = PC(3);
-  auto oter = 4.0_vd;//PV(4.0);
+  auto oter = 4.0_vd; // PV(4.0);
   auto tmp = a + b + oter;
   static_assert(tmp.var_count == 2);
   auto tmp2 = a * b;
@@ -68,20 +68,21 @@ TEST(ExpressionTest, SubtractTest) {
   auto c = 3_ci;
   auto minus = a - b;
   auto d = minus.derivative();
-  std::cout << minus << "\n";
-  std::cout << d << "\n";
-  std::cout << d.eval();
   EXPECT_EQ(minus, -1);
   EXPECT_EQ(d, -1);
 }
 
 TEST(ExpressionTest, DivideTest) {
-  auto a = 4.0_cd;
+  auto a = 4.0_vd;
   auto b = 2.0_cd;
   auto divide = a / b;
   auto d = divide.derivative();
+  std::cout << divide << "\n";
+  std::cout << divide.eval() << "\n";
+  std::cout << d << "\n";
+  std::cout << d.eval();
   EXPECT_EQ(divide, 2.0);
-  EXPECT_EQ(d, 2);
+  EXPECT_EQ(d, 0.5);
 }
 
 TEST(ExpressionTest, ExpTest) {
@@ -114,16 +115,16 @@ TEST(ExpressionTest, VariableTest) {
 }
 
 TEST(ExpressionTest, DerivativeTest) {
-  Variable x{4};
-  auto expr = Multiply<int>(Variable<int>(x), Constant<int>(2));
-  auto target = Constant<int>(8);
+  auto x = 4_vi;
+  auto expr = x * 2_ci;
+  auto target = 8_ci;
   auto derv = expr.derivative();
   EXPECT_EQ(expr, target);
   EXPECT_EQ(derv, 2);
 }
 
 TEST(ProcVarTest, GetValue) {
-  Variable<int> a{2};
+  auto a = 2_vi;
   EXPECT_EQ(a, 2);
 }
 

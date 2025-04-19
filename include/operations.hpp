@@ -17,6 +17,7 @@ enum class OpType : short {
   Unary = 0,
   Binary = 1,
 };
+using ExpressionType = OpType;
 
 template <typename T> using unary_op_func = T(const T &);
 template <typename T> using binary_op_func = T(const T &, const T &);
@@ -103,8 +104,8 @@ struct MultiplyOp
 template <typename T>
 template <typename LHS, typename RHS>
 constexpr auto MultiplyOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
-  auto lmul = Multiply<T>(lhs.derivative(), rhs);
-  auto rmul = Multiply<T>(lhs, rhs.derivative());
+  auto lmul = Multiply<T>(lhs.derivative(), rhs); // f'(x)g(x)
+  auto rmul = Multiply<T>(lhs, rhs.derivative()); // f(x)g'(x)
   return Sum<T>(std::move(lmul), std::move(rmul));
 }
 
@@ -134,15 +135,10 @@ constexpr inline auto Multiply(LHS lhs, RHS rhs) {
 template <typename T>
 template <typename LHS, typename RHS>
 constexpr auto DivideOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
-  auto numerator_left = Multiply<T>(lhs.derivative(), rhs);
-  auto numerator_right = Multiply<T>(lhs, rhs.derivative());
-  auto zero = T{};
-  auto negative_one = std::move(--zero);
-  auto numerator = Sum<T>(
-      std::move(numerator_left),
-      Multiply<T>(Constant<T>(negative_one), std::move(numerator_right)));
-  auto denominator = Multiply<T>(rhs, rhs); // g²
-
+  auto num_l = Multiply<T>(lhs.derivative(), rhs); // f'(x)g(x)
+  auto num_r = Multiply<T>(lhs, rhs.derivative()); // f(x) * g'(x)
+  auto numerator = Minus<T>(std::move(num_l), std::move(num_r)); // f'(x)g(x) - f(x)g'(x)
+  auto denominator = Multiply<T>(rhs, rhs); // g(x)^2
   return Divide<T>(std::move(numerator), std::move(denominator));
 }
 
@@ -158,7 +154,8 @@ constexpr inline auto Divide(LHS lhs, RHS rhs) {
 template <typename T, typename LHS, typename RHS>
 constexpr inline auto Minus(LHS lhs, RHS rhs) {
   auto neg = MonoExpression<NegateOp<T>, RHS>(std::move(rhs));
-  return Expression<SumOp<T>, LHS, decltype(neg)>{std::move(lhs), std::move(neg)};
+  return Expression<SumOp<T>, LHS, decltype(neg)>{std::move(lhs),
+                                                  std::move(neg)};
 }
 
 template <typename T, typename LHS, typename RHS>
