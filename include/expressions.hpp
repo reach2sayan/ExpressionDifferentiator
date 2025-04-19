@@ -33,6 +33,11 @@ public:
   constexpr auto eval() const { return Op::eval(expression); }
 };
 
+template <typename Op, typename Exp>
+constexpr MonoExpression<Op, Exp>::MonoExpression(Exp expr)
+    : expression{std::move(expr)} {}
+
+
 template <typename Op, typename LHS, typename RHS>
 class Expression : public BaseExpression<Op> {
   std::pair<LHS, RHS> inner_expressions;
@@ -56,10 +61,6 @@ public:
   constexpr operator value_type() const { return eval(); }
   constexpr auto derivative() const;
 };
-
-template <typename Op, typename Exp>
-constexpr MonoExpression<Op, Exp>::MonoExpression(Exp expr)
-    : expression{std::move(expr)} {}
 
 template <typename Op, typename LHS, typename RHS>
 constexpr Expression<Op, LHS, RHS>::Expression(LHS lhs, RHS rhs)

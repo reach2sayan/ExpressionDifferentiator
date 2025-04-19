@@ -48,13 +48,13 @@ template <typename T> class Constant : public Operators {
   friend std::ostream &operator<<(std::ostream &out, const Constant<T> &c) {
     return out << std::to_string(c.value) << std::string_view{"_c"};
   }
+  constexpr auto eval() const { return value; }
 
 public:
   using value_type = T;
   constexpr static size_t var_count = 0;
   constexpr explicit Constant(T value) : value(value) {}
   constexpr operator T() const { return value; }
-  constexpr auto eval() const { return value; }
   constexpr auto derivative() const { return Constant{T{}}; }
 };
 
@@ -63,19 +63,16 @@ template <typename T> class Variable : public Operators {
   friend std::ostream &operator<<(std::ostream &out, const Variable<T> &c) {
     return out << std::to_string(c.value) << "_" << c.symbol;
   }
-  static inline size_t static_counter = 0;
+  static constexpr inline size_t static_counter = 0;
+  constexpr T eval() const { return value; }
 
 public:
   using value_type = T;
   const char symbol;
   constexpr static size_t var_count = 1;
-
-  constexpr explicit Variable(T value) : value(value), symbol(cgenerator()) {}
-  constexpr T eval() const { return value; }
+  constexpr explicit Variable(T value) : value(value), symbol(cgenerator())
+  {}
   constexpr operator T() const { return value; }
-  template <typename U> constexpr void set(U &&value) {
-    value = std::forward<U>(value);
-  }
   constexpr decltype(auto) operator=(T v) {
     value = std::move(v);
     return *this;
