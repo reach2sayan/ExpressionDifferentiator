@@ -11,8 +11,6 @@ std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
 std::array<int, 16> data2 = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
 
-// #define PV(x) ProcVar(x, VariableTag{})
-
 int main() {
   matrix<int, 4, 4> m1(data1);
   matrix<int, 4, 4> m2(data2);
@@ -36,6 +34,10 @@ int main() {
   auto tmp = a + b + oter;
   static_assert(tmp.var_count == 2);
   auto tmp2 = a * b;
+  auto tmp3 = a / b;
+  std::cout << tmp3 << std::endl;
+  std::cout << tmp3.derivative() << std::endl;
+  std::cout << tmp3.eval() << std::endl;
   ProcVar<int> fc;
   std::cout << tmp << std::endl;
   std::cout << tmp.derivative() << std::endl;
@@ -43,7 +45,7 @@ int main() {
 
   std::cout << tmp2 << std::endl;
   std::cout << tmp2.derivative() << std::endl;
-  std::cout << tmp2.eval() << std::endl;
+  std::cout << tmp3.eval() << std::endl;
 
   Equation e(tmp);
   std::cout << (int)e << std::endl;

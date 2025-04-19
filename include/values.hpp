@@ -3,6 +3,8 @@
 //
 
 #pragma once
+template <typename T>
+struct DivideOp;
 
 #define VALUE_TYPE_MISMATCH_ASSERT(T, U)                                       \
   static_assert(                                                               \
@@ -36,6 +38,9 @@ struct Operators {
 
   template <typename LHS, typename RHS>
   friend constexpr auto operator^(const LHS &a, const RHS &b);
+
+  template <typename LHS, typename RHS>
+  friend constexpr Expression<DivideOp<typename LHS::value_type>, LHS, RHS> operator/(const LHS &a, const RHS &b);
 };
 
 template <typename> class Variable;
@@ -103,9 +108,20 @@ constexpr auto operator-(const LHS &a, const RHS &b) {
   using value_type = typename LHS::value_type;
   return Sum<value_type>(a, Multiply<value_type>(Constant(-1), b));
 }
+
+template <typename LHS, typename RHS>
+constexpr Expression<DivideOp<typename LHS::value_type>, LHS, RHS>
+operator/(const LHS &a, const RHS &b) {
+  VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
+  using value_type = typename LHS::value_type;
+  return Divide<value_type>(a, b);
+}
+
 template <typename T, typename LHS, typename RHS>
 constexpr auto operator^(const LHS &a, const RHS &b) {
-  return Exp<T>(a, b);
+  VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
+  using value_type = typename LHS::value_type;
+  return Exp<value_type>(a, b);
 }
 
 // #define PV(x) Variable(x)
