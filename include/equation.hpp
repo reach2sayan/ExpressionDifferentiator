@@ -17,7 +17,7 @@ public:
 
 template <typename TExpression>
 constexpr auto construct_derivatives(const TExpression &e) {
-  auto numvar = TExpression::var_count;
+  constexpr auto numvar = TExpression::var_count;
   for (size_t i = 0; i < numvar; ++i) {
   }
 }

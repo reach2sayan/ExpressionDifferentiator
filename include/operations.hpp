@@ -52,12 +52,6 @@ struct BinaryOp : Op<T, OpType::Binary> {
   }
 };
 
-template <typename Op> [[deprecated]] struct Derivative {
-  constexpr static size_t count = [](OpType op) {
-    return std::to_underlying(op) + 1;
-  }(Op::op_type);
-};
-
 template <typename T>
 struct ExpOp
     : BinaryOp<T, [](const T &a, const T &b) -> T { return std::pow(a, b); },
@@ -66,8 +60,16 @@ struct ExpOp
   constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
 
-static_assert(ExpOp<int>::op_type == OpType::Binary);
+#define DEPRECATED_DERIVATIVE 1
+#if !defined(DEPRECATED_DERIVATIVE)
+template <typename Op> [[deprecated]] struct Derivative {
+  constexpr static size_t count = [](OpType op) {
+    return std::to_underlying(op) + 1;
+  }(Op::op_type);
+};
 static_assert(Derivative<ExpOp<int>>::count == 2);
+#endif
+static_assert(ExpOp<int>::op_type == OpType::Binary);
 
 template <typename T>
 struct SumOp
