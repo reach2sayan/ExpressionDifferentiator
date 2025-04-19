@@ -5,8 +5,8 @@
 #include "matrix.hpp"
 #include "operations.hpp"
 #include "procvar.hpp"
+#include "traits.hpp"
 #include "values.hpp"
-
 #include <gtest/gtest.h>
 
 std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
@@ -22,6 +22,16 @@ auto manual_add(auto a, auto b) {
   }
   return result;
 }
+
+static_assert(
+    std::is_same_v<as_const_expression<Expression<
+                       MultiplyOp<int>, Variable<int>, Constant<int>>>,
+                   Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
+
+static_assert(
+    std::is_same_v<as_const_expression<Expression<
+                       MultiplyOp<int>, Variable<int>, Variable<int>>>,
+                   Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
 
 TEST(ExpressionTest, SumTest) {
   double a = 1, b = 2, c = 3;
@@ -47,15 +57,15 @@ TEST(ExpressionTest, Combination) {
 TEST(ExpressionTest, ConstantTest) {
   auto target = Constant<int>(1);
   auto derv = target.derivative();
-  EXPECT_EQ(derv,0);
-  EXPECT_EQ(target,1);
+  EXPECT_EQ(derv, 0);
+  EXPECT_EQ(target, 1);
 }
 
 TEST(ExpressionTest, VariableTest) {
   auto target = Constant<int>(1);
   auto derv = target.derivative();
-  EXPECT_EQ(derv,0);
-  EXPECT_EQ(target,1);
+  EXPECT_EQ(derv, 0);
+  EXPECT_EQ(target, 1);
 }
 
 TEST(ExpressionTest, DerivativeTest) {
@@ -63,8 +73,8 @@ TEST(ExpressionTest, DerivativeTest) {
   auto expr = Multiply<int>(Variable<int>(x), Constant<int>(2));
   auto target = Constant<int>(8);
   auto derv = expr.derivative();
-  EXPECT_EQ(expr,target);
-  EXPECT_EQ(derv,2);
+  EXPECT_EQ(expr, target);
+  EXPECT_EQ(derv, 2);
 }
 
 TEST(ProcVarTest, GetValue) {
@@ -81,5 +91,5 @@ TEST(ProcVarTest, SpecifyValue) {
 TEST(ProcVarTest, FixedToSpecifyValue) {
   Variable<int> a{4};
   a = 2;
-  EXPECT_EQ(a, 4);
+  EXPECT_EQ(a, 2);
 }

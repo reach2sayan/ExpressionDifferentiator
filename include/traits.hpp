@@ -7,6 +7,12 @@
 #include "expressions.hpp"
 #include "operations.hpp"
 
+template<typename T>
+constexpr static bool is_const = false;
+
+template<typename T>
+constexpr static bool is_const<Constant<T>> = true;
+
 template <typename T> struct make_constant {
   using type = T;
 };
@@ -22,16 +28,6 @@ struct make_constant<Expression<Op, LHS, RHS>> {
 };
 
 template <typename TExpression>
-using as_const_expression =
-    make_constant<Expression<typename TExpression::op_type, typename TExpression::lhs_type,
-                             typename TExpression::rhs_type>>::type;
-
-static_assert(
-    std::is_same_v<as_const_expression<Expression<
-                       MultiplyOp<int>, Variable<int>, Constant<int>>>,
-                   Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
-
-static_assert(
-    std::is_same_v<as_const_expression<Expression<
-                       MultiplyOp<int>, Variable<int>, Variable<int>>>,
-                   Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
+using as_const_expression = make_constant<
+    Expression<typename TExpression::op_type, typename TExpression::lhs_type,
+               typename TExpression::rhs_type>>::type;

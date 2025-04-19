@@ -30,9 +30,9 @@ public:
   constexpr auto derivative() const;
 };
 
-template <typename Op, typename LHS, typename E2>
-constexpr Expression<Op, LHS, E2>::Expression(LHS lhs, E2 e2)
-    : inner_expressions({std::move(lhs),std::move(e2)}) {}
+template <typename Op, typename LHS, typename RHS>
+constexpr Expression<Op, LHS, RHS>::Expression(LHS lhs, RHS rhs)
+    : inner_expressions({std::move(lhs),std::move(rhs)}) {}
 
 template <typename Op, typename LHS, typename RHS>
 constexpr auto Expression<Op, LHS, RHS>::eval() const {

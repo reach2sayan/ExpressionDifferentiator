@@ -22,14 +22,15 @@ FetchContent_MakeAvailable(googletest)
 FetchContent_MakeAvailable(mdspan)
 FetchContent_MakeAvailable(generator)
 
-add_library(expression_solver SHARED src/main.cpp
+add_library(expression_solver INTERFACE
         include/values.hpp
         include/operations.hpp
         include/procvar.hpp
         include/equation.hpp
-        include/traits.hpp)
+        include/traits.hpp
+)
 
-target_include_directories(expression_solver PRIVATE
+target_include_directories(expression_solver INTERFACE
         ${CMAKE_SOURCE_DIR}/include
         ${mdspan_SOURCE_DIR}/include
         ${generator_SOURCE_DIR}/include)
@@ -48,5 +49,5 @@ target_include_directories(tests PRIVATE
         ${mdspan_SOURCE_DIR}/include
         ${generator_SOURCE_DIR}/include)
 
-#add_test(NAME alltest COMMAND tests)
-#enable_testing()
+add_test(NAME alltest COMMAND tests)
+enable_testing()
