@@ -3,9 +3,13 @@
 //
 
 #pragma once
-#include "expressions.hpp"
+
+#include <functional>
 #include <cmath>
 #include <utility>
+
+template <typename Op, typename LHS, typename RHS> class Expression;
+template <typename> class Constant;
 
 enum class OpType : short {
   Unary = 0,
@@ -93,12 +97,40 @@ struct MultiplyOp
   template <typename LHS, typename RHS>
   constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
+
 template <typename T>
 template <typename LHS, typename RHS>
 constexpr auto MultiplyOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
   auto lmul = Multiply<T>(lhs.derivative(), rhs);
   auto rmul = Multiply<T>(lhs, rhs.derivative());
   return Sum<T>(std::move(lmul), std::move(rmul));
+}
+
+template <typename T>
+struct DivideOp
+    : BinaryOp<T, [](const T &a, const T &b) -> T { return a / b; }, '/'> {
+  template <typename LHS, typename RHS>
+  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
+};
+
+template <typename T, typename LHS, typename RHS>
+constexpr inline auto Multiply(LHS lhs, RHS rhs) {
+  return Expression<MultiplyOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
+}
+
+template <typename T>
+template <typename LHS, typename RHS>
+constexpr auto DivideOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
+  auto numerator_left = Multiply<T>(lhs.derivative(), rhs);
+  auto numerator_right = Multiply<T>(lhs, rhs.derivative());
+  auto zero = T{};
+  auto negative_one = std::move(--zero);
+  auto numerator = Sum<T>(
+      std::move(numerator_left),
+      Multiply<T>(Constant<T>(negative_one), std::move(numerator_right)));
+  auto denominator = Multiply<T>(rhs, rhs); // g²
+
+  return Divide<T>(std::move(numerator), std::move(denominator));
 }
 
 template <typename T, typename LHS> constexpr inline auto Negate(LHS e) {
@@ -110,8 +142,8 @@ template <typename T, typename LHS> constexpr inline auto Negate(LHS e) {
 }
 
 template <typename T, typename LHS, typename RHS>
-constexpr inline auto Multiply(LHS lhs, RHS rhs) {
-  return Expression<MultiplyOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
+constexpr inline auto Divide(LHS lhs, RHS rhs) {
+  return Expression<DivideOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
 }
 
 template <typename T, typename LHS, typename RHS>

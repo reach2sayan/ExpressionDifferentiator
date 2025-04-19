@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <functional>
 #include <ostream>
 #include <tuple>
 
