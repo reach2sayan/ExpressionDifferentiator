@@ -31,6 +31,6 @@ constexpr auto collect_vars(const TExpression &expression) {
   constexpr std::size_t N = TExpression::var_count;
   std::array<char, N> result{};
   std::size_t index = 0;
-  collect_vars_array(expression, result, index);
+  make_labels_array(expression, result, index);
   return result;
 }

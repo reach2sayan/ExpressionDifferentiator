@@ -24,7 +24,7 @@ TEST(ExpressionTest, StaticTests) {
   auto y = 2_vi;
   auto c = 2_ci;
   auto res = x * y + c;
-  auto res2 = replace_variable<'c'>(res);
+  auto res2 = make_const_variable<'c'>(res);
   ASSERT_EQ(res2, res);
 }
 
@@ -131,8 +131,8 @@ TEST(EquationTest, SetUpBasic) {
   constexpr auto sum_exp = a * b * c;
   constexpr Equation eq{sum_exp};
   auto arr = collect_vars(eq.get_expression());
-  auto arr2 = transform_unmatched_var<'y'>(sum_exp);
-  auto arr3 = transform_unmatched_var<'x'>(sum_exp);
+  auto arr2 = make_all_constant_except<'y'>(sum_exp);
+  auto arr3 = make_all_constant_except<'x'>(sum_exp);
   std::cout << sum_exp << "\n";
   std::cout << arr2 << "\n";
   std::cout << arr3 << "\n";
