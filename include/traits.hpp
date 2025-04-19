@@ -10,11 +10,11 @@
 template <typename T> constexpr static bool is_const = false;
 template <typename T> constexpr static bool is_const<Constant<T>> = true;
 
-template <typename T> struct make_constant {
+template <typename T, char symbol='X'> struct make_constant {
   using type = T;
 };
 
-template <typename T> struct make_constant<Variable<T>> {
+template <typename T, char symbol> struct make_constant<Variable<T,symbol>> {
   using type = Constant<T>;
 };
 
@@ -34,9 +34,8 @@ template <char symbol, typename T> struct replace_matching_variable {
 };
 
 template <char symbol, typename T>
-struct replace_matching_variable<symbol, Variable<T>> {
-  using type = std::conditional_t<(Variable<T>::symbol == symbol), Constant<T>,
-                                  Variable<T>>;
+struct replace_matching_variable<symbol, Variable<T,symbol>> {
+  using type = Constant<T>;
 };
 
 template <char symbol, typename Op, typename... TExpressions>
@@ -48,34 +47,3 @@ struct replace_matching_variable<symbol, Expression<Op, TExpressions...>> {
 template <char symbol, typename T>
 using replace_matching_variable_t =
     typename replace_matching_variable<symbol, T>::type;
-
-template <typename Expr, std::size_t N>
-constexpr void collect_symbols_impl(const Expr &, std::array<char, N> &,
-                                    std::size_t &) {}
-
-template <typename T, std::size_t N>
-constexpr void collect_symbols_impl(const Variable<T> &v,
-                                    std::array<char, N> &out, std::size_t &i) {
-  out[i++] = v.symbol;
-}
-
-template <typename Op, typename LHS, typename RHS, std::size_t N>
-constexpr void collect_symbols_impl(const Expression<Op, LHS, RHS> &expr,
-                                    std::array<char, N> &out, std::size_t &i) {
-  collect_symbols_impl(expr.expressions().first, out, i);
-  collect_symbols_impl(expr.expressions().second, out, i);
-}
-
-template <typename Op, typename Expr, std::size_t N>
-constexpr void collect_symbols_impl(const MonoExpression<Op, Expr> &expr,
-                                    std::array<char, N> &out, std::size_t &i) {
-  collect_symbols_impl(expr.expressions(), out, i);
-}
-
-template <typename Expr> constexpr auto collect_symbols(const Expr &expr) {
-  constexpr std::size_t count = expr.var_count;
-  std::array<char, count> result{};
-  std::size_t i = 0;
-  collect_symbols_impl(expr, result, i);
-  return result;
-}

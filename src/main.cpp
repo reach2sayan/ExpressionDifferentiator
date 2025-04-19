@@ -15,8 +15,8 @@ int main() {
   std::cout << target.eval() << std::endl;
   std::cout << target2 << std::endl;
 
-  Variable x{4};
-  Variable y{4};
+  Variable<int,'x'> x{4};
+  Variable<int,'y'> y{4};
   auto expr =
       Sum<int>(Sum<int>(Variable{y}, Multiply<int>(Variable{x}, Constant{2})),
                Constant{2});
@@ -24,9 +24,9 @@ int main() {
   auto derv = expr.derivative();
   std::cout << derv << std::endl;
   std::cout << derv.eval() << std::endl;
-  auto a = PV(2);
+  auto a = PVl(2,'a');
   auto b = PC(3);
-  auto oter = PV(4.0);
+  auto oter = PVl(4.0,'o');
   auto tmp = a + b + oter;
   static_assert(tmp.var_count == 2);
   auto tmp2 = a * b;
@@ -48,4 +48,4 @@ int main() {
 }
 
 template <typename T, template <typename> typename Op>
-using as_const_exp = Expression<Op<T>, Variable<T>, Constant<T>>;
+using as_const_exp = Expression<Op<T>, Variable<T,'x'>, Constant<T>>;

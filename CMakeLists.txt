@@ -31,22 +31,16 @@ if (getgenerator)
     FetchContent_MakeAvailable(generator)
 endif ()
 
-set(CMAKE_CXX_FLAGS_OLD ${CMAKE_CXX_FLAGS})
-if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W0")
-endif()
 FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_OLD})
 
 add_library(expression_solver INTERFACE
         include/values.hpp
         include/operations.hpp
-        include/procvar.hpp
         include/equation.hpp
         include/traits.hpp
 )

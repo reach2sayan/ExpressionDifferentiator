@@ -9,26 +9,22 @@
 #include <gtest/gtest.h>
 
 TEST(ExpressionTest, StaticTests) {
-  auto a = 2_vi;
-  auto b = 3_ci;
-  auto oter = 4.0_vd; // PV(4.0);
-  auto tmp = a + b + oter;
-  static_assert(tmp.var_count == 2);
-  auto tmp2 = a * b;
   static_assert(std::is_same_v<
                 as_const_expression<
-                    Expression<MultiplyOp<int>, Variable<int>, Constant<int>>>,
+                    Expression<MultiplyOp<int>, Variable<int,'x'>, Constant<int>>>,
                 Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
 
   static_assert(std::is_same_v<
                 as_const_expression<
-                    Expression<MultiplyOp<int>, Variable<int>, Variable<int>>>,
+                    Expression<MultiplyOp<int>, Variable<int,'x'>, Variable<int,'y'>>>,
                 Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
 
-  auto syms = collect_symbols(tmp);
-  EXPECT_EQ(syms[0], 'b');
-  EXPECT_EQ(syms[1], 'c');
-  // static_assert(syms == std::array{a.symbol, oter.symbol});
+  auto x = 4_vi;
+  auto y = 2_vi;
+  auto c = 2_ci;
+  auto res = x * y + c;
+  auto target =
+      replace_matching_variable_t<'b', decltype(res)>(res);
 }
 
 TEST(ExpressionTest, SumTest) {
@@ -110,19 +106,19 @@ TEST(ProcVarTest, GetValue) {
 }
 
 TEST(ProcVarTest, SpecifyValue) {
-  Variable<int> a{4};
+  Variable<int,'a'> a{4};
   a = 2;
   EXPECT_NE(a, 4);
 }
 
 TEST(ProcVarTest, UdlCompAndAssign) {
-  Variable<int> a{4};
+  Variable<int,'a'> a{4};
   auto b = 4_vi;
   EXPECT_EQ(a, b);
 }
 
 TEST(ProcVarTest, FixedToSpecifyValue) {
-  Variable<int> a{4};
+  Variable<int,'a'> a{4};
   a = 2;
   EXPECT_EQ(a, 2);
 }

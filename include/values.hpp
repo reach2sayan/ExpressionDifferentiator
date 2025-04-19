@@ -59,19 +59,18 @@ public:
   constexpr auto derivative() const { return Constant{T{}}; }
 };
 
-template <typename T> class Variable : public Operators {
+template <typename T, char symbol> class Variable : public Operators {
   T value;
-  friend std::ostream &operator<<(std::ostream &out, const Variable<T> &c) {
-    return out << std::to_string(c.value) << "_" << c.symbol;
+  friend std::ostream &operator<<(std::ostream &out, const Variable<T,symbol> &c) {
+    return out << std::to_string(c.value) << "_" << symbol;
   }
   static constexpr inline size_t static_counter = 0;
   constexpr T eval() const { return value; }
 
 public:
   using value_type = T;
-  const char symbol;
   constexpr static size_t var_count = 1;
-  constexpr explicit Variable(T value) : value(value), symbol(cgenerator())
+  constexpr explicit Variable(T value) : value(value)
   {}
   constexpr operator T() const { return value; }
   constexpr decltype(auto) operator=(T v) {
@@ -119,6 +118,7 @@ constexpr auto operator^(const LHS &a, const RHS &b) {
   return Exp<value_type>(a, b);
 }
 
+#define PVl(x,label) Variable<decltype(x),label>(x)
 #define PV(x) Variable(x)
 #define PC(x) Constant(x)
 
@@ -130,16 +130,16 @@ constexpr auto operator^(const LHS &a, const RHS &b) {
     return Constant<type>{static_cast<type>(val)};                             \
   }
 
-#define DEFINE_VAR_UDL(type, suffix)                                           \
-  constexpr Variable<type> operator"" _##suffix(unsigned long long val) {      \
-    return Variable<type>{static_cast<type>(val)};                             \
+#define DEFINE_VAR_UDL(type, suffix, label)                                           \
+  constexpr auto operator"" _##suffix(unsigned long long val) {      \
+    return Variable<type,label>{static_cast<type>(val)};                             \
   }                                                                            \
-  constexpr Variable<type> operator"" _##suffix(long double val) {             \
-    return Variable<type>{static_cast<type>(val)};                             \
+  constexpr auto operator"" _##suffix(long double val) {             \
+    return Variable<type,label>{static_cast<type>(val)};                             \
   }
 
 DEFINE_CONST_UDL(int, ci)
 DEFINE_CONST_UDL(double, cd)
 
-DEFINE_VAR_UDL(int, vi)
-DEFINE_VAR_UDL(double, vd)
+DEFINE_VAR_UDL(int, vi, 'c')
+DEFINE_VAR_UDL(double, vd, 'v')
