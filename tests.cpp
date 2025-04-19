@@ -2,30 +2,15 @@
 // Created by sayan on 4/13/25.
 //
 
-#include "matrix.hpp"
 #include "operations.hpp"
 #include "procvar.hpp"
 #include "traits.hpp"
 #include "values.hpp"
 #include <gtest/gtest.h>
 
-std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
-                             9, 10, 11, 12, 13, 14, 15, 16};
-std::array<int, 16> data2 = {1, 2,  3,  4,  5,  6,  7,  8,
-                             9, 10, 11, 12, 13, 14, 15, 16};
-auto manual_add(auto a, auto b) {
-  std::array<int, 16> result;
-  for (int i = 0; i < 16; i++) {
-    for (int j = 0; j < 16; j++) {
-      result[i * 16 + j] = a[i * 16 + j] + b[i * 16 + j];
-    }
-  }
-  return result;
-}
-
 TEST(ExpressionTest, StaticTests) {
-  auto a = PV(2);
-  auto b = PC(3);
+  auto a = 2_vi;
+  auto b = 3_ci;
   auto oter = 4.0_vd; // PV(4.0);
   auto tmp = a + b + oter;
   static_assert(tmp.var_count == 2);

@@ -110,9 +110,16 @@ constexpr auto MultiplyOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
 }
 
 template <typename T>
-struct NegateOp : UnaryOp<T, [](const T &a) -> T { return -1 * a; }, '-'> {
+struct NegateOp : UnaryOp<T,
+                          [](const T &a) -> T {
+                            T v{};
+                            --v;
+                            return std::move(v) * a;
+                          },
+                          '-'> {
   template <typename LHS> constexpr static auto derivative(const LHS &lhs);
 };
+
 template <typename T>
 template <typename LHS>
 constexpr auto NegateOp<T>::derivative(const LHS &lhs) {
