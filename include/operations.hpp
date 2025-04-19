@@ -60,8 +60,8 @@ struct ExpOp
   constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
 
-#define DEPRECATED_DERIVATIVE 1
-#if !defined(DEPRECATED_DERIVATIVE)
+#define DEPRECATED_DERIVATIVE true
+#if !DEPRECATED_DERIVATIVE
 template <typename Op> [[deprecated]] struct Derivative {
   constexpr static size_t count = [](OpType op) {
     return std::to_underlying(op) + 1;

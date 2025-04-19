@@ -2,11 +2,15 @@ cmake_minimum_required(VERSION 3.20)
 project(ExpressionSolver VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 26)
-add_compile_options(-Wall -Wpedantic -Wfatal-errors)
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Wall")
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+else()
+    add_compile_options(-Wall -Wpedantic -Wfatal-errors)
+endif()
 
 option(getmdspan "Build kokkss MDSpan?" OFF)
 option(getgenerator "Build Generator?" OFF)
-
 include(FetchContent)
 
 if (getmdspan)
@@ -27,12 +31,17 @@ if (getgenerator)
     FetchContent_MakeAvailable(generator)
 endif ()
 
+set(CMAKE_CXX_FLAGS_OLD ${CMAKE_CXX_FLAGS})
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W0")
+endif()
 FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_OLD})
 
 add_library(expression_solver INTERFACE
         include/values.hpp

@@ -7,6 +7,7 @@
 #include "procvar.hpp"
 #include "traits.hpp"
 #include "values.hpp"
+#include <string>
 
 int main() {
   auto target = Sum<int>(Constant{3}, Constant{1});

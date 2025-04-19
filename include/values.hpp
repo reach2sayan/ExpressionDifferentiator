@@ -3,6 +3,7 @@
 //
 
 #pragma once
+#include <string>
 template <typename T> struct DivideOp;
 
 #define VALUE_TYPE_MISMATCH_ASSERT(T, U)                                       \

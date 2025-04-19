@@ -5,13 +5,12 @@
 #ifndef PROCVAR_HPP
 #define PROCVAR_HPP
 
-
-template <typename T> class ProcVar {
+template <typename> class ProcVar {
   [[deprecated("Use ProcessVar instead")]];
 };
 
-#define DEPRECATED_PROCVAR 1
-#if !defined(DEPRECATED_PROCVAR)
+#define DEPRECATED_PROCVAR true
+#if !DEPRECATED_PROCVAR
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "values.hpp"
