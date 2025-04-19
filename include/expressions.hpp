@@ -7,7 +7,34 @@
 #include <ostream>
 #include <tuple>
 
-template <typename Op, typename LHS, typename RHS> class Expression {
+template <typename Op> class BaseExpression {
+public:
+  using value_type = typename Op::value_type;
+};
+
+template <typename Op, typename Exp>
+class MonoExpression : public BaseExpression<Op> {
+  Exp expression;
+  friend std::ostream &operator<<(std::ostream &out, const MonoExpression &e) {
+    out << '(';
+    Op::print(out, e.expression);
+    out << ')';
+    return out;
+  }
+
+public:
+  constexpr auto &expressions() const { return expression; }
+  constexpr static size_t var_count = Exp::var_count;
+  using lhs_type = Exp;
+  using value_type = typename BaseExpression<Op>::value_type;
+  constexpr MonoExpression(Exp);
+  constexpr auto derivative() const { return Op::derivative(expression); }
+  constexpr operator value_type() const { return eval(); }
+  constexpr auto eval() const { return Op::eval(expression); }
+};
+
+template <typename Op, typename LHS, typename RHS>
+class Expression : public BaseExpression<Op> {
   std::pair<LHS, RHS> inner_expressions;
   friend std::ostream &operator<<(std::ostream &out, const Expression &e) {
     out << '(';
@@ -21,7 +48,7 @@ public:
   using op_type = Op;
   using lhs_type = LHS;
   using rhs_type = RHS;
-  using value_type = typename Op::value_type;
+  using value_type = typename BaseExpression<Op>::value_type;
   constexpr auto &expressions() const { return inner_expressions; }
   constexpr static size_t var_count = LHS::var_count + RHS::var_count;
   constexpr Expression(LHS, RHS);
@@ -29,6 +56,10 @@ public:
   constexpr operator value_type() const { return eval(); }
   constexpr auto derivative() const;
 };
+
+template <typename Op, typename Exp>
+constexpr MonoExpression<Op, Exp>::MonoExpression(Exp expr)
+    : expression{std::move(expr)} {}
 
 template <typename Op, typename LHS, typename RHS>
 constexpr Expression<Op, LHS, RHS>::Expression(LHS lhs, RHS rhs)

@@ -52,6 +52,38 @@ TEST(ExpressionTest, SumTest) {
   EXPECT_EQ(sum_exp, 6);
 }
 
+TEST(ExpressionTest, MultiplyTest) {
+  auto a = 1_ci;
+  auto b = 2_vi;
+  auto c = 3_ci;
+  auto sum_exp = a * b * c;
+  auto d = sum_exp.derivative();
+  EXPECT_EQ(sum_exp, 6);
+  EXPECT_EQ(d, 3);
+}
+
+TEST(ExpressionTest, SubtractTest) {
+  auto a = 1_ci;
+  auto b = 2_vi;
+  auto c = 3_ci;
+  auto minus = a - b;
+  auto d = minus.derivative();
+  std::cout << minus << "\n";
+  std::cout << d << "\n";
+  std::cout << d.eval();
+  EXPECT_EQ(minus, -1);
+  EXPECT_EQ(d, -1);
+}
+
+TEST(ExpressionTest, DivideTest) {
+  auto a = 4.0_cd;
+  auto b = 2.0_cd;
+  auto divide = a / b;
+  auto d = divide.derivative();
+  EXPECT_EQ(divide, 2.0);
+  EXPECT_EQ(d, 2);
+}
+
 TEST(ExpressionTest, ExpTest) {
   auto exp_exp = Exp<int>(2, 4);
   EXPECT_EQ(exp_exp, 16);

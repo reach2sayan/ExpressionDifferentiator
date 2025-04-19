@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "expressions.hpp"
+
 #include <cmath>
 #include <functional>
 #include <utility>
@@ -107,6 +109,17 @@ constexpr auto MultiplyOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
 }
 
 template <typename T>
+struct NegateOp : UnaryOp<T, [](const T &a) -> T { return -1 * a; }, '-'> {
+  template <typename LHS> constexpr static auto derivative(const LHS &lhs);
+};
+template <typename T>
+template <typename LHS>
+constexpr auto NegateOp<T>::derivative(const LHS &lhs) {
+  auto d = lhs.derivative();
+  return MonoExpression<NegateOp<T>, decltype(d)>{std::move(d)};
+}
+
+template <typename T>
 struct DivideOp
     : BinaryOp<T, [](const T &a, const T &b) -> T { return a / b; }, '/'> {
   template <typename LHS, typename RHS>
@@ -133,17 +146,19 @@ constexpr auto DivideOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
   return Divide<T>(std::move(numerator), std::move(denominator));
 }
 
-template <typename T, typename LHS> constexpr inline auto Negate(LHS e) {
-  auto zero = T{};
-  auto negative_one = std::move(--zero);
-  auto c = Constant<T>(std::move(negative_one));
-  return Expression<MultiplyOp<T>, decltype(c), LHS>(std::move(c),
-                                                     std::move(e));
+template <typename T, typename Expr> constexpr inline auto Negate(Expr expr) {
+  return MonoExpression<NegateOp<T>, Expr>{std::move(expr)};
 }
 
 template <typename T, typename LHS, typename RHS>
 constexpr inline auto Divide(LHS lhs, RHS rhs) {
   return Expression<DivideOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
+}
+
+template <typename T, typename LHS, typename RHS>
+constexpr inline auto Minus(LHS lhs, RHS rhs) {
+  auto neg = MonoExpression<NegateOp<T>, RHS>(std::move(rhs));
+  return Expression<SumOp<T>, LHS, decltype(neg)>{std::move(lhs), std::move(neg)};
 }
 
 template <typename T, typename LHS, typename RHS>

@@ -103,7 +103,7 @@ template <typename LHS, typename RHS>
 constexpr auto operator-(const LHS &a, const RHS &b) {
   VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
   using value_type = typename LHS::value_type;
-  return Sum<value_type>(a, Multiply<value_type>(Constant(-1), b));
+  return Minus<value_type>(a, b);
 }
 
 template <typename LHS, typename RHS>
