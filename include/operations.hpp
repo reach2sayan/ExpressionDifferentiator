@@ -4,9 +4,8 @@
 
 #pragma once
 #include "expressions.hpp"
-#include "values.hpp"
 #include <cmath>
-#include <type_traits>
+#include <utility>
 
 enum class OpType : short {
   Unary = 0,

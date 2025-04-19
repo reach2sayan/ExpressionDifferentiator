@@ -1,17 +1,17 @@
 #include <iostream>
 
+#include "equation.hpp"
 #include "matrix.hpp"
-#include "values.hpp"
 #include "procvar.hpp"
 #include "traits.hpp"
-#include "equation.hpp"
+#include "values.hpp"
 
 std::array<int, 16> data1 = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
 std::array<int, 16> data2 = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
 
-//#define PV(x) ProcVar(x, VariableTag{})
+// #define PV(x) ProcVar(x, VariableTag{})
 
 int main() {
   matrix<int, 4, 4> m1(data1);
@@ -23,8 +23,9 @@ int main() {
 
   Variable x{4};
   Variable y{4};
-  auto expr = Sum<int>(Sum<int>(Variable{y},
-    Multiply<int>(Variable{x}, Constant{2})), Constant{2});
+  auto expr =
+      Sum<int>(Sum<int>(Variable{y}, Multiply<int>(Variable{x}, Constant{2})),
+               Constant{2});
   std::cout << expr << std::endl;
   auto derv = expr.derivative();
   std::cout << derv << std::endl;
@@ -48,5 +49,5 @@ int main() {
   std::cout << (int)e << std::endl;
 }
 
-template<typename T, template <typename> typename Op>
+template <typename T, template <typename> typename Op>
 using as_const_exp = Expression<Op<T>, Variable<T>, Constant<T>>;

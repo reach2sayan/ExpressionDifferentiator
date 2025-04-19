@@ -23,7 +23,7 @@ public:
   using lhs_type = LHS;
   using rhs_type = RHS;
   using value_type = typename Op::value_type;
-  constexpr auto& expressions() const { return inner_expressions;}
+  constexpr auto &expressions() const { return inner_expressions; }
   constexpr static size_t var_count = LHS::var_count + RHS::var_count;
   constexpr Expression(LHS, RHS);
   constexpr auto eval() const;
@@ -33,7 +33,7 @@ public:
 
 template <typename Op, typename LHS, typename RHS>
 constexpr Expression<Op, LHS, RHS>::Expression(LHS lhs, RHS rhs)
-    : inner_expressions({std::move(lhs),std::move(rhs)}) {}
+    : inner_expressions({std::move(lhs), std::move(rhs)}) {}
 
 template <typename Op, typename LHS, typename RHS>
 constexpr auto Expression<Op, LHS, RHS>::eval() const {
@@ -43,7 +43,6 @@ constexpr auto Expression<Op, LHS, RHS>::eval() const {
 
 template <typename Op, typename LHS, typename RHS>
 constexpr auto Expression<Op, LHS, RHS>::derivative() const {
-  return std::apply(
-      [](const auto &...e) { return Op::derivative(e...); },
-      inner_expressions);
+  return std::apply([](const auto &...e) { return Op::derivative(e...); },
+                    inner_expressions);
 }

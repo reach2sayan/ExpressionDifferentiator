@@ -3,9 +3,8 @@
 //
 
 #pragma once
-
 #include "expressions.hpp"
-#include "operations.hpp"
+#include "values.hpp"
 
 template <typename T> constexpr static bool is_const = false;
 template <typename T> constexpr static bool is_const<Constant<T>> = true;
