@@ -23,15 +23,29 @@ auto manual_add(auto a, auto b) {
   return result;
 }
 
-static_assert(
-    std::is_same_v<as_const_expression<Expression<
-                       MultiplyOp<int>, Variable<int>, Constant<int>>>,
-                   Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
+TEST(ExpressionTest, StaticTests) {
+  auto a = PV(2);
+  auto b = PC(3);
+  auto oter = PV(4.0);
+  auto tmp = a + b + oter;
+  static_assert(tmp.var_count == 2);
+  auto tmp2 = a * b;
+  static_assert(std::is_same_v<
+                as_const_expression<
+                    Expression<MultiplyOp<int>, Variable<int>, Constant<int>>>,
+                Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
 
-static_assert(
-    std::is_same_v<as_const_expression<Expression<
-                       MultiplyOp<int>, Variable<int>, Variable<int>>>,
-                   Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
+  static_assert(std::is_same_v<
+                as_const_expression<
+                    Expression<MultiplyOp<int>, Variable<int>, Variable<int>>>,
+                Expression<MultiplyOp<int>, Constant<int>, Constant<int>>>);
+
+  auto syms = collect_symbols(tmp);
+  for (auto &s : syms) {
+    std::cout << s << std::endl;
+  }
+  // static_assert(syms == std::array{a.symbol, oter.symbol});
+}
 
 TEST(ExpressionTest, SumTest) {
   double a = 1, b = 2, c = 3;

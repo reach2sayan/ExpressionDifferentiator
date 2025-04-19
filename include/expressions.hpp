@@ -23,6 +23,7 @@ public:
   using lhs_type = LHS;
   using rhs_type = RHS;
   using value_type = typename Op::value_type;
+  constexpr auto& expressions() const { return inner_expressions;}
   constexpr static size_t var_count = LHS::var_count + RHS::var_count;
   constexpr Expression(LHS, RHS);
   constexpr auto eval() const;

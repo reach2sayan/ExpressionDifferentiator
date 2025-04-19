@@ -24,28 +24,25 @@ template <typename T, OpType type> struct Op {
 template <typename T, unary_op_func<T> func, char symbol>
 struct UnaryOp : Op<T, OpType::Unary> {
   using value_type = Op<T, OpType::Unary>::value_type;
-  template <typename Expression1>
-  static void print(std::ostream &out, const Expression1 &e1) {
-    out << symbol << e1;
+  template <typename LHS> static void print(std::ostream &out, const LHS &lhs) {
+    out << symbol << lhs;
   }
 
-  template <typename Expression1>
-  constexpr static auto eval(const Expression1 &e1) {
-    return std::invoke(func, e1);
+  template <typename LHS> constexpr static auto eval(const LHS &lhs) {
+    return std::invoke(func, lhs);
   }
 };
 
 template <typename T, binary_op_func<T> func, char symbol>
 struct BinaryOp : Op<T, OpType::Binary> {
   using value_type = Op<T, OpType::Binary>::value_type;
-  template <typename Expression1, typename Expression2>
-  static void print(std::ostream &out, const Expression2 &e1,
-                    const Expression1 &e2) {
-    out << e1 << symbol << e2;
+  template <typename LHS, typename RHS>
+  static void print(std::ostream &out, const RHS &lhs, const LHS &rhs) {
+    out << lhs << symbol << rhs;
   }
-  template <typename Expression1, typename Expression2>
-  constexpr static auto eval(const Expression1 &e1, const Expression2 &e2) {
-    return std::invoke(func, e1, e2);
+  template <typename LHS, typename RHS>
+  constexpr static auto eval(const LHS &lhs, const RHS &rhs) {
+    return std::invoke(func, lhs, rhs);
   }
 };
 
@@ -59,9 +56,8 @@ template <typename T>
 struct ExpOp
     : BinaryOp<T, [](const T &a, const T &b) -> T { return std::pow(a, b); },
                '^'> {
-  template <typename Expression1, typename Expression2>
-  constexpr static auto derivative(const Expression1 &e1,
-                                   const Expression2 &e2);
+  template <typename LHS, typename RHS>
+  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
 
 static_assert(ExpOp<int>::op_type == OpType::Binary);
@@ -70,70 +66,56 @@ static_assert(Derivative<ExpOp<int>>::count == 2);
 template <typename T>
 struct SumOp
     : BinaryOp<T, [](const T &a, const T &b) -> T { return a + b; }, '+'> {
-  template <typename Expression1, typename Expression2>
-  constexpr static auto derivative(const Expression1 &e1,
-                                   const Expression2 &e2);
+  template <typename LHS, typename RHS>
+  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
 
-template <typename T, typename Expression1, typename Expression2>
-constexpr inline auto Sum(Expression1 e1, Expression2 e2) {
-  return Expression<SumOp<T>, Expression1, Expression2>{std::move(e1),
-                                                        std::move(e2)};
+template <typename T, typename LHS, typename RHS>
+constexpr inline auto Sum(LHS lhs, RHS rhs) {
+  return Expression<SumOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
 }
 
 template <typename T>
-template <typename Expression1, typename Expression2>
-constexpr auto ExpOp<T>::derivative(const Expression1 &e1,
-                                    const Expression2 &e2) {
-  auto e0 = Exp<T>(e1, e2);
-  auto c0 = Constant<T>(0);
-  auto s1 = Sum<T>(e0, c0);
-  auto s2 = Sum<T>(e0, s1);
-  auto s3 = Sum<T>(e0, s2);
-  auto s4 = Sum<T>(e0, s3);
-  return Sum<T>(e0, s4);
+template <typename LHS, typename RHS>
+constexpr auto ExpOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
+  throw std::runtime_error{"Not implemented"};
+  return;
 }
 
 template <typename T>
-template <typename Expression1, typename Expression2>
-constexpr auto SumOp<T>::derivative(const Expression1 &e1,
-                                    const Expression2 &e2) {
-  return Sum<T>(e1.derivative(), e2.derivative());
+template <typename LHS, typename RHS>
+constexpr auto SumOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
+  return Sum<T>(lhs.derivative(), rhs.derivative());
 }
 
 template <typename T>
 struct MultiplyOp
     : BinaryOp<T, [](const T &a, const T &b) -> T { return a * b; }, '*'> {
-  template <typename Expression1, typename Expression2>
-  constexpr static auto derivative(const Expression1 &e1,
-                                   const Expression2 &e2);
+  template <typename LHS, typename RHS>
+  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
 template <typename T>
-template <typename Expression1, typename Expression2>
-constexpr auto MultiplyOp<T>::derivative(const Expression1 &e1,
-                                         const Expression2 &e2) {
-  auto lmul = Multiply<T>(e1.derivative(), e2);
-  auto rmul = Multiply<T>(e1, e2.derivative());
+template <typename LHS, typename RHS>
+constexpr auto MultiplyOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
+  auto lmul = Multiply<T>(lhs.derivative(), rhs);
+  auto rmul = Multiply<T>(lhs, rhs.derivative());
   return Sum<T>(std::move(lmul), std::move(rmul));
 }
 
-template <typename T, typename Expression1>
-constexpr inline auto Negate(Expression1 e) {
+template <typename T, typename LHS> constexpr inline auto Negate(LHS e) {
   auto zero = T{};
   auto negative_one = std::move(--zero);
   auto c = Constant<T>(std::move(negative_one));
-  return Expression<MultiplyOp<T>, decltype(c), Expression1>(std::move(c),
-                                                             std::move(e));
+  return Expression<MultiplyOp<T>, decltype(c), LHS>(std::move(c),
+                                                     std::move(e));
 }
 
-template <typename T, typename Expression1, typename Expression2>
-constexpr inline auto Multiply(Expression1 e1, Expression2 e2) {
-  return Expression<MultiplyOp<T>, Expression1, Expression2>(std::move(e1),
-                                                             std::move(e2));
+template <typename T, typename LHS, typename RHS>
+constexpr inline auto Multiply(LHS lhs, RHS rhs) {
+  return Expression<MultiplyOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
 }
 
-template <typename T, typename Expression1, typename Expression2>
-constexpr inline auto Exp(Expression1 e1, Expression2 e2) {
-  return Expression<ExpOp<T>, Expression1, Expression2>(std::move(e1),
-                                                        std::move(e2));
+template <typename T, typename LHS, typename RHS>
+constexpr inline auto Exp(LHS lhs, RHS rhs) {
+  return Expression<ExpOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
 }
