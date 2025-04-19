@@ -157,3 +157,9 @@ constexpr auto make_all_constant_except(const Expression<Op, LHS, RHS> &expr)
   auto new_rhs = make_all_constant_except<symbol>(expr.expressions().second);
   return {new_lhs, new_rhs};
 }
+
+template <char symbol, typename Op, typename Expr>
+constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
+    -> constify_unmatched_var_t<symbol, MonoExpression<Op, Expr>> {
+  return make_all_constant_except<symbol>(expr.expressions());
+}

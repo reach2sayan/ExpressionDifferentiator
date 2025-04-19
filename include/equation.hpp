@@ -8,19 +8,7 @@
 #include "traits.hpp"
 #include <ranges>
 #include <array>
-#include <tuple>
-
-template <typename T, std::size_t N, std::size_t... Is>
-constexpr std::array<T, N> make_filled_array_impl(const T& value, std::index_sequence<Is...>) {
-  return { ((void)Is, value)... };
-}
-
-// Public API
-template <typename T, std::size_t N>
-constexpr std::array<T, N> make_filled_array(const T& value) {
-  return make_filled_array_impl<T, N>(value, std::make_index_sequence<N>{});
-}
-
+#include <type_traits>
 
 template <typename TExpression>
 constexpr auto construct_derivatives(const TExpression &e);
