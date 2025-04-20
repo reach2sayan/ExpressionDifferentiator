@@ -43,6 +43,7 @@ add_library(expression_solver INTERFACE
         include/operations.hpp
         include/equation.hpp
         include/traits.hpp
+        include/derivative.hpp
 )
 
 target_include_directories(expression_solver INTERFACE

@@ -24,7 +24,6 @@ class MonoExpression : public BaseExpression<Op> {
 
 public:
   constexpr auto &expressions() const { return expression; }
-  constexpr static size_t var_count = Exp::var_count;
   using lhs_type = Exp;
   using value_type = typename BaseExpression<Op>::value_type;
   constexpr MonoExpression(Exp);
@@ -54,7 +53,6 @@ public:
   using rhs_type = RHS;
   using value_type = typename BaseExpression<Op>::value_type;
   constexpr auto &expressions() const { return inner_expressions; }
-  constexpr static size_t var_count = lhs_type::var_count + rhs_type::var_count;
   constexpr Expression(LHS, RHS);
   constexpr auto eval() const;
   constexpr operator value_type() const { return eval(); }

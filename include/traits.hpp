@@ -163,3 +163,27 @@ constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
     -> constify_unmatched_var_t<symbol, MonoExpression<Op, Expr>> {
   return make_all_constant_except<symbol>(expr.expressions());
 }
+
+template <typename T> struct extract_variable_symbols {
+  using type = std::tuple<>;
+};
+
+template <typename T, char symbol>
+struct extract_variable_symbols<Variable<T, symbol>> {
+  using type = std::tuple<std::integral_constant<char, symbol>>;
+};
+
+template <typename T> struct extract_symbols_from_expr {
+  using type = typename extract_variable_symbols<T>::type;
+};
+
+template <typename Op, typename LHS, typename RHS>
+struct extract_symbols_from_expr<Expression<Op, LHS, RHS>> {
+private:
+  using left = typename extract_symbols_from_expr<LHS>::type;
+  using right = typename extract_symbols_from_expr<RHS>::type;
+
+public:
+  using type =
+      decltype(std::tuple_cat(std::declval<left>(), std::declval<right>()));
+};

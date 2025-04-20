@@ -6,53 +6,40 @@
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
-#include <ranges>
 #include <array>
 #include <type_traits>
 
-template <typename TExpression>
-constexpr auto construct_derivatives(const TExpression &e);
+template <typename Tuple, typename Op, typename LHS, typename RHS,
+          std::size_t... Is>
+constexpr auto make_derivatives_impl(const Tuple &chars,
+                                     const Expression<Op, LHS, RHS> &expr,
+                                     std::index_sequence<Is...>) {
+  return std::make_tuple(
+      make_all_constant_except<std::tuple_element_t<Is, Tuple>::value>(expr)
+          .derivative()...);
+}
 
-template <typename TExpression>
-constexpr auto collect_variable_labels(const TExpression &expression);
+template <typename... Chars, typename Op, typename LHS, typename RHS>
+constexpr auto make_derivatives(const std::tuple<Chars...> &chars,
+                                const Expression<Op, LHS, RHS> &expr) {
+  return make_derivatives_impl(chars, expr,
+                               std::index_sequence_for<Chars...>{});
+}
 
 template <typename TExpression> class Equation {
-public:
-  constexpr static size_t var_count = std::decay_t<TExpression>::var_count;
 private:
   TExpression expression;
-  //std::array<TExpression, var_count> derivatives;
+  using symbolslist =
+      typename extract_symbols_from_expr<decltype(expression)>::type;
+
 public:
   using value_type = typename TExpression::value_type;
-
   constexpr operator value_type() const { return expression; }
   constexpr const TExpression &get_expression() const { return expression; }
-
-  template <typename TTExpression>
-  constexpr Equation(TTExpression &&e)
-      : expression{std::forward<TTExpression>(e)} {}
-      //  derivatives{construct_derivatives(e)} {}
+  constexpr auto get_derivatives() const {
+    return make_derivatives(symbolslist{}, expression);
+  }
+  constexpr Equation(const TExpression &e) : expression{e} {}
 };
 
 template <typename T> Equation(T &&) -> Equation<std::decay_t<T>>;
-
-/*
-template <typename TExpression>
-constexpr auto construct_derivatives(const TExpression &e) {
-  auto labels = collect_variable_labels(e);
-  auto derivatives = make_filled_array<std::decay_t<TExpression>, labels.size()>(e);
-  size_t i = 0;
-  for (auto label : labels) {
-    derivatives[i++] = make_all_constant_except<label>(e);
-  }
-  return derivatives;
-}*/
-
-template <typename TExpression>
-constexpr auto collect_variable_labels(const TExpression &expression) {
-  constexpr std::size_t N = TExpression::var_count;
-  std::array<char, N> result{};
-  std::size_t index = 0;
-  make_labels_array(expression, result, index);
-  return result;
-}

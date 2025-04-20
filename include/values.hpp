@@ -53,7 +53,6 @@ template <typename T> class Constant : public Operators {
 
 public:
   using value_type = T;
-  constexpr static size_t var_count = 0;
   constexpr explicit Constant(T value) : value(value) {}
   constexpr operator T() const { return value; }
   constexpr auto derivative() const { return Constant{T{}}; }
@@ -70,7 +69,6 @@ template <typename T, char symbol> class Variable : public Operators {
 
 public:
   using value_type = T;
-  constexpr static size_t var_count = 1;
   constexpr explicit Variable(T value) : value(value) {}
   constexpr operator T() const { return value; }
   constexpr decltype(auto) operator=(T v) {
