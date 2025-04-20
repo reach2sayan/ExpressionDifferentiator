@@ -127,6 +127,18 @@ TEST(ProcVarTest, FixedToSpecifyValue) {
   ASSERT_EQ(a, 2);
 }
 
+TEST(ProcVarTest, Assign) {
+  ProcessVar<double> pv(42.0);
+  auto x = pv.as_variable<'x'>();
+  ASSERT_EQ(x.get().get(), 42.0);
+  pv.set_value(3.0);
+  ASSERT_EQ(x.get().get(), 3.0);
+  x = 33.0;
+  auto k = pv.as_const();
+  //k = 12.0; // shouldn't compile
+  ASSERT_EQ(pv.get_value(),33.0);
+}
+
 TEST(TrigTest, SinTest) {
   auto b = sin(PC(0.5));
   std::cout << b.eval() << std::endl;

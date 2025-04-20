@@ -68,6 +68,7 @@ template <typename T> class Constant : public Operators {
 public:
   using value_type = T;
   constexpr explicit Constant(T value) : value(value) {}
+  constexpr auto get() const { return value; }
   constexpr operator T() const { return value; }
   constexpr auto derivative() const { return Constant{T{}}; }
 };
@@ -85,10 +86,18 @@ public:
   using value_type = T;
   constexpr explicit Variable(T value) : value(value) {}
   constexpr operator T() const { return value; }
-  constexpr decltype(auto) operator=(T v) {
-    value = std::move(v);
+  constexpr auto get() const { return value; }
+
+  template <typename U> constexpr decltype(auto) operator=(U &&v) {
+    if constexpr (std::is_same_v<decltype(value),
+                                 std::reference_wrapper<std::decay_t<U>>>) {
+      value.get() = std::forward<U>(v);
+    } else {
+      value = std::forward<U>(v);
+    }
     return *this;
   }
+
   constexpr auto derivative() const {
     auto ret = T{};
     return Constant{++ret};

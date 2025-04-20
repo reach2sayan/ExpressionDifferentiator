@@ -51,6 +51,7 @@ target_include_directories(expression_solver INTERFACE
 )
 
 add_executable(ExpressionSolver src/main.cpp)
+
 target_include_directories(ExpressionSolver PRIVATE
         ${CMAKE_SOURCE_DIR}/include
 )

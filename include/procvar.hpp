@@ -4,6 +4,8 @@
 
 #ifndef PROCVAR_HPP
 #define PROCVAR_HPP
+#include "values.hpp"
+#include <functional>
 
 template <typename> class ProcVar {
   [[deprecated("Use ProcessVar instead")]];
@@ -105,5 +107,20 @@ constexpr auto operator^(const Expression1 &a, const Expression2 &b) {
   return Exp<T>(a, b);
 }
 #endif
+
+template<typename T>
+class ProcessVar {
+  T value;
+  bool fixed;
+public:
+  constexpr ProcessVar(T v) : value{std::move(v)}, fixed{false} {}
+  constexpr T get_value() const { return value; }
+  constexpr void set_value(T v) { value = std::move(v); }
+  template<char symbol>
+  constexpr auto as_variable() { return Variable<std::reference_wrapper<T>,symbol>(std::ref(value)); }
+  constexpr auto as_const() { return Constant<std::reference_wrapper<const T>>(std::cref(value)); }
+};
+
+
 
 #endif // PROCVAR_HPP
