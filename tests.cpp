@@ -134,8 +134,9 @@ TEST(TrigTest, SinTest) {
 }
 
 TEST(TrigTest, CosTest) {
-  auto b = cos(PC(1.0));
-  ASSERT_EQ(b, std::cos(1.0));
+  auto b = cos(PV(0.45,'x'));
+  ASSERT_EQ(b, std::cos(0.45));
+  ASSERT_EQ(b.derivative().eval(), -std::sin(0.45));
 }
 
 
