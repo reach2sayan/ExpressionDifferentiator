@@ -9,18 +9,17 @@
 #include <array>
 #include <type_traits>
 
-template <class TupType, size_t... I>
-std::ostream &print_tup(std::ostream &out, const TupType &_tup,
-                        std::index_sequence<I...>) {
-  out << "(";
-  (..., (out << (I == 0 ? "" : ", ") << std::get<I>(_tup)));
-  out << ")\n";
-  return out;
-}
-
 template <class... T>
 std::ostream &print_tup(std::ostream &out, const std::tuple<T...> &_tup) {
-  return print_tup(out, _tup, std::make_index_sequence<sizeof...(T)>());
+  auto print_tup_helper = []<class TupType, size_t... I>(
+                              std::ostream &out, const TupType &_tup,
+                              std::index_sequence<I...>) -> std::ostream & {
+    out << "(";
+    (..., (out << (I == 0 ? "" : ", ") << std::get<I>(_tup)));
+    out << ")\n";
+    return out;
+  };
+  return print_tup_helper(out, _tup, std::make_index_sequence<sizeof...(T)>());
 }
 
 template <typename Tuple, typename Op, typename LHS, typename RHS,
@@ -56,7 +55,7 @@ private:
     out << "Equation\n"
         << e.get_expression() << "\n"
         << "Derivatives\n";
-    print_tup(out,e.get_derivatives());
+    print_tup(out, e.get_derivatives());
     return out;
   }
 
