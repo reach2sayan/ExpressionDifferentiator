@@ -9,6 +9,20 @@
 #include <array>
 #include <type_traits>
 
+template <class TupType, size_t... I>
+std::ostream &print_tup(std::ostream &out, const TupType &_tup,
+                        std::index_sequence<I...>) {
+  out << "(";
+  (..., (out << (I == 0 ? "" : ", ") << std::get<I>(_tup)));
+  out << ")\n";
+  return out;
+}
+
+template <class... T>
+std::ostream &print_tup(std::ostream &out, const std::tuple<T...> &_tup) {
+  return print_tup(out, _tup, std::make_index_sequence<sizeof...(T)>());
+}
+
 template <typename Tuple, typename Op, typename LHS, typename RHS,
           std::size_t... Is>
 constexpr auto make_derivatives_impl(const Tuple &chars,
@@ -29,17 +43,33 @@ constexpr auto make_derivatives(const std::tuple<Chars...> &chars,
 template <typename TExpression> class Equation {
 private:
   TExpression expression;
-  using symbolslist =
-      typename extract_symbols_from_expr<decltype(expression)>::type;
+  using symbolslist = typename extract_symbols_from_expr<TExpression>::type;
+  using derivatives_t =
+      decltype(make_derivatives(std::declval<symbolslist>(), expression));
+  derivatives_t derivatives;
+
+  constexpr static auto get_derivatives_impl(const TExpression &expr) {
+    return make_derivatives(symbolslist{}, expr);
+  }
+
+  friend std::ostream &operator<<(std::ostream &out, const Equation &e) {
+    out << "Equation\n"
+        << e.get_expression() << "\n"
+        << "Derivatives\n";
+    print_tup(out,e.get_derivatives());
+    return out;
+  }
 
 public:
   using value_type = typename TExpression::value_type;
   constexpr operator value_type() const { return expression; }
-  constexpr const TExpression &get_expression() const { return expression; }
-  constexpr auto get_derivatives() const {
-    return make_derivatives(symbolslist{}, expression);
+  constexpr const auto &get_expression() const { return expression; }
+  constexpr const auto &get_derivatives() const { return derivatives; }
+  constexpr decltype(auto) operator[](const size_t index) {
+    return std::get<index>(derivatives);
   }
-  constexpr Equation(const TExpression &e) : expression{e} {}
+  constexpr Equation(const TExpression &e)
+      : expression{e}, derivatives{get_derivatives_impl(e)} {}
 };
 
 template <typename T> Equation(T &&) -> Equation<std::decay_t<T>>;

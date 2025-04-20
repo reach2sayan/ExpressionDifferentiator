@@ -130,6 +130,12 @@ struct constify_unmatched_var<symbol, Expression<Op, LHS, RHS>> {
                  typename constify_unmatched_var<symbol, RHS>::type>;
 };
 
+template <char symbol, typename Op, typename Expr>
+struct constify_unmatched_var<symbol, MonoExpression<Op, Expr>> {
+  using type =
+      MonoExpression<Op, typename constify_unmatched_var<symbol, Expr>::type>;
+};
+
 template <char symbol, typename Expr>
 using constify_unmatched_var_t =
     typename constify_unmatched_var<symbol, Expr>::type;
@@ -186,4 +192,13 @@ private:
 public:
   using type =
       decltype(std::tuple_cat(std::declval<left>(), std::declval<right>()));
+};
+
+template <typename Op, typename Expr>
+struct extract_symbols_from_expr<MonoExpression<Op, Expr>> {
+private:
+  using left = typename extract_symbols_from_expr<Expr>::type;
+public:
+  using type =
+      decltype(std::tuple_cat(std::declval<left>()));
 };
