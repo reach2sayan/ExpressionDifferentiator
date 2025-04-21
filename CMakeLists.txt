@@ -45,6 +45,7 @@ add_library(expression_solver INTERFACE
         include/traits.hpp
         include/procvar.hpp
         include/derivative.hpp
+        include/soequations.hpp
 )
 
 target_include_directories(expression_solver INTERFACE

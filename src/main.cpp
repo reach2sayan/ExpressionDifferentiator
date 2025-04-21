@@ -10,6 +10,7 @@ template <typename... T> struct TD;
 #include "procvar.hpp"
 #include "traits.hpp"
 #include "values.hpp"
+#include "soequations.hpp"
 #include <iostream>
 #include <string>
 
@@ -45,5 +46,5 @@ int main() {
 
   Equation e2(a * b);
   std::cout << e2;
-  auto derivs = e2.get_derivatives();
+  auto [d1, d2, d3] = e;
 }

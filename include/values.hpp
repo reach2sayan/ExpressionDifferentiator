@@ -26,7 +26,7 @@ public:
 };
 constexpr static character_generator cgenerator{};
 
-struct Operators {
+struct IOperators {
   template <typename LHS, typename RHS>
   friend constexpr auto operator+(const LHS &a, const RHS &b);
 
@@ -58,7 +58,8 @@ struct Operators {
   }
 };
 
-template <typename T> class Constant : public Operators {
+
+template <typename T> class Constant : public IOperators {
   const T value;
   friend std::ostream &operator<<(std::ostream &out, const Constant<T> &c) {
     return out << std::to_string(c.value) << std::string_view{"_c"};
@@ -73,7 +74,7 @@ public:
   constexpr auto derivative() const { return Constant{T{}}; }
 };
 
-template <typename T, char symbol> class Variable : public Operators {
+template <typename T, char symbol> class Variable : public IOperators {
   T value;
   friend std::ostream &operator<<(std::ostream &out,
                                   const Variable<T, symbol> &c) {
