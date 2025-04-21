@@ -53,4 +53,5 @@ int main() {
   for (auto &r : res) {
     std::cout << r << ", ";
   }
+  constexpr auto sq = soe.is_square;
 }

@@ -22,6 +22,9 @@ private:
 
 public:
   constexpr static size_t number_of_equations = sizeof...(TEquations);
+  static constexpr bool is_square =
+      (... && (std::tuple_size_v<typename TEquations::derivatives_t> ==
+               number_of_equations));
   constexpr explicit SystemOfEquations(TEquations... eqns)
       : equations{std::move(eqns)...} {}
 
