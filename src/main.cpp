@@ -33,7 +33,7 @@ int main() {
   std::cout << derv << std::endl;
   std::cout << derv.eval() << std::endl;
   auto a = PV(2, 'a');
-  auto b = PC(3);
+  auto b = PV(3,'b');
   auto oter = PV(4, 'o');
   auto tmp = a + b + oter;
   std::cout << "a + b + oter \n= " << tmp << "\n= " << tmp.eval() << "\n";
@@ -42,4 +42,8 @@ int main() {
 
   Equation e(tmp);
   std::cout << e;
+
+  Equation e2(a * b);
+  std::cout << e2;
+  auto derivs = e2.get_derivatives();
 }

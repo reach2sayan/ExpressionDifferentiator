@@ -35,8 +35,17 @@ constexpr auto make_derivatives_impl(const Tuple &chars,
 template <typename... Chars, typename Op, typename LHS, typename RHS>
 constexpr auto make_derivatives(const std::tuple<Chars...> &chars,
                                 const Expression<Op, LHS, RHS> &expr) {
-  return make_derivatives_impl(chars, expr,
-                               std::index_sequence_for<Chars...>{});
+
+  auto make_derivatives_impl = []<typename Tuple, typename _Op, typename _LHS,
+                                  typename _RHS, std::size_t... Is>(
+                                   const Tuple &chars,
+                                   const Expression<_Op, _LHS, _RHS> &expr,
+                                   std::index_sequence<Is...>) {
+    return std::make_tuple(
+        make_all_constant_except<std::tuple_element_t<Is, Tuple>::value>(expr)
+            .derivative()...);
+  };
+  return make_derivatives_impl(chars, expr, std::index_sequence_for<Chars...>{});
 }
 
 template <typename TExpression> class Equation {
@@ -46,10 +55,6 @@ private:
   using derivatives_t =
       decltype(make_derivatives(std::declval<symbolslist>(), expression));
   derivatives_t derivatives;
-
-  constexpr static auto get_derivatives_impl(const TExpression &expr) {
-    return make_derivatives(symbolslist{}, expr);
-  }
 
   friend std::ostream &operator<<(std::ostream &out, const Equation &e) {
     out << "Equation\n"
@@ -68,7 +73,7 @@ public:
     return std::get<index>(derivatives);
   }
   constexpr Equation(const TExpression &e)
-      : expression{e}, derivatives{get_derivatives_impl(e)} {}
-};
+      : expression{e}, derivatives { make_derivatives(symbolslist {}, e) } {}
+        };
 
 template <typename T> Equation(T &&) -> Equation<std::decay_t<T>>;
