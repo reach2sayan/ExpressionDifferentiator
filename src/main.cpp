@@ -46,5 +46,5 @@ int main() {
 
   Equation e2(a * b);
   std::cout << e2;
-  auto [d1, d2, d3] = e;
+  auto exp = e[IDX(0)];
 }

@@ -11,6 +11,15 @@ class SystemOfEquations : public TupleSupport {
 private:
   std::tuple<TEquations...> equations;
 
+  template <std::size_t N, typename... Us>
+  friend decltype(auto) get(SystemOfEquations<Us...> &);
+
+  template <std::size_t N, typename... Us>
+  friend decltype(auto) get(const SystemOfEquations<Us...> &);
+
+  template <std::size_t N, typename... Us>
+  friend decltype(auto) get(SystemOfEquations<Us...> &&);
+
 public:
   constexpr static size_t number_of_equations = sizeof...(TEquations);
   constexpr explicit SystemOfEquations(TEquations... eqns)

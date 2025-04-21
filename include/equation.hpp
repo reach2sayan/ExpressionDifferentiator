@@ -7,6 +7,7 @@
 #include "operations.hpp"
 #include "traits.hpp"
 #include <array>
+#include <strings.h>
 #include <type_traits>
 
 template <class... T>
@@ -42,17 +43,9 @@ constexpr auto make_derivatives(const std::tuple<Chars...> &labels,
 
 template <typename TExpression> class Equation;
 
-struct TupleSupport {
-  template <std::size_t N, typename U> friend decltype(auto) get(Equation<U> &);
+struct TupleSupport {};
 
-  template <std::size_t N, typename U>
-  friend decltype(auto) get(const Equation<U> &);
-
-  template <std::size_t N, typename U>
-  friend decltype(auto) get(Equation<U> &&);
-};
-
-template <typename TExpression> class Equation : public TupleSupport {
+template <typename TExpression> class Equation {
 private:
   TExpression expression;
 
@@ -80,34 +73,16 @@ public:
   constexpr static size_t number_of_derivatives =
       std::tuple_size_v<derivatives_t>;
   constexpr operator value_type() const { return expression; }
-
+  template <size_t N>
+  constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) {
+    if constexpr (N == 0) {
+      return get_expression();
+    } else {
+      return std::get<N - 1>(derivatives);
+    }
+  }
   constexpr Equation(const TExpression &e)
       : expression{e}, derivatives{make_derivatives(symbolslist{}, e)} {}
 };
 
-namespace std {
-template <typename TExpression>
-struct tuple_size<Equation<TExpression>>
-    : std::tuple_size<typename Equation<TExpression>::derivatives_t> {};
-
-template <std::size_t N, typename TExpression>
-struct tuple_element<N, Equation<TExpression>> {
-  using type = typename std::tuple_element_t<
-      N, typename Equation<TExpression>::derivatives_t>;
-};
-} // namespace std
-template <std::size_t N, typename TExpression>
-decltype(auto) get(Equation<TExpression> &equation) {
-  return std::get<N>(equation.derivatives);
-}
-
-template <std::size_t N, typename TExpression>
-decltype(auto) get(const Equation<TExpression> &equation) {
-  return std::get<N>(equation.derivatives);
-}
-
-template <std::size_t N, typename TExpression>
-decltype(auto) get(Equation<TExpression> &&equation) {
-  return std::get<N>(std::move(equation.derivative));
-}
 template <typename T> Equation(T &&) -> Equation<std::decay_t<T>>;

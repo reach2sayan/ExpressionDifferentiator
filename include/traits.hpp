@@ -202,3 +202,7 @@ private:
 public:
   using type = decltype(std::tuple_cat(std::declval<left>()));
 };
+
+template<size_t value>
+struct idx_t : std::integral_constant<size_t, value> {};
+#define IDX(value) idx_t<value>{}
