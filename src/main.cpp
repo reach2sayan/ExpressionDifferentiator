@@ -48,4 +48,9 @@ int main() {
   std::cout << e2;
 
   SystemOfEquations soe(e, e2);
+  auto res = soe.eval();
+  std::cout << "System of equations\n";
+  for (auto &r : res) {
+    std::cout << r << ", ";
+  }
 }

@@ -72,7 +72,7 @@ public:
   using value_type = typename TExpression::value_type;
   constexpr static size_t number_of_derivatives =
       std::tuple_size_v<derivatives_t>;
-  constexpr operator value_type() const { return expression; }
+  constexpr operator value_type() const { return expression.eval(); }
   template <size_t N>
   constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) {
     if constexpr (N == 0) {
@@ -89,6 +89,7 @@ public:
       return std::get<N - 1>(derivatives);
     }
   }
+  constexpr auto eval() const { return expression.eval(); }
   constexpr Equation(const TExpression &e)
       : expression{e}, derivatives{make_derivatives(symbolslist{}, e)} {}
 };
