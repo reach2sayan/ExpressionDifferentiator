@@ -46,5 +46,6 @@ int main() {
 
   Equation e2(a * b);
   std::cout << e2;
-  auto exp = e[IDX(0)];
+
+  SystemOfEquations soe(e, e2);
 }

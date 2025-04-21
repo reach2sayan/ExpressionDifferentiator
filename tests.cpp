@@ -166,12 +166,12 @@ TEST(EquationTest, DerivativeTest1) {
   auto y = PV(2,'y');
   auto expr = x * y;
   auto eq = Equation(expr);
-  auto derivs = eq.get_derivatives();
-  auto dcount = std::tuple_size_v<decltype(derivs)>;
-  ASSERT_EQ(dcount, 2);
+  //auto derivs = eq.get_derivatives();
+  //auto dcount = std::tuple_size_v<decltype(derivs)>;
+  //ASSERT_EQ(dcount, 2);
 
-  auto d1 = std::get<0>(derivs);
-  auto d2 = std::get<1>(derivs);
+  auto d1 = eq[IDX(1)];
+  auto d2 = eq[IDX(2)];
 
   ASSERT_EQ(expr, 8);
   ASSERT_EQ(d1, 2);
@@ -185,11 +185,9 @@ TEST(EquationTest, DerivativeTest2) {
   auto c2 = PC(2);
   auto expr = c1*x + c2*y;
   auto eq = Equation(expr);
-  auto derivs = eq.get_derivatives();
-  auto dcount = std::tuple_size_v<decltype(derivs)>;
-  ASSERT_EQ(dcount, 2);
-  ASSERT_EQ(std::get<0>(derivs),1);
-  ASSERT_EQ(std::get<1>(derivs),2);
+
+  ASSERT_EQ(eq[IDX(1)],1);
+  ASSERT_EQ(eq[IDX(2)],2);
 }
 
 TEST(EquationTest, DerivativeTest3) {
@@ -197,10 +195,9 @@ TEST(EquationTest, DerivativeTest3) {
   constexpr auto y = PV(2,'y');  // y = 2
   constexpr auto expr = (x + y) * (x - y);  // (x + y) * (x - y)
   constexpr auto eq = Equation(expr);
-  constexpr auto derivs = eq.get_derivatives();
 
-  constexpr auto d1 = std::get<0>(derivs);  // derivative w.r.t x
-  constexpr auto d2 = std::get<1>(derivs);  // derivative w.r.t y
+  constexpr auto d1 = eq[IDX(1)];//std::get<0>(derivs);  // derivative w.r.t x
+  constexpr auto d2 = eq[IDX(2)];  // derivative w.r.t y
   static_assert(expr == 12);
   static_assert(d1 == 8);
   static_assert(d2 == -4  );

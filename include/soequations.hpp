@@ -27,7 +27,19 @@ public:
 
   constexpr auto &get_equations() { return equations; }
   constexpr const auto &get_equations() const { return equations; }
+
+  auto eval() const;
 };
+
+template <typename... TEquations>
+auto SystemOfEquations<TEquations...>::eval() const {
+  auto make_array_helper = []<typename Tuple, std::size_t... Is>(
+                               const Tuple &tup, std::index_sequence<Is...>) {
+    return std::array{std::get<Is>(tup).eval()...};
+  };
+  return make_array_helper(equations,
+                           std::make_index_sequence<sizeof...(TEquations)>{});
+}
 
 namespace std {
 template <typename... TEquations>

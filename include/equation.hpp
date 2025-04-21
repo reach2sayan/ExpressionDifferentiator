@@ -81,6 +81,14 @@ public:
       return std::get<N - 1>(derivatives);
     }
   }
+  template <size_t N>
+  constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) const {
+    if constexpr (N == 0) {
+      return get_expression();
+    } else {
+      return std::get<N - 1>(derivatives);
+    }
+  }
   constexpr Equation(const TExpression &e)
       : expression{e}, derivatives{make_derivatives(symbolslist{}, e)} {}
 };
