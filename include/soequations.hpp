@@ -6,8 +6,7 @@
 
 #include "equation.hpp"
 
-template <typename... TEquations>
-class SystemOfEquations : public TupleSupport {
+template <typename... TEquations> class SystemOfEquations {
 private:
   std::tuple<TEquations...> equations;
   static_assert(all_tuple_type_same<TEquations...>);
@@ -35,11 +34,9 @@ public:
       : equations{std::move(eqns)...} {}
 
   auto eval() const;
-  auto jacobian() -> std::enable_if_t<
+  auto jacobian() const -> std::enable_if_t<
       is_square,
-      std::array<value_type, number_of_equations * number_of_equations>> const {
-    return {};
-  }
+      std::array<std::array<value_type, number_of_equations>, number_of_equations>>;
 };
 
 template <typename... TEquations>
@@ -50,6 +47,17 @@ auto SystemOfEquations<TEquations...>::eval() const {
   };
   return make_array_helper(equations,
                            std::make_index_sequence<sizeof...(TEquations)>{});
+}
+template <typename... TEquations>
+auto SystemOfEquations<TEquations...>::jacobian() const -> std::enable_if_t<
+    is_square,
+    std::array<std::array<value_type, number_of_equations>, number_of_equations>> {
+  auto make_array_helper = []<typename Tuple, std::size_t... Is>(
+                               const Tuple &tup, std::index_sequence<Is...>) {
+    return std::array{std::get<Is>(tup).eval_derivatives()...};
+  };
+  return make_array_helper(
+      equations, std::make_index_sequence<sizeof...(TEquations)>{});
 }
 
 namespace std {

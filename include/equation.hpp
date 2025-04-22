@@ -41,10 +41,6 @@ constexpr auto make_derivatives(const std::tuple<Chars...> &labels,
                                std::index_sequence_for<Chars...>{});
 }
 
-template <typename TExpression> class Equation;
-
-struct TupleSupport {};
-
 template <typename TExpression> class Equation {
 private:
   TExpression expression;
@@ -59,14 +55,13 @@ private:
 
   friend std::ostream &operator<<(std::ostream &out, const Equation &e) {
     out << "Equation\n"
-        << e.get_expression() << "\n"
+        << e.expression << "\n"
         << "Derivatives\n";
-    print_tup(out, e.get_derivatives_helper());
+    print_tup(out, e.derivatives);
     return out;
   }
-  constexpr const auto &get_expression() const { return expression; }
-  constexpr auto &get_expression() { return expression; }
-  constexpr const auto &get_derivatives_helper() const { return derivatives; }
+  // constexpr const auto &get_expression() const { return expression; }
+  // constexpr auto &get_expression() { return expression; }
 
 public:
   using value_type = typename TExpression::value_type;
@@ -76,7 +71,7 @@ public:
   template <size_t N>
   constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) {
     if constexpr (N == 0) {
-      return get_expression();
+      return (expression);
     } else {
       return std::get<N - 1>(derivatives);
     }
@@ -84,12 +79,22 @@ public:
   template <size_t N>
   constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) const {
     if constexpr (N == 0) {
-      return get_expression();
+      return (expression);
     } else {
       return std::get<N - 1>(derivatives);
     }
   }
   constexpr auto eval() const { return expression.eval(); }
+  constexpr auto eval_derivatives() const {
+    auto eval_derivatives_helper =
+        []<typename Tuple, std::size_t... Is>(const Tuple &tup,
+                                              std::index_sequence<Is...>) {
+          return std::array{std::get<Is>(tup).eval()...};
+        };
+    return eval_derivatives_helper(
+        derivatives,
+        std::make_index_sequence<std::tuple_size_v<derivatives_t>>{});
+  }
   constexpr Equation(const TExpression &e)
       : expression{e}, derivatives{make_derivatives(symbolslist{}, e)} {}
 };

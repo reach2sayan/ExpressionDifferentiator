@@ -36,23 +36,34 @@ int main() {
   auto a = PV(2, 'a');
   auto b = PV(3,'b');
   auto oter = PV(4, 'o');
-  auto tmp = a + b; //+ oter;
+  auto tmp = a + b + oter;
   std::cout << "a + b + oter \n= " << tmp << "\n= " << tmp.eval() << "\n";
   auto d = extract_symbols_from_expr<decltype(tmp)>::type{};
   auto k = make_derivatives(d, tmp);
 
   Equation e(tmp);
   std::cout << e;
-
-  Equation e2(a * b);
-  std::cout << e2;
-
-  SystemOfEquations soe(e, e2);
+  Equation e3(a-b*oter);
+  std::cout <<"----------------------\n";
+  Equation e2(a * b * oter);
+  std::cout << e2 << std::endl;
+  std::cout << e2.eval() << std::endl;
+  for (auto c: e2.eval_derivatives())
+    std::cout << c << ", ";
+  std::cout <<"----------------------\n";
+  SystemOfEquations soe(e, e2,e3);
   auto res = soe.eval();
   std::cout << "System of equations\n";
   for (auto &r : res) {
     std::cout << r << ", ";
   }
   constexpr auto sq = soe.is_square;
-  soe.jacobian();
+  auto jac = soe.jacobian();
+  std::cout << "Jacobian\n";
+  for (auto r : jac) {
+    for (auto c : r) {
+      std::cout << c << ", ";
+    }
+    std::cout << "\n";
+  }
 }
