@@ -200,9 +200,11 @@ struct sort_tuple<std::tuple<Head, Tail...>> {
 
 template <typename Tuple> using sort_tuple_t = typename sort_tuple<Tuple>::type;
 
-// Comparison: same ::value
-template <typename A, typename B>
-constexpr bool same_value = (A::value == B::value);
+template <char A, char B>
+constexpr bool operator==(std::integral_constant<char, A>,
+                          std::integral_constant<char, B>) {
+  return A == B;
+}
 
 // Base case: empty
 template <typename Tuple> struct unique_tuple;
@@ -217,17 +219,94 @@ template <typename T> struct unique_tuple<std::tuple<T>> {
 
 template <typename A, typename B, typename... Rest>
 struct unique_tuple<std::tuple<A, B, Rest...>> {
-  using tail = std::conditional_t<same_value<A, B>, std::tuple<B, Rest...>,
+  using tail = std::conditional_t<A{} == B{}, std::tuple<B, Rest...>,
                                   std::tuple<B, Rest...>>;
 
   using rest_unique = typename unique_tuple<tail>::type;
 
-  using type = std::conditional_t<same_value<A, B>, rest_unique,
+  using type = std::conditional_t<A{} == B{}, rest_unique,
                                   decltype(std::tuple_cat(std::tuple<A>{},
                                                           rest_unique{}))>;
 };
 
 template <typename T> using unique_tuple_t = typename unique_tuple<T>::type;
+
+template <typename T, typename Tuple> struct tuple_contains;
+
+template <typename T>
+struct tuple_contains<T, std::tuple<>> : std::false_type {};
+
+template <typename T, typename U, typename... Rest>
+struct tuple_contains<T, std::tuple<U, Rest...>>
+    : tuple_contains<T, std::tuple<Rest...>> {};
+
+template <typename T, typename... Rest>
+struct tuple_contains<T, std::tuple<T, Rest...>> : std::true_type {};
+
+template <typename T, typename Tuple> struct tuple_append_unique {
+  using type = std::conditional_t<tuple_contains<T, Tuple>::value, Tuple,
+                                  decltype(std::tuple_cat(
+                                      std::declval<Tuple>(),
+                                      std::declval<std::tuple<T>>()))>;
+};
+
+template <typename Tuple1, typename Tuple2> struct tuple_union;
+
+template <typename Tuple1> struct tuple_union<Tuple1, std::tuple<>> {
+  using type = Tuple1;
+};
+
+template <typename Tuple1, typename Head, typename... Tail>
+struct tuple_union<Tuple1, std::tuple<Head, Tail...>> {
+private:
+  using WithHead = typename tuple_append_unique<Head, Tuple1>::type;
+
+public:
+  using type = typename tuple_union<WithHead, std::tuple<Tail...>>::type;
+};
+
+template <typename... Tuples> struct tuple_union_variadic;
+
+template <> struct tuple_union_variadic<> {
+  using type = std::tuple<>;
+};
+
+template <typename Tuple> struct tuple_union_variadic<Tuple> {
+  using type = Tuple;
+};
+
+template <typename First, typename Second, typename... Rest>
+struct tuple_union_variadic<First, Second, Rest...> {
+  using type =
+      typename tuple_union_variadic<typename tuple_union<First, Second>::type,
+                                    Rest...>::type;
+};
+
+template <typename... Tuples>
+using tuple_union_t = typename tuple_union_variadic<Tuples...>::type;
+
+template <typename Tuple1, typename Tuple2> struct tuple_difference;
+
+template <typename Tuple2> struct tuple_difference<std::tuple<>, Tuple2> {
+  using type = std::tuple<>;
+};
+
+template <typename Head, typename... Tail, typename Tuple2>
+struct tuple_difference<std::tuple<Head, Tail...>, Tuple2> {
+private:
+  using TailResult =
+      typename tuple_difference<std::tuple<Tail...>, Tuple2>::type;
+
+public:
+  using type = std::conditional_t<tuple_contains<Head, Tuple2>::value,
+                                  TailResult, // Skip it
+                                  decltype(std::tuple_cat(
+                                      std::declval<std::tuple<Head>>(),
+                                      std::declval<TailResult>()))>;
+};
+
+template <typename Tuple1, typename Tuple2>
+using tuple_difference_t = typename tuple_difference<Tuple1, Tuple2>::type;
 
 template <typename T> struct extract_variable_symbols {
   using type = std::tuple<>;
@@ -259,7 +338,8 @@ private:
   using left = typename extract_symbols_from_expr<Expr>::type;
 
 public:
-  using type = sort_tuple_t<decltype(std::tuple_cat(std::declval<left>()))>;
+  using type = unique_tuple_t<
+      sort_tuple_t<decltype(std::tuple_cat(std::declval<left>()))>>;
 };
 
 template <size_t value> struct idx_t : std::integral_constant<size_t, value> {};

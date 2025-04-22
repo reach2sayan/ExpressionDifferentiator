@@ -69,6 +69,8 @@ int main() {
   constexpr auto y2 = PV(2,'x');  // y = 2
   constexpr auto expr1 = x1 + y2 + x1 * y2;  // (x + y) * (x - y)
   constexpr auto eq = Equation(expr1);
-
   std::cout << eq;
+
+  tuple_union_t<decltype(e2)::symbolslist,decltype(eq)::symbolslist> combined{};
+  TD<tuple_difference_t<decltype(combined), decltype(e2)::symbolslist>> t;
 }
