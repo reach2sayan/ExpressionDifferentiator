@@ -47,9 +47,8 @@ public:
   using derivatives_t =
       decltype(make_derivatives(std::declval<symbolslist>(), expression));
 
-public:
+private:
   derivatives_t derivatives;
-  constexpr auto get_labels() const { return symbolslist{}; }
   friend std::ostream &operator<<(std::ostream &out, const Equation &e) {
     out << "Equation\n"
         << e.expression << "\n"
@@ -57,9 +56,6 @@ public:
     print_tup(out, e.derivatives);
     return out;
   }
-  // constexpr const auto &get_expression() const { return expression; }
-  // constexpr auto &get_expression() { return expression; }
-
 public:
   using value_type = typename TExpression::value_type;
   constexpr static size_t number_of_derivatives =
