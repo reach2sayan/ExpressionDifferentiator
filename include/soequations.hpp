@@ -92,10 +92,10 @@ decltype(auto) get(SystemOfEquations<TEquations...> &&w) {
 }
 
 template <typename TExpression, typename Tuple>
-constexpr auto fold_tuple(TExpression expression,
-                          const Tuple &missing_symbols) {
+constexpr auto make_equation_helper(TExpression expression,
+                                    const Tuple &missing_symbols) {
 
-  auto fold_tuple_impl =
+  auto make_equation_helper_impl =
       []<typename TTExpression, typename TTuple, std::size_t... Is>(
           TTExpression exp, TTuple missing_symbols,
           std::index_sequence<Is...>) {
@@ -104,9 +104,9 @@ constexpr auto fold_tuple(TExpression expression,
                 Variable<value_type, std::tuple_element_t<Is, TTuple>::value>{
                     value_type{}});
       };
-  return Equation{
-      fold_tuple_impl(std::move(expression), std::move(missing_symbols),
-                      std::make_index_sequence<std::tuple_size_v<Tuple>>{})};
+  return Equation{make_equation_helper_impl(
+      std::move(expression), std::move(missing_symbols),
+      std::make_index_sequence<std::tuple_size_v<Tuple>>{})};
 }
 
 template <typename... TExpressions>
@@ -122,7 +122,7 @@ constexpr auto make_system_of_equations(TExpressions... exprs) {
         using missing_symbols_list_t =
             tuple_difference_t<combined_symbols_list_t, current_symbols_list_t>;
 
-        return fold_tuple(std::move(expr), missing_symbols_list_t{});
+        return make_equation_helper(std::move(expr), missing_symbols_list_t{});
       };
 
   return SystemOfEquations(fill_expression_with_missing_symbols(exprs)...);
