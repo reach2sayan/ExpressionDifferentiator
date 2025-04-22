@@ -6,9 +6,6 @@
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
-#include <array>
-#include <strings.h>
-#include <type_traits>
 
 template <class... T>
 constexpr inline std::ostream &print_tup(std::ostream &out,

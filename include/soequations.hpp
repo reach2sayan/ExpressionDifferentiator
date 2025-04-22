@@ -35,8 +35,8 @@ public:
 
   auto eval() const;
   auto jacobian() const -> std::enable_if_t<
-      is_square,
-      std::array<std::array<value_type, number_of_equations>, number_of_equations>>;
+      is_square, std::array<std::array<value_type, number_of_equations>,
+                            number_of_equations>>;
 };
 
 template <typename... TEquations>
@@ -49,15 +49,16 @@ auto SystemOfEquations<TEquations...>::eval() const {
                            std::make_index_sequence<sizeof...(TEquations)>{});
 }
 template <typename... TEquations>
-auto SystemOfEquations<TEquations...>::jacobian() const -> std::enable_if_t<
-    is_square,
-    std::array<std::array<value_type, number_of_equations>, number_of_equations>> {
+auto SystemOfEquations<TEquations...>::jacobian() const
+    -> std::enable_if_t<is_square,
+                        std::array<std::array<value_type, number_of_equations>,
+                                   number_of_equations>> {
   auto make_array_helper = []<typename Tuple, std::size_t... Is>(
                                const Tuple &tup, std::index_sequence<Is...>) {
     return std::array{std::get<Is>(tup).eval_derivatives()...};
   };
-  return make_array_helper(
-      equations, std::make_index_sequence<sizeof...(TEquations)>{});
+  return make_array_helper(equations,
+                           std::make_index_sequence<sizeof...(TEquations)>{});
 }
 
 namespace std {
