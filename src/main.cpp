@@ -81,7 +81,20 @@ int main() {
   constexpr auto y2 = PV(2, 'x');           // y = 2
   constexpr auto expr1 = x1 + y2 + x1 * y2; // (x + y) * (x - y)
   auto soee = make_system_of_equations(expr1, expr2);
-  std::cout << soee;
+  std::cout << soee << "\n";
+  for (auto r: soee.eval()) {
+    std::cout << r << ", ";
+  }
+  std::cout << "\n";
+  auto d = soee.jacobian();
+  for (auto r : d) {
+    for (auto c : r) {
+      std::cout << c << ", ";
+    }
+    std::cout << "\n";
+  }
+
+
   constexpr bool squa = soee.is_square;
   // TD<tuple_union_t<decltype(sl),decltype(s2)>> _;
 }

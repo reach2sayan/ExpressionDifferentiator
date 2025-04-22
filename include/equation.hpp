@@ -14,7 +14,7 @@ constexpr inline std::ostream &print_tup(std::ostream &out,
                               std::ostream &out, const TupType &_tup,
                               std::index_sequence<I...>) -> std::ostream & {
     out << "(";
-    (..., (out << (I == 0 ? "" : ", ") << std::get<I>(_tup)));
+    (..., (out << (I == 0 ? "" : "\n") << std::get<I>(_tup)));
     out << ")\n";
     return out;
   };
