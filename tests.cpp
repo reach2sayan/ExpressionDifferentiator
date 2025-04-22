@@ -195,12 +195,8 @@ TEST(EquationTest, DerivativeTest3) {
   constexpr auto y = PV(2,'y');  // y = 2
   constexpr auto expr = (x + y) * (x - y);  // (x + y) * (x - y)
   constexpr auto eq = Equation(expr);
-
-  auto v = eq.eval_derivatives();
-  for (auto i : v) {
-    std::cout << i << ", ";
-  }
+  auto [d1, d2] = eq.eval_derivatives();
   ASSERT_EQ(expr, 12);  // (4 + 2) * (4 - 2) = 6 * 2 = 12
-  //ASSERT_EQ(d1, 8);    // derivative w.r.t x: 2x = 8
-  //ASSERT_EQ(d2, -4);   // derivative w.r.t y: -2y = -4
+  ASSERT_EQ(d1, 8);    // derivative w.r.t x: 2x = 8
+  ASSERT_EQ(d2, -4);   // derivative w.r.t y: -2y = -4
 }

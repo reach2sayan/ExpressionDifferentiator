@@ -47,9 +47,9 @@ public:
   using derivatives_t =
       decltype(make_derivatives(std::declval<symbolslist>(), expression));
 
-private:
+public:
   derivatives_t derivatives;
-
+  constexpr auto get_labels() const { return symbolslist{}; }
   friend std::ostream &operator<<(std::ostream &out, const Equation &e) {
     out << "Equation\n"
         << e.expression << "\n"

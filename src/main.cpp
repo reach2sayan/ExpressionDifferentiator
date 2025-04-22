@@ -66,4 +66,14 @@ int main() {
     }
     std::cout << "\n";
   }
+
+  constexpr auto x1 = PV(4,'y');  // x = 4
+  constexpr auto y2 = PV(2,'x');  // y = 2
+  constexpr auto expr1 = x1 + y2 + x1 * y2;  // (x + y) * (x - y)
+  constexpr auto eq = Equation(expr1);
+  auto va = eq.get_labels();
+
+  constexpr auto d3 = eq.derivatives;
+  std::cout << eq;
+  constexpr auto v = std::tuple_size_v<decltype(d3)>;
 }

@@ -200,6 +200,35 @@ struct sort_tuple<std::tuple<Head, Tail...>> {
 
 template <typename Tuple> using sort_tuple_t = typename sort_tuple<Tuple>::type;
 
+// Comparison: same ::value
+template <typename A, typename B>
+constexpr bool same_value = (A::value == B::value);
+
+// Base case: empty
+template <typename Tuple> struct unique_tuple;
+
+template <> struct unique_tuple<std::tuple<>> {
+  using type = std::tuple<>;
+};
+
+template <typename T> struct unique_tuple<std::tuple<T>> {
+  using type = std::tuple<T>;
+};
+
+template <typename A, typename B, typename... Rest>
+struct unique_tuple<std::tuple<A, B, Rest...>> {
+  using tail = std::conditional_t<same_value<A, B>, std::tuple<B, Rest...>,
+                                  std::tuple<B, Rest...>>;
+
+  using rest_unique = typename unique_tuple<tail>::type;
+
+  using type = std::conditional_t<same_value<A, B>, rest_unique,
+                                  decltype(std::tuple_cat(std::tuple<A>{},
+                                                          rest_unique{}))>;
+};
+
+template <typename T> using unique_tuple_t = typename unique_tuple<T>::type;
+
 template <typename T> struct extract_variable_symbols {
   using type = std::tuple<>;
 };
@@ -220,8 +249,8 @@ private:
   using right = typename extract_symbols_from_expr<RHS>::type;
 
 public:
-  using type = sort_tuple_t<decltype(std::tuple_cat(std::declval<left>(),
-                                                    std::declval<right>()))>;
+  using type = unique_tuple_t<sort_tuple_t<decltype(std::tuple_cat(
+      std::declval<left>(), std::declval<right>()))>>;
 };
 
 template <typename Op, typename Expr>
