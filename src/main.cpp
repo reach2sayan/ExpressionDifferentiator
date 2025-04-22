@@ -79,7 +79,7 @@ int main() {
   constexpr auto expr2 = a + b;
   constexpr auto x1 = PV(4, 'y');           // x = 4
   constexpr auto y2 = PV(2, 'x');           // y = 2
-  constexpr auto expr1 = x1 + y2 + x1 * y2; // (x + y) * (x - y)
+  constexpr auto expr1 = x1 + y2 + PC(3)*x1 * y2; // (x + y) * (x - y)
   auto soee = make_system_of_equations(expr1, expr2);
   std::cout << soee << "\n";
   for (auto r: soee.eval()) {

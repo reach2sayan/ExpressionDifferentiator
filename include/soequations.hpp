@@ -35,7 +35,7 @@ public:
 
   template <typename... TExpressions>
   constexpr friend auto make_system_of_equations(const TExpressions&...);
-  
+
   using value_type =
       typename std::tuple_element_t<0, std::tuple<TEquations...>>::value_type;
   constexpr static size_t number_of_equations = sizeof...(TEquations);
@@ -43,14 +43,15 @@ public:
       (... && (std::tuple_size_v<typename TEquations::derivatives_t> ==
                number_of_equations));
 
-  auto eval() const;
-  auto jacobian() const -> std::enable_if_t<
+  void update(const std::array<value_type, number_of_equations>& updates);
+  constexpr auto eval() const;
+  constexpr auto jacobian() const -> std::enable_if_t<
       is_square, std::array<std::array<value_type, number_of_equations>,
                             number_of_equations>>;
 };
 
 template <typename... TEquations>
-auto SystemOfEquations<TEquations...>::eval() const {
+constexpr auto SystemOfEquations<TEquations...>::eval() const {
   auto make_array_helper = []<typename Tuple, std::size_t... Is>(
                                const Tuple &tup, std::index_sequence<Is...>) {
     return std::array{std::get<Is>(tup).eval()...};
@@ -59,7 +60,7 @@ auto SystemOfEquations<TEquations...>::eval() const {
                            std::make_index_sequence<sizeof...(TEquations)>{});
 }
 template <typename... TEquations>
-auto SystemOfEquations<TEquations...>::jacobian() const
+constexpr auto SystemOfEquations<TEquations...>::jacobian() const
     -> std::enable_if_t<is_square,
                         std::array<std::array<value_type, number_of_equations>,
                                    number_of_equations>> {
