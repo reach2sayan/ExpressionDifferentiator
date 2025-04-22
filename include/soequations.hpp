@@ -63,7 +63,6 @@ struct tuple_element<N, SystemOfEquations<TEquations...>> {
 };
 } // namespace std
 
-// Provide get<N> overloads in the same namespace as MyWrapper
 template <std::size_t N, typename... TEquations>
 decltype(auto) get(SystemOfEquations<TEquations...> &w) {
   return std::get<N>(w.equations);
