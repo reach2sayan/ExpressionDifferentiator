@@ -198,7 +198,6 @@ struct sort_tuple<std::tuple<Head, Tail...>> {
   using type = typename insert_sorted<Head, sorted_tail>::type;
 };
 
-// Alias for convenience
 template <typename Tuple> using sort_tuple_t = typename sort_tuple<Tuple>::type;
 
 template <typename T> struct extract_variable_symbols {
