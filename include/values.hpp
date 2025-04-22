@@ -140,12 +140,6 @@ constexpr auto operator^(const LHS &a, const RHS &b) {
   return Exp<value_type>(a, b);
 }
 
-template <typename T, typename Expr> constexpr auto cos(const Expr &a) {
-  // VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
-  using value_type = typename Expr::value_type;
-  return Cosine<value_type>(a);
-}
-
 #define PV(x, label) Variable<decltype(x), label>(x)
 #define PC(x) Constant(x)
 
