@@ -21,8 +21,12 @@ private:
   template <std::size_t N, typename... Us>
   friend decltype(auto) get(SystemOfEquations<Us...> &&);
 
+  constexpr auto &get_equations() { return equations; }
+  constexpr const auto &get_equations() const { return equations; }
+
 public:
-  using value_type = typename std::tuple_element_t<0, std::tuple<TEquations...>>::value_type;
+  using value_type =
+      typename std::tuple_element_t<0, std::tuple<TEquations...>>::value_type;
   constexpr static size_t number_of_equations = sizeof...(TEquations);
   static constexpr bool is_square =
       (... && (std::tuple_size_v<typename TEquations::derivatives_t> ==
@@ -30,11 +34,10 @@ public:
   constexpr explicit SystemOfEquations(TEquations... eqns)
       : equations{std::move(eqns)...} {}
 
-  constexpr auto &get_equations() { return equations; }
-  constexpr const auto &get_equations() const { return equations; }
-
   auto eval() const;
-  auto get_jacobian() -> std::enable_if_t < is_square, std::array<value_type,number_of_equations*number_of_equations>> const {
+  auto jacobian() -> std::enable_if_t<
+      is_square,
+      std::array<value_type, number_of_equations * number_of_equations>> const {
     return {};
   }
 };

@@ -221,8 +221,8 @@ private:
   using right = typename extract_symbols_from_expr<RHS>::type;
 
 public:
-  using type =
-      sort_tuple_t<decltype(std::tuple_cat(std::declval<left>(), std::declval<right>()))>;
+  using type = sort_tuple_t<decltype(std::tuple_cat(std::declval<left>(),
+                                                    std::declval<right>()))>;
 };
 
 template <typename Op, typename Expr>

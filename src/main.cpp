@@ -54,4 +54,5 @@ int main() {
     std::cout << r << ", ";
   }
   constexpr auto sq = soe.is_square;
+  soe.jacobian();
 }
