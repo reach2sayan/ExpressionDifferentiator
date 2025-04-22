@@ -10,6 +10,7 @@ template <typename... TEquations>
 class SystemOfEquations : public TupleSupport {
 private:
   std::tuple<TEquations...> equations;
+  static_assert(all_tuple_type_same<TEquations...>);
 
   template <std::size_t N, typename... Us>
   friend decltype(auto) get(SystemOfEquations<Us...> &);
@@ -21,6 +22,7 @@ private:
   friend decltype(auto) get(SystemOfEquations<Us...> &&);
 
 public:
+  using value_type = typename std::tuple_element_t<0, std::tuple<TEquations...>>::value_type;
   constexpr static size_t number_of_equations = sizeof...(TEquations);
   static constexpr bool is_square =
       (... && (std::tuple_size_v<typename TEquations::derivatives_t> ==
@@ -32,6 +34,9 @@ public:
   constexpr const auto &get_equations() const { return equations; }
 
   auto eval() const;
+  auto get_jacobian() -> std::enable_if_t < is_square, std::array<value_type,number_of_equations*number_of_equations>> const {
+    return {};
+  }
 };
 
 template <typename... TEquations>

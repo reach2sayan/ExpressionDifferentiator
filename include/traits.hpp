@@ -170,6 +170,37 @@ constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
   return make_all_constant_except<symbol>(expr.expressions());
 }
 
+template <typename T> constexpr char get_value = T::value;
+template <typename T, typename Sorted> struct insert_sorted;
+
+template <typename T> struct insert_sorted<T, std::tuple<>> {
+  using type = std::tuple<T>;
+};
+
+template <typename T, typename Head, typename... Tail>
+struct insert_sorted<T, std::tuple<Head, Tail...>> {
+  using type = std::conditional_t<
+      (get_value<T> < get_value<Head>), std::tuple<T, Head, Tail...>,
+      decltype(std::tuple_cat(
+          std::tuple<Head>{},
+          typename insert_sorted<T, std::tuple<Tail...>>::type{}))>;
+};
+
+template <typename Input> struct sort_tuple;
+
+template <> struct sort_tuple<std::tuple<>> {
+  using type = std::tuple<>;
+};
+
+template <typename Head, typename... Tail>
+struct sort_tuple<std::tuple<Head, Tail...>> {
+  using sorted_tail = typename sort_tuple<std::tuple<Tail...>>::type;
+  using type = typename insert_sorted<Head, sorted_tail>::type;
+};
+
+// Alias for convenience
+template <typename Tuple> using sort_tuple_t = typename sort_tuple<Tuple>::type;
+
 template <typename T> struct extract_variable_symbols {
   using type = std::tuple<>;
 };
@@ -191,7 +222,7 @@ private:
 
 public:
   using type =
-      decltype(std::tuple_cat(std::declval<left>(), std::declval<right>()));
+      sort_tuple_t<decltype(std::tuple_cat(std::declval<left>(), std::declval<right>()))>;
 };
 
 template <typename Op, typename Expr>
@@ -200,9 +231,14 @@ private:
   using left = typename extract_symbols_from_expr<Expr>::type;
 
 public:
-  using type = decltype(std::tuple_cat(std::declval<left>()));
+  using type = sort_tuple_t<decltype(std::tuple_cat(std::declval<left>()))>;
 };
 
-template<size_t value>
-struct idx_t : std::integral_constant<size_t, value> {};
-#define IDX(value) idx_t<value>{}
+template <size_t value> struct idx_t : std::integral_constant<size_t, value> {};
+#define IDX(value)                                                             \
+  idx_t<value> {}
+
+template <typename Head, typename... Tail>
+constexpr static inline bool all_tuple_type_same =
+    (std::is_same_v<typename Head::value_type, typename Tail::value_type> &&
+     ...);

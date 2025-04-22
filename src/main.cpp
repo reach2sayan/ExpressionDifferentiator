@@ -36,7 +36,7 @@ int main() {
   auto a = PV(2, 'a');
   auto b = PV(3,'b');
   auto oter = PV(4, 'o');
-  auto tmp = a + b + oter;
+  auto tmp = a + b; //+ oter;
   std::cout << "a + b + oter \n= " << tmp << "\n= " << tmp.eval() << "\n";
   auto d = extract_symbols_from_expr<decltype(tmp)>::type{};
   auto k = make_derivatives(d, tmp);
