@@ -13,9 +13,9 @@ constexpr inline std::ostream &print_tup(std::ostream &out,
   auto print_tup_helper = []<class TupType, size_t... I>(
                               std::ostream &out, const TupType &_tup,
                               std::index_sequence<I...>) -> std::ostream & {
-    out << "(";
+    out << "(\n";
     (..., (out << (I == 0 ? "" : "\n") << std::get<I>(_tup)));
-    out << ")\n";
+    out << "\n)";
     return out;
   };
   return print_tup_helper(out, _tup, std::make_index_sequence<sizeof...(T)>());
