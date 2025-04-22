@@ -28,15 +28,20 @@ private:
     return out;
   }
 
+  constexpr explicit SystemOfEquations(TEquations... eqns)
+    : equations{std::move(eqns)...} {}
+
 public:
+
+  template <typename... TExpressions>
+  constexpr friend auto make_system_of_equations(const TExpressions&...);
+  
   using value_type =
       typename std::tuple_element_t<0, std::tuple<TEquations...>>::value_type;
   constexpr static size_t number_of_equations = sizeof...(TEquations);
   static constexpr bool is_square =
       (... && (std::tuple_size_v<typename TEquations::derivatives_t> ==
                number_of_equations));
-  constexpr explicit SystemOfEquations(TEquations... eqns)
-      : equations{std::move(eqns)...} {}
 
   auto eval() const;
   auto jacobian() const -> std::enable_if_t<
@@ -92,12 +97,12 @@ decltype(auto) get(SystemOfEquations<TEquations...> &&w) {
 }
 
 template <typename TExpression, typename Tuple>
-constexpr auto make_equation_helper(TExpression expression,
+constexpr auto make_equation_helper(const TExpression& expression,
                                     const Tuple &missing_symbols) {
 
   auto make_equation_helper_impl =
       []<typename TTExpression, typename TTuple, std::size_t... Is>(
-          TTExpression exp, TTuple missing_symbols,
+          const TTExpression& exp, TTuple missing_symbols,
           std::index_sequence<Is...>) {
         using value_type = TTExpression::value_type;
         return (exp + ... +
@@ -105,24 +110,24 @@ constexpr auto make_equation_helper(TExpression expression,
                     value_type{}});
       };
   return Equation{make_equation_helper_impl(
-      std::move(expression), std::move(missing_symbols),
+      expression, std::move(missing_symbols),
       std::make_index_sequence<std::tuple_size_v<Tuple>>{})};
 }
 
 template <typename... TExpressions>
-constexpr auto make_system_of_equations(TExpressions... exprs) {
+constexpr auto make_system_of_equations(const TExpressions&... exprs) {
 
   using combined_symbols_list_t =
       tuple_union_t<typename Equation<TExpressions>::symbolslist...>;
   constexpr combined_symbols_list_t combined_symbols_list{};
 
   auto fill_expression_with_missing_symbols =
-      [&combined_symbols_list]<typename TExpr>(TExpr expr) {
+      [&combined_symbols_list]<typename TExpr>(const TExpr& expr) {
         using current_symbols_list_t = typename Equation<TExpr>::symbolslist;
         using missing_symbols_list_t =
             tuple_difference_t<combined_symbols_list_t, current_symbols_list_t>;
 
-        return make_equation_helper(std::move(expr), missing_symbols_list_t{});
+        return make_equation_helper(expr, missing_symbols_list_t{});
       };
 
   return SystemOfEquations(fill_expression_with_missing_symbols(exprs)...);
