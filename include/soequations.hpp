@@ -22,6 +22,11 @@ private:
 
   constexpr auto &get_equations() { return equations; }
   constexpr const auto &get_equations() const { return equations; }
+  friend std::ostream &operator<<(std::ostream &out,
+                                  const SystemOfEquations &e) {
+    print_tup(out, e.equations);
+    return out;
+  }
 
 public:
   using value_type =
@@ -84,4 +89,41 @@ decltype(auto) get(const SystemOfEquations<TEquations...> &w) {
 template <std::size_t N, typename... TEquations>
 decltype(auto) get(SystemOfEquations<TEquations...> &&w) {
   return std::get<N>(std::move(w.equations));
+}
+
+template <typename TExpression, typename Tuple>
+constexpr auto fold_tuple(TExpression expression,
+                          const Tuple &missing_symbols) {
+
+  auto fold_tuple_impl =
+      []<typename TTExpression, typename TTuple, std::size_t... Is>(
+          TTExpression exp, TTuple missing_symbols,
+          std::index_sequence<Is...>) {
+        using value_type = TTExpression::value_type;
+        return (exp + ... +
+                Variable<value_type, std::tuple_element_t<Is, TTuple>::value>{
+                    value_type{}});
+      };
+  return Equation{
+      fold_tuple_impl(std::move(expression), std::move(missing_symbols),
+                      std::make_index_sequence<std::tuple_size_v<Tuple>>{})};
+}
+
+template <typename... TExpressions>
+constexpr auto make_system_of_equations(TExpressions... exprs) {
+
+  using combined_symbols_list_t =
+      tuple_union_t<typename Equation<TExpressions>::symbolslist...>;
+  constexpr combined_symbols_list_t combined_symbols_list{};
+
+  auto fill_expression_with_missing_symbols =
+      [&combined_symbols_list]<typename TExpr>(TExpr expr) {
+        using current_symbols_list_t = typename Equation<TExpr>::symbolslist;
+        using missing_symbols_list_t =
+            tuple_difference_t<combined_symbols_list_t, current_symbols_list_t>;
+
+        return fold_tuple(std::move(expr), missing_symbols_list_t{});
+      };
+
+  return SystemOfEquations(fill_expression_with_missing_symbols(exprs)...);
 }

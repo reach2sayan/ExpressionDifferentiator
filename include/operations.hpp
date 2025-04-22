@@ -137,20 +137,14 @@ struct DivideOp
 };
 
 template <typename T>
-struct SineOp
-    : UnaryOp<T, [](const T &a) -> T { return std::sin(a); }, '$'> {
-      template <typename Expr>
-      constexpr static auto derivative(const Expr &lhs);
-    };
+struct SineOp : UnaryOp<T, [](const T &a) -> T { return std::sin(a); }, '$'> {
+  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+};
 
 template <typename T>
-struct CosineOp
-    : UnaryOp<T, [](const T &a) -> T { return std::cos(a); }, '['> {
-      template <typename Expr>
-      constexpr static auto derivative(const Expr &lhs);
-    };
-
-
+struct CosineOp : UnaryOp<T, [](const T &a) -> T { return std::cos(a); }, '['> {
+  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+};
 
 template <typename T, typename LHS, typename RHS>
 constexpr inline auto Multiply(LHS lhs, RHS rhs) {
@@ -180,7 +174,6 @@ constexpr auto SineOp<T>::derivative(const Expr &expr) {
   return Multiply<T>(Cosine<T>(expr), expr.derivative());
 }
 
-
 template <typename T, typename Expr> constexpr inline auto Negate(Expr expr) {
   return MonoExpression<NegateOp<T>, Expr>{std::move(expr)};
 }
@@ -209,4 +202,3 @@ template <typename T, typename LHS, typename RHS>
 constexpr inline auto Exp(LHS lhs, RHS rhs) {
   return Expression<ExpOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
 }
-

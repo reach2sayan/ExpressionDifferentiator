@@ -10,7 +10,6 @@
 #include "values.hpp"
 #include <gtest/gtest.h>
 
-
 TEST(ExpressionTest, StaticTests) {
   static_assert(
       std::is_same_v<
@@ -135,8 +134,8 @@ TEST(ProcVarTest, Assign) {
   ASSERT_EQ(x.get().get(), 3.0);
   x = 33.0;
   auto k = pv.as_const();
-  //k = 12.0; // shouldn't compile
-  ASSERT_EQ(pv.get_value(),33.0);
+  // k = 12.0; // shouldn't compile
+  ASSERT_EQ(pv.get_value(), 33.0);
 }
 
 TEST(TrigTest, SinTest) {
@@ -146,11 +145,10 @@ TEST(TrigTest, SinTest) {
 }
 
 TEST(TrigTest, CosTest) {
-  auto b = cos(PV(0.45,'x'));
+  auto b = cos(PV(0.45, 'x'));
   ASSERT_EQ(b, std::cos(0.45));
   ASSERT_EQ(b.derivative().eval(), -std::sin(0.45));
 }
-
 
 TEST(EquationTest, DerivativeStatic) {
   constexpr auto a = 1_ci;
@@ -158,17 +156,17 @@ TEST(EquationTest, DerivativeStatic) {
   constexpr Variable<int, 'y'> c{3};
   constexpr auto sum_exp = a * b * c;
   Equation eq{sum_exp};
-  //Derivative d{eq.get_expression()};
+  // Derivative d{eq.get_expression()};
 }
 
 TEST(EquationTest, DerivativeTest1) {
-  auto x = PV(4,'x');
-  auto y = PV(2,'y');
+  auto x = PV(4, 'x');
+  auto y = PV(2, 'y');
   auto expr = x * y;
   auto eq = Equation(expr);
-  //auto derivs = eq.get_derivatives();
-  //auto dcount = std::tuple_size_v<decltype(derivs)>;
-  //ASSERT_EQ(dcount, 2);
+  // auto derivs = eq.get_derivatives();
+  // auto dcount = std::tuple_size_v<decltype(derivs)>;
+  // ASSERT_EQ(dcount, 2);
 
   auto d1 = eq[IDX(1)];
   auto d2 = eq[IDX(2)];
@@ -179,24 +177,24 @@ TEST(EquationTest, DerivativeTest1) {
 }
 
 TEST(EquationTest, DerivativeTest2) {
-  auto x = PV(4,'x');
-  auto y = PV(2,'y');
+  auto x = PV(4, 'x');
+  auto y = PV(2, 'y');
   auto c1 = PC(1);
   auto c2 = PC(2);
-  auto expr = c1*x + c2*y;
+  auto expr = c1 * x + c2 * y;
   auto eq = Equation(expr);
 
-  ASSERT_EQ(eq[IDX(1)],1);
-  ASSERT_EQ(eq[IDX(2)],2);
+  ASSERT_EQ(eq[IDX(1)], 1);
+  ASSERT_EQ(eq[IDX(2)], 2);
 }
 
 TEST(EquationTest, DerivativeTest3) {
-  constexpr auto x = PV(4,'x');  // x = 4
-  constexpr auto y = PV(2,'y');  // y = 2
-  constexpr auto expr = (x + y) * (x - y);  // (x + y) * (x - y)
+  constexpr auto x = PV(4, 'x');           // x = 4
+  constexpr auto y = PV(2, 'y');           // y = 2
+  constexpr auto expr = (x + y) * (x - y); // (x + y) * (x - y)
   constexpr auto eq = Equation(expr);
   auto [d1, d2] = eq.eval_derivatives();
-  ASSERT_EQ(expr, 12);  // (4 + 2) * (4 - 2) = 6 * 2 = 12
+  ASSERT_EQ(expr, 12); // (4 + 2) * (4 - 2) = 6 * 2 = 12
   ASSERT_EQ(d1, 8);    // derivative w.r.t x: 2x = 8
   ASSERT_EQ(d2, -4);   // derivative w.r.t y: -2y = -4
 }

@@ -206,7 +206,6 @@ constexpr bool operator==(std::integral_constant<char, A>,
   return A == B;
 }
 
-// Base case: empty
 template <typename Tuple> struct unique_tuple;
 
 template <> struct unique_tuple<std::tuple<>> {

@@ -56,6 +56,7 @@ private:
     print_tup(out, e.derivatives);
     return out;
   }
+
 public:
   using value_type = typename TExpression::value_type;
   constexpr static size_t number_of_derivatives =
