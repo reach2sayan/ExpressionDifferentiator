@@ -61,6 +61,7 @@ TEST(ExpressionTest, DivideTest) {
   auto b = 2.0_cd;
   auto divide = a / b;
   auto d = divide.derivative();
+  std::cout << d;
   ASSERT_EQ(divide, 2.0);
   ASSERT_EQ(d, 0.5);
 }

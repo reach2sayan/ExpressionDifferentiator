@@ -117,8 +117,13 @@ constexpr auto MultiplyOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
 }
 
 template <typename T>
-struct NegateOp
-    : UnaryOp<T, [](const T &a) -> T { std::negate<T>{}(a); }, '-'> {
+struct NegateOp : UnaryOp<T,
+                          [](const T &a) -> T {
+                            T v{};
+                            --v;
+                            return std::move(v) * a;
+                          },
+                          '-'> {
   template <typename LHS> constexpr static auto derivative(const LHS &lhs);
 };
 
@@ -130,11 +135,8 @@ constexpr auto NegateOp<T>::derivative(const LHS &lhs) {
 }
 
 template <typename T>
-struct DivideOp : BinaryOp<T,
-                           [](const T &a, const T &b) -> T {
-                             return std::divides<T>{}(a, b);
-                           },
-                           '/'> {
+struct DivideOp
+    : BinaryOp<T, [](const T &a, const T &b) -> T { return a / b; }, '/'> {
   template <typename LHS, typename RHS>
   constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };

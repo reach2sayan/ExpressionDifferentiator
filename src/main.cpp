@@ -96,5 +96,11 @@ int main() {
   constexpr bool squa = soee.is_square;
   auto sol = NewtonRaphson(soee);
   auto sss = sol.invert_jacobian();
+
+  constexpr auto a1 = 4.0_vd;
+  constexpr auto b2 = 2.0_cd;
+  constexpr auto divide = a1 / b2;
+  constexpr auto d1 = divide.derivative();
+  std::cout << d1;
   // TD<tuple_union_t<decltype(sl),decltype(s2)>> _;
 }
