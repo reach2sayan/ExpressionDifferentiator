@@ -16,9 +16,7 @@ template <typename Op, typename Exp>
 class MonoExpression : public BaseExpression<Op> {
   Exp expression;
   friend std::ostream &operator<<(std::ostream &out, const MonoExpression &e) {
-    out << '(';
-    Op::print(out, e.expression);
-    out << ')';
+    out << '(' << Op::print(out, e.expression) << ')';
     return out;
   }
 

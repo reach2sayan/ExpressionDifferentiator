@@ -12,13 +12,13 @@ private:
   static_assert(all_tuple_type_same<TEquations...>);
 
   template <std::size_t N, typename... Us>
-  friend decltype(auto) get(SystemOfEquations<Us...> &);
+  friend constexpr decltype(auto) get(SystemOfEquations<Us...> &);
 
   template <std::size_t N, typename... Us>
-  friend decltype(auto) get(const SystemOfEquations<Us...> &);
+  friend constexpr decltype(auto) get(const SystemOfEquations<Us...> &);
 
   template <std::size_t N, typename... Us>
-  friend decltype(auto) get(SystemOfEquations<Us...> &&);
+  friend constexpr decltype(auto) get(SystemOfEquations<Us...> &&);
 
   constexpr auto &get_equations() { return equations; }
   constexpr const auto &get_equations() const { return equations; }
@@ -84,16 +84,16 @@ struct tuple_element<N, SystemOfEquations<TEquations...>> {
 } // namespace std
 
 template <std::size_t N, typename... TEquations>
-decltype(auto) get(SystemOfEquations<TEquations...> &w) {
+constexpr decltype(auto) get(SystemOfEquations<TEquations...> &w) {
   return std::get<N>(w.equations);
 }
 template <std::size_t N, typename... TEquations>
-decltype(auto) get(const SystemOfEquations<TEquations...> &w) {
+constexpr decltype(auto) get(const SystemOfEquations<TEquations...> &w) {
   return std::get<N>(w.equations);
 }
 
 template <std::size_t N, typename... TEquations>
-decltype(auto) get(SystemOfEquations<TEquations...> &&w) {
+constexpr decltype(auto) get(SystemOfEquations<TEquations...> &&w) {
   return std::get<N>(std::move(w.equations));
 }
 
