@@ -5,6 +5,7 @@
 #pragma once
 
 #include "soequations.hpp"
+#include <experimental/mdspan>
 
 constexpr double EPSILON = 1e-10;
 constexpr size_t MAX_ITERATIONS = 1000;
@@ -18,10 +19,18 @@ template <typename... TEquations> class NewtonRaphson {
   const size_t max_iterations = MAX_ITERATIONS;
 
 public:
-  void update(const std::array<value_type, number_of_equations>& updates) {
+  constexpr auto invert_jacobian() const;
+  NewtonRaphson(SystemOfEquations<TEquations...> _soe) : soe{std::move(_soe)} {}
+  constexpr void
+  update(const std::array<value_type, number_of_equations> &updates) {
     soe.update(updates);
   }
   constexpr auto get_value() const { return soe.eval(); }
   constexpr auto get_jacobian() const { return soe.jacobian(); }
   void solve();
 };
+
+template <typename... TEquations>
+constexpr auto NewtonRaphson<TEquations...>::invert_jacobian() const {
+  return soe.jacobian();
+}

@@ -9,7 +9,8 @@ else ()
     add_compile_options(-Wall -Wpedantic -Wfatal-errors)
 endif ()
 
-option(getmdspan "Build kokkss MDSpan?" OFF)
+option(getmdspan "Build kokkss MDSpan?" ON)
+set(getmdspan ON CACHE BOOL "Build kokkss MDSpan?" FORCE)
 option(getgenerator "Build Generator?" OFF)
 include(FetchContent)
 
@@ -51,6 +52,7 @@ add_library(expression_solver INTERFACE
 
 target_include_directories(expression_solver INTERFACE
         ${CMAKE_SOURCE_DIR}/include
+        ${mdspan_SOURCE_DIR}/include
 )
 
 add_executable(ExpressionSolver src/main.cpp)

@@ -11,6 +11,7 @@ template <typename... T> struct TD;
 #include "soequations.hpp"
 #include "traits.hpp"
 #include "values.hpp"
+#include "solver.hpp"
 #include <iostream>
 #include <string>
 
@@ -77,22 +78,23 @@ int main() {
   constexpr auto a = PV(2, 'x');
   constexpr auto b = PV(3, 'y');
   constexpr auto expr2 = a + b;
-  constexpr auto x1 = PV(4, 'y');           // x = 4
-  constexpr auto y2 = PV(2, 'x');           // y = 2
-  constexpr auto expr1 = x1 + y2 + PC(3)*x1 * y2; // (x + y) * (x - y)
-  auto soee = make_system_of_equations(expr1, expr2);
+  constexpr auto x1 = PV(4, 'y');                   // x = 4
+  constexpr auto y2 = PV(2, 'x');                   // y = 2
+  constexpr auto expr1 = x1 + y2 + PC(3) * x1 * y2; // (x + y) * (x - y)
+  constexpr auto soee = make_system_of_equations(expr1, expr2);
   std::cout << soee << "\n";
-  for (auto r: soee.eval()) {
+  auto result = soee.eval();
+  for (auto r : result) {
     std::cout << r << ", ";
   }
   std::cout << "\n";
   auto d = soee.jacobian();
   for (auto r : d) {
-      std::cout << r << ", ";
-    }
-    std::cout << "\n";
-
-
+    std::cout << r << ", ";
+  }
+  std::cout << "\n";
   constexpr bool squa = soee.is_square;
+  auto sol = NewtonRaphson(soee);
+  auto sss = sol.invert_jacobian();
   // TD<tuple_union_t<decltype(sl),decltype(s2)>> _;
 }
