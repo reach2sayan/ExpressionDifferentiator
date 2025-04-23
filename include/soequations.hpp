@@ -5,6 +5,17 @@
 #pragma once
 
 #include "equation.hpp"
+template<typename T, std::size_t M, std::size_t N>
+constexpr std::array<T, M * N> flatten_row_major(const std::array<std::array<T, N>, M>& input) {
+  std::array<T, M * N> result{};
+
+  for (std::size_t i = 0; i < M; ++i) {
+    for (std::size_t j = 0; j < N; ++j) {
+      result[i * N + j] = input[i][j];
+    }
+  }
+  return result;
+}
 
 template <typename... TEquations> class SystemOfEquations {
 private:
@@ -46,8 +57,8 @@ public:
   void update(const std::array<value_type, number_of_equations>& updates);
   constexpr auto eval() const;
   constexpr auto jacobian() const -> std::enable_if_t<
-      is_square, std::array<std::array<value_type, number_of_equations>,
-                            number_of_equations>>;
+      is_square, std::array<value_type, number_of_equations * number_of_equations>>;
+
 };
 
 template <typename... TEquations>
@@ -62,14 +73,14 @@ constexpr auto SystemOfEquations<TEquations...>::eval() const {
 template <typename... TEquations>
 constexpr auto SystemOfEquations<TEquations...>::jacobian() const
     -> std::enable_if_t<is_square,
-                        std::array<std::array<value_type, number_of_equations>,
-                                   number_of_equations>> {
+                        std::array<value_type, number_of_equations*number_of_equations>>
+                                   {
   auto make_array_helper = []<typename Tuple, std::size_t... Is>(
                                const Tuple &tup, std::index_sequence<Is...>) {
     return std::array{std::get<Is>(tup).eval_derivatives()...};
   };
-  return make_array_helper(equations,
-                           std::make_index_sequence<sizeof...(TEquations)>{});
+  return flatten_row_major(make_array_helper(equations,
+                           std::make_index_sequence<sizeof...(TEquations)>{}));
 }
 
 namespace std {

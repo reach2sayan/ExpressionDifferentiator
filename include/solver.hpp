@@ -5,6 +5,7 @@
 #pragma once
 
 #include "soequations.hpp"
+
 constexpr double EPSILON = 1e-10;
 constexpr size_t MAX_ITERATIONS = 1000;
 

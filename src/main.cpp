@@ -88,11 +88,9 @@ int main() {
   std::cout << "\n";
   auto d = soee.jacobian();
   for (auto r : d) {
-    for (auto c : r) {
-      std::cout << c << ", ";
+      std::cout << r << ", ";
     }
     std::cout << "\n";
-  }
 
 
   constexpr bool squa = soee.is_square;
