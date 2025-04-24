@@ -10,19 +10,6 @@ else ()
 endif ()
 
 include(FetchContent)
-
-option(getmdspan "Build kokkss MDSpan?" ON)
-set(getmdspan ON CACHE BOOL "Build kokkss MDSpan?" FORCE)
-
-if (getmdspan)
-    FetchContent_Declare(
-            mdspan
-            GIT_REPOSITORY https://github.com/kokkos/mdspan.git
-            GIT_TAG stable
-    )
-    FetchContent_MakeAvailable(mdspan)
-endif ()
-
 FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
