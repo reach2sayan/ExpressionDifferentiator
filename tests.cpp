@@ -6,6 +6,7 @@
 #include "equation.hpp"
 #include "operations.hpp"
 #include "procvar.hpp"
+#include "soequations.hpp"
 #include "traits.hpp"
 #include "values.hpp"
 
@@ -210,21 +211,33 @@ TEST(EquationTest, DerivativeTest3) {
 
 TEST(EquationTest, SampleTest) {
   constexpr auto x1 = PV(1.0, 'x'); // x = 1
-  constexpr auto x2 = PV(2.0, 'y'); // y = 2
-  constexpr auto x3 = PV(3.0, 'z'); // z = 3
-  constexpr auto c11 = PC(3.0);
+  constexpr auto x2 = PV(1.0, 'y'); // y = 2
+  constexpr auto x3 = PV(1.0, 'z'); // z = 3
+  constexpr auto c11 = 3.0_cd;
   constexpr auto c12 = PC(-1.0);
   constexpr auto c13 = PC(-3/2);
-  constexpr auto c21 = PC(4.0);
+  constexpr auto c21 = 4.0_cd;
   constexpr auto c22 = PC(-625.0);
-  constexpr auto c23 = PC(2.0);
+  constexpr auto c23 = 2.0_cd;
   constexpr auto c24 = PC(-1.0);
-  constexpr auto c31 = PC(20.0);
-  constexpr auto c32 = PC(1.0);
-  constexpr auto c33 = PC(9.0);
+  constexpr auto c31 = 20.0_cd;
+  constexpr auto c32 = 1.0_cd;
+  constexpr auto c33 = 9.0_cd;
 
-  constexpr auto expr1 = c11 * x1 + c12 * cos(x2) * cos(x3) - c13;
-  std::cout << expr1 << std::endl;
-  std::cout << expr1.derivative().eval() << std::endl;
+  constexpr auto expr1 = c11 * x1 + c12 * cos(x2 * x3) - c13;
   constexpr auto expr2 = c21 * x1 * x1 + c22 * x2*x2 + c23 * x3 + c24;
+  constexpr auto expr3 = c31*x3 + exp(c24*x1*x2) + c33;
+
+  constexpr auto soe = make_system_of_equations(expr1, expr2, expr3);
+  bool isq = soe.is_square;
+
+  auto res = soe.eval();
+  std::cout << "Result:\n";
+  for (auto r : res) {
+    std::cout << r << ", ";
+  }
+  std::cout << "Jacobian:\n";
+  for (auto r : soe.jacobian()) {
+    std::cout << r << ", ";
+  }
 }
