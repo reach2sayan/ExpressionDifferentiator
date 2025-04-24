@@ -2,13 +2,15 @@
 // Created by sayan on 4/13/25.
 //
 
-#include "derivative.hpp"
-#include "equation.hpp"
-#include "operations.hpp"
+#include "include/expression_template/derivative.hpp"
+#include "include/expression_template/equation.hpp"
+#include "include/expression_template/operations.hpp"
+#include "include/expression_template/traits.hpp"
 #include "procvar.hpp"
-#include "traits.hpp"
 #include "values.hpp"
+
 #include <gtest/gtest.h>
+#include <ranges>
 
 TEST(ExpressionTest, StaticTests) {
   static_assert(
@@ -61,24 +63,31 @@ TEST(ExpressionTest, DivideTest) {
   auto b = 2.0_cd;
   auto divide = a / b;
   auto d = divide.derivative();
-  std::cout << d;
   ASSERT_EQ(divide, 2.0);
   ASSERT_EQ(d, 0.5);
 }
 
 TEST(ExpressionTest, ExpTest) {
-  auto exp_exp = Exp<int>(2, 4);
-  ASSERT_EQ(exp_exp, 16);
+  constexpr auto exp_exp = Exp<double>(2.0);
+  ASSERT_EQ(exp_exp, std::exp(2.0));
 }
 
 TEST(ExpressionTest, ExpSum) {
-  auto target = Exp<int>(Sum<int>(1, 2), 2);
-  ASSERT_EQ(target, 9);
+  constexpr auto target = Exp<double>(Sum<int>(1, 2));
+  ASSERT_EQ(target, std::exp(3.0));
+}
+
+TEST(ExpressionTest, ExpDerivative) {
+  for (auto i : std::ranges::iota_view{1,1000}) {
+    auto target = Exp<double>(Variable<double,'x'>{i * 1.0});
+    auto res = target.derivative();
+    ASSERT_EQ(target.derivative(), target);
+  }
 }
 
 TEST(ExpressionTest, Combination) {
-  auto target = Sum<int>(Exp<int>(2, Sum<int>(1, Sum<int>(2, 3))), 1);
-  ASSERT_EQ(target, 65);
+  double target = Sum<double>(Exp<double>(Sum<int>(1, Sum<int>(2, 3))), 1);
+  ASSERT_EQ(target, std::exp(6.0)+1.0);
 }
 
 TEST(ExpressionTest, ConstantTest) {
@@ -141,7 +150,6 @@ TEST(ProcVarTest, Assign) {
 
 TEST(TrigTest, SinTest) {
   auto b = sin(PC(0.5));
-  std::cout << b.eval() << std::endl;
   ASSERT_EQ(b, std::sin(0.5));
 }
 
@@ -198,4 +206,25 @@ TEST(EquationTest, DerivativeTest3) {
   ASSERT_EQ(expr, 12); // (4 + 2) * (4 - 2) = 6 * 2 = 12
   ASSERT_EQ(d1, 8);    // derivative w.r.t x: 2x = 8
   ASSERT_EQ(d2, -4);   // derivative w.r.t y: -2y = -4
+}
+
+TEST(EquationTest, SampleTest) {
+  constexpr auto x1 = PV(1.0, 'x'); // x = 1
+  constexpr auto x2 = PV(2.0, 'y'); // y = 2
+  constexpr auto x3 = PV(3.0, 'z'); // z = 3
+  constexpr auto c11 = PC(3.0);
+  constexpr auto c12 = PC(-1.0);
+  constexpr auto c13 = PC(-3/2);
+  constexpr auto c21 = PC(4.0);
+  constexpr auto c22 = PC(-625.0);
+  constexpr auto c23 = PC(2.0);
+  constexpr auto c24 = PC(-1.0);
+  constexpr auto c31 = PC(20.0);
+  constexpr auto c32 = PC(1.0);
+  constexpr auto c33 = PC(9.0);
+
+  constexpr auto expr1 = c11 * x1 + c12 * cos(x2) * cos(x3) - c13;
+  std::cout << expr1 << std::endl;
+  std::cout << expr1.derivative().eval() << std::endl;
+  constexpr auto expr2 = c21 * x1 * x1 + c22 * x2*x2 + c23 * x3 + c24;
 }

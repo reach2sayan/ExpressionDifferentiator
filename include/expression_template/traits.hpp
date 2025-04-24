@@ -3,7 +3,6 @@
 //
 
 #pragma once
-#include "expressions.hpp"
 #include "values.hpp"
 #include <array>
 #include <type_traits>
@@ -349,7 +348,7 @@ template <size_t value> struct idx_t : std::integral_constant<size_t, value> {};
 #define IDX(value)                                                             \
   idx_t<value> {}
 
-template <typename Head, typename... Tail>
+template <typename head, typename... tail>
 constexpr static inline bool all_tuple_type_same =
-    (std::is_same_v<typename Head::value_type, typename Tail::value_type> &&
+    (std::is_same_v<typename head::value_type, typename tail::value_type> &&
      ...);

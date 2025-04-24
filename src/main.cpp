@@ -9,9 +9,9 @@ template <typename... T> struct TD;
 #include "equation.hpp"
 #include "procvar.hpp"
 #include "soequations.hpp"
+#include "solver.hpp"
 #include "traits.hpp"
 #include "values.hpp"
-#include "solver.hpp"
 #include <iostream>
 #include <string>
 
@@ -75,13 +75,14 @@ int main() {
   decltype(eq)::symbolslist sl;
   decltype(e2)::symbolslist s2;
   */
-  constexpr auto a = PV(2, 'x');
-  constexpr auto b = PV(3, 'y');
-  constexpr auto expr2 = a + b;
-  constexpr auto x1 = PV(4, 'y');                   // x = 4
-  constexpr auto y2 = PV(2, 'x');                   // y = 2
-  constexpr auto expr1 = x1 + y2 + PC(3) * x1 * y2; // (x + y) * (x - y)
-  constexpr auto soee = make_system_of_equations(expr1, expr2);
+  auto a = PV(2, 'x');
+  auto b = PV(3, 'y');
+  auto expr2 = a + b;
+  auto x1 = PV(4, 'y');                        // x = 4
+  auto y2 = PV(2, 'x');                        // y = 2
+  auto expr1 = x1 + y2 + PC(3) * x1 * y2 * y2; // (x + y) * (x - y)
+  auto soee = make_system_of_equations(expr1, expr2);
+  auto soee2 = make_system_of_equations(expr1);
   std::cout << soee << "\n";
   auto result = soee.eval();
   for (auto r : result) {
@@ -92,15 +93,27 @@ int main() {
   for (auto r : d) {
     std::cout << r << ", ";
   }
-  std::cout << "\n";
-  constexpr bool squa = soee.is_square;
-  auto sol = NewtonRaphson(soee);
-  auto sss = sol.invert_jacobian();
+  std::cout << "\nchanging\n";
+  constexpr std::array<int, 2> arr = {10, 11};
+  soee.update(arr);
 
-  constexpr auto a1 = 4.0_vd;
-  constexpr auto b2 = 2.0_cd;
-  constexpr auto divide = a1 / b2;
-  constexpr auto d1 = divide.derivative();
-  std::cout << d1;
+  auto result2 = soee.eval();
+  for (auto r : result2) {
+    std::cout << r << ", ";
+  }
+  std::cout << "\n";
+  auto d2 = soee.jacobian();
+  for (auto r : d2) {
+    std::cout << r << ", ";
+  }
+
+  /*
+    constexpr bool squa = soee.is_square;
+    constexpr auto k = decltype(soee)::symbols_list_t{};
+    constexpr auto a1 = 4.0_vd;
+    constexpr auto b2 = 2.0_cd;
+    constexpr auto divide = a1 / b2;
+    constexpr auto d1 = divide.derivative();
+    std::cout << d1.eval() << std::endl;*/
   // TD<tuple_union_t<decltype(sl),decltype(s2)>> _;
 }

@@ -6,6 +6,8 @@
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
+#include <cassert>
+#include <concepts>
 
 template <class... T>
 constexpr inline std::ostream &print_tup(std::ostream &out,
@@ -38,7 +40,10 @@ constexpr auto make_derivatives(const std::tuple<Chars...> &labels,
                                std::index_sequence_for<Chars...>{});
 }
 
-template <typename TExpression> class Equation {
+template <typename T>
+concept EquationConcept = ExpressionConcept<T> and std::constructible_from<T>;
+
+template <ExpressionConcept TExpression> class Equation {
 private:
   TExpression expression;
 
@@ -78,6 +83,14 @@ public:
       return std::get<N - 1>(derivatives);
     }
   }
+
+  constexpr void update(const auto &symbols, const auto &updates) {
+    expression.update(symbols, updates);
+    assert(symbolslist{} == symbols);
+    std::apply(
+        [&](auto &...equations) { (equations.update(symbols, updates), ...); },
+        derivatives);
+  }
   constexpr auto eval() const { return expression.eval(); }
   constexpr auto eval_derivatives() const {
     auto eval_derivatives_helper =
@@ -93,4 +106,4 @@ public:
       : expression{e}, derivatives{make_derivatives(symbolslist{}, e)} {}
 };
 
-template <typename T> Equation(T &&) -> Equation<std::decay_t<T>>;
+template <ExpressionConcept T> Equation(T &&) -> Equation<std::decay_t<T>>;

@@ -51,15 +51,30 @@ public:
   using value_type =
       typename std::tuple_element_t<0, std::tuple<TEquations...>>::value_type;
   constexpr static size_t number_of_equations = sizeof...(TEquations);
+  using symbols_list_t =
+      std::tuple_element_t<0, std::tuple<TEquations...>>::symbolslist;
+
   static constexpr bool is_square =
       (... && (std::tuple_size_v<typename TEquations::derivatives_t> ==
                number_of_equations));
 
-  void update(const std::array<value_type, number_of_equations> &updates);
+  void update(const std::array<value_type, number_of_equations> &updates) {
+    auto labels = symbols_list_t{};
+    static_assert(std::tuple_size_v<std::remove_cvref_t<decltype(labels)>> ==
+                  number_of_equations);
+    std::apply(
+        [&](auto &...equations) { (equations.update(labels, updates), ...); },
+        equations);
+  }
+  constexpr auto jacobian() const
+    requires(!is_square)
+  {
+    static_assert(false, "jacobian is not defined for non-square systems");
+    std::unreachable();
+  }
   constexpr auto eval() const;
-  constexpr auto jacobian() const -> std::enable_if_t<
-      is_square,
-      std::array<value_type, number_of_equations * number_of_equations>>;
+  constexpr auto jacobian() const
+    requires is_square;
 };
 
 template <typename... TEquations>
@@ -73,9 +88,8 @@ constexpr auto SystemOfEquations<TEquations...>::eval() const {
 }
 template <typename... TEquations>
 constexpr auto SystemOfEquations<TEquations...>::jacobian() const
-    -> std::enable_if_t<
-        is_square,
-        std::array<value_type, number_of_equations * number_of_equations>> {
+  requires is_square
+{
   auto make_array_helper = []<typename Tuple, std::size_t... Is>(
                                const Tuple &tup, std::index_sequence<Is...>) {
     return std::array{std::get<Is>(tup).eval_derivatives()...};
@@ -126,6 +140,10 @@ constexpr auto make_equation_helper(const TExpression &expression,
       expression, std::move(missing_symbols),
       std::make_index_sequence<std::tuple_size_v<Tuple>>{})};
 }
+
+template <typename... TEquations>
+SystemOfEquations(TEquations &&...)
+    -> SystemOfEquations<std::decay_t<TEquations>...>;
 
 template <typename... TExpressions>
 constexpr auto make_system_of_equations(const TExpressions &...exprs) {

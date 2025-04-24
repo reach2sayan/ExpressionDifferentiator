@@ -52,14 +52,6 @@ struct BinaryOp : Op<T, OpType::Binary> {
   }
 };
 
-template <typename T>
-struct ExpOp
-    : BinaryOp<T, [](const T &a, const T &b) -> T { return std::pow(a, b); },
-               '^'> {
-  template <typename LHS, typename RHS>
-  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
-};
-
 #define DEPRECATED_DERIVATIVE true
 #if !DEPRECATED_DERIVATIVE
 template <typename Op> [[deprecated]] struct Derivative {
@@ -69,7 +61,6 @@ template <typename Op> [[deprecated]] struct Derivative {
 };
 static_assert(Derivative<ExpOp<int>>::count == 2);
 #endif
-static_assert(ExpOp<int>::op_type == OpType::Binary);
 
 template <typename T>
 struct SumOp
@@ -79,18 +70,6 @@ struct SumOp
   template <typename LHS, typename RHS>
   constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
-
-template <typename T, typename LHS, typename RHS>
-constexpr inline auto Sum(LHS lhs, RHS rhs) {
-  return Expression<SumOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
-}
-
-template <typename T>
-template <typename LHS, typename RHS>
-constexpr auto ExpOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
-  throw std::runtime_error{"Not implemented"};
-  return;
-}
 
 template <typename T>
 template <typename LHS, typename RHS>
@@ -124,12 +103,12 @@ struct NegateOp : UnaryOp<T,
                             return std::move(v) * a;
                           },
                           '-'> {
-  template <typename LHS> constexpr static auto derivative(const LHS &lhs);
+  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
 };
 
 template <typename T>
-template <typename LHS>
-constexpr auto NegateOp<T>::derivative(const LHS &lhs) {
+template <typename Expr>
+constexpr auto NegateOp<T>::derivative(const Expr &lhs) {
   auto d = lhs.derivative();
   return MonoExpression<NegateOp<T>, decltype(d)>{std::move(d)};
 }
@@ -148,6 +127,11 @@ struct SineOp : UnaryOp<T, [](const T &a) -> T { return std::sin(a); }, '$'> {
 
 template <typename T>
 struct CosineOp : UnaryOp<T, [](const T &a) -> T { return std::cos(a); }, '['> {
+  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+};
+
+template <typename T>
+struct ExpOp : UnaryOp<T, [](const T &a) -> T { return std::exp(a); }, 'e'> {
   template <typename Expr> constexpr static auto derivative(const Expr &lhs);
 };
 
@@ -172,6 +156,11 @@ template <typename Expr>
 constexpr auto CosineOp<T>::derivative(const Expr &lhs) {
   return Negate<T>(Multiply<T>(Sine<T>(lhs), lhs.derivative()));
 }
+template <typename T>
+template <typename Expr>
+constexpr auto ExpOp<T>::derivative(const Expr &expr) {
+  return Multiply<T>(Exp<T>(expr), expr.derivative());
+}
 
 template <typename T>
 template <typename Expr>
@@ -191,6 +180,10 @@ template <typename T, typename Expr> constexpr inline auto Sine(Expr expr) {
   return MonoExpression<SineOp<T>, Expr>{std::move(expr)};
 }
 
+template <typename T, typename Expr> constexpr inline auto Exp(Expr expr) {
+  return MonoExpression<ExpOp<T>, Expr>{std::move(expr)};
+}
+
 template <typename T, typename LHS, typename RHS>
 constexpr inline auto Divide(LHS lhs, RHS rhs) {
   return Expression<DivideOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
@@ -204,6 +197,6 @@ constexpr inline auto Minus(LHS lhs, RHS rhs) {
 }
 
 template <typename T, typename LHS, typename RHS>
-constexpr inline auto Exp(LHS lhs, RHS rhs) {
-  return Expression<ExpOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
+constexpr inline auto Sum(LHS lhs, RHS rhs) {
+  return Expression<SumOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
 }
