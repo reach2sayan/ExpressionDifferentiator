@@ -2,11 +2,11 @@
 // Created by sayan on 4/13/25.
 //
 
-#include "include/expression_template/derivative.hpp"
-#include "include/expression_template/equation.hpp"
-#include "include/expression_template/operations.hpp"
-#include "include/expression_template/traits.hpp"
+#include "derivative.hpp"
+#include "equation.hpp"
+#include "operations.hpp"
 #include "procvar.hpp"
+#include "traits.hpp"
 #include "values.hpp"
 
 #include <gtest/gtest.h>

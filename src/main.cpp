@@ -9,7 +9,6 @@ template <typename... T> struct TD;
 #include "equation.hpp"
 #include "procvar.hpp"
 #include "soequations.hpp"
-#include "solver.hpp"
 #include "traits.hpp"
 #include "values.hpp"
 #include <iostream>

@@ -31,19 +31,19 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_library(expression_template INTERFACE
-        ${CMAKE_SOURCE_DIR}/include/expression_template/values.hpp
-        ${CMAKE_SOURCE_DIR}/include/expression_template/operations.hpp
-        ${CMAKE_SOURCE_DIR}/include/expression_template/equation.hpp
-        ${CMAKE_SOURCE_DIR}/include/expression_template/traits.hpp
-        ${CMAKE_SOURCE_DIR}/include/expression_template/procvar.hpp
-        ${CMAKE_SOURCE_DIR}/include/expression_template/derivative.hpp
-        ${CMAKE_SOURCE_DIR}/include/expression_template/soequations.hpp
+        ${CMAKE_SOURCE_DIR}/include/values.hpp
+        ${CMAKE_SOURCE_DIR}/include/operations.hpp
+        ${CMAKE_SOURCE_DIR}/include/equation.hpp
+        ${CMAKE_SOURCE_DIR}/include/traits.hpp
+        ${CMAKE_SOURCE_DIR}/include/procvar.hpp
+        ${CMAKE_SOURCE_DIR}/include/derivative.hpp
+        ${CMAKE_SOURCE_DIR}/include/soequations.hpp
 )
 
 add_library(expression_solver SHARED src/solver.cpp)
 target_include_directories(expression_solver PRIVATE
         ${mdspan_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/include/expression_template
+        ${CMAKE_SOURCE_DIR}/include/
 )
 
 target_link_libraries(expression_solver PRIVATE
@@ -54,8 +54,7 @@ add_executable(main src/main.cpp)
 
 target_include_directories(main PRIVATE
         ${mdspan_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/include/solver
-        ${CMAKE_SOURCE_DIR}/include/expression_template
+        ${CMAKE_SOURCE_DIR}/include
 )
 target_link_libraries(main PUBLIC expression_template
         expression_solver
@@ -64,8 +63,8 @@ target_link_libraries(main PUBLIC expression_template
 add_executable(tests tests.cpp)
 target_link_libraries(tests gtest_main expression_solver)
 target_include_directories(tests PRIVATE
-        ${CMAKE_SOURCE_DIR}/include/expression_template
-        ${CMAKE_SOURCE_DIR}/include/solver
+        ${CMAKE_SOURCE_DIR}/include
+        ${mdspan_SOURCE_DIR}/include
 )
 
 add_test(NAME tests COMMAND tests)
