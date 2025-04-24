@@ -40,16 +40,6 @@ add_library(expression_template INTERFACE
         ${CMAKE_SOURCE_DIR}/include/soequations.hpp
 )
 
-add_library(expression_solver SHARED src/solver.cpp)
-target_include_directories(expression_solver PRIVATE
-        ${mdspan_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/include/
-)
-
-target_link_libraries(expression_solver PRIVATE
-        expression_template
-)
-
 add_executable(main src/main.cpp)
 
 target_include_directories(main PRIVATE
