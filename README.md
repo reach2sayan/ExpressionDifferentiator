@@ -81,6 +81,16 @@ as can be seen in the [usage examples](#Usage Examples) section.
   with its derivatives
 - : Manages systems of equations with Jacobian
   computation `SystemOfEquations<TEquations...>`
+- `SystemOfEquations<TExpression>` supports the `std::get<>`
+interface which returns a reference to `Expression` at the index
+  of the system. 
+- `make_system_of_equations<TExpressions...>(TExpressions...)`: A helper function
+  to create a system of equations from a list of expressions. This
+allows the user to enter expressions in a more natural way, without having
+to explicitly create `0` valued `Variable<T>` terms in the expressions
+which don't contain the variable.
+This creates a system of equations with each `Equation`/`Expression` has
+the same number of variables.
 
 Note.  A jacobian would be available iff the system of equation is square
 
