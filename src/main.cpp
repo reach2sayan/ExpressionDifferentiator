@@ -95,6 +95,7 @@ int main() {
   std::cout << "\nchanging\n";
   constexpr std::array<int, 2> arr = {10, 11};
   soee.update(arr);
+  auto expr3 = expr1 + a;
 
   auto result2 = soee.eval();
   for (auto r : result2) {

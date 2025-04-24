@@ -119,27 +119,6 @@ struct DivideOp
   template <typename LHS, typename RHS>
   constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
 };
-
-template <typename T>
-struct SineOp : UnaryOp<T, [](const T &a) -> T { return std::sin(a); }, '$'> {
-  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
-};
-
-template <typename T>
-struct CosineOp : UnaryOp<T, [](const T &a) -> T { return std::cos(a); }, '['> {
-  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
-};
-
-template <typename T>
-struct ExpOp : UnaryOp<T, [](const T &a) -> T { return std::exp(a); }, 'e'> {
-  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
-};
-
-template <typename T, typename LHS, typename RHS>
-constexpr inline auto Multiply(LHS lhs, RHS rhs) {
-  return Expression<MultiplyOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
-}
-
 template <typename T>
 template <typename LHS, typename RHS>
 constexpr auto DivideOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
@@ -150,22 +129,42 @@ constexpr auto DivideOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
   auto denominator = Multiply<T>(rhs, rhs);         // g(x)^2
   return Divide<T>(std::move(numerator), std::move(denominator));
 }
+template <typename T>
+struct SineOp : UnaryOp<T, [](const T &a) -> T { return std::sin(a); }, '$'> {
+  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+};
+
+template <typename T>
+template <typename Expr>
+constexpr auto SineOp<T>::derivative(const Expr &expr) {
+  return Multiply<T>(Cosine<T>(expr), expr.derivative());
+}
+
+template <typename T>
+struct CosineOp : UnaryOp<T, [](const T &a) -> T { return std::cos(a); }, '['> {
+  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+};
 
 template <typename T>
 template <typename Expr>
 constexpr auto CosineOp<T>::derivative(const Expr &lhs) {
   return Negate<T>(Multiply<T>(Sine<T>(lhs), lhs.derivative()));
 }
+
+template <typename T>
+struct ExpOp : UnaryOp<T, [](const T &a) -> T { return std::exp(a); }, 'e'> {
+  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+};
+
 template <typename T>
 template <typename Expr>
 constexpr auto ExpOp<T>::derivative(const Expr &expr) {
   return Multiply<T>(Exp<T>(expr), expr.derivative());
 }
 
-template <typename T>
-template <typename Expr>
-constexpr auto SineOp<T>::derivative(const Expr &expr) {
-  return Multiply<T>(Cosine<T>(expr), expr.derivative());
+template <typename T, typename LHS, typename RHS>
+constexpr inline auto Multiply(LHS lhs, RHS rhs) {
+  return Expression<MultiplyOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
 }
 
 template <typename T, typename Expr> constexpr inline auto Negate(Expr expr) {
