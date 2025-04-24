@@ -46,12 +46,10 @@ target_include_directories(main PRIVATE
         ${mdspan_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/include
 )
-target_link_libraries(main PUBLIC expression_template
-        expression_solver
-)
+target_link_libraries(main PUBLIC expression_template)
 
 add_executable(tests tests.cpp)
-target_link_libraries(tests gtest_main expression_solver)
+target_link_libraries(tests gtest_main expression_template)
 target_include_directories(tests PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${mdspan_SOURCE_DIR}/include
