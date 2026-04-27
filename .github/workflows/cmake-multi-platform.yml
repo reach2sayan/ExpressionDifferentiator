@@ -35,7 +35,7 @@ jobs:
       - name: Install Boost headers via vcpkg (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: vcpkg install boost-headers:x64-windows
+        run: vcpkg install boost-headers:x64-windows boost-hana
 
       - name: Set build directory
         id: strings
