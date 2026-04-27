@@ -17,8 +17,8 @@ A header-only C++26 template library for symbolic mathematical expressions with 
 
 ## Requirements
 
-- C++26 compiler — Clang 17+ recommended (GCC 13 has an ICE on deeply nested Hana instantiations; GCC 14+ may work)
-- [Boost](https://www.boost.org/) ≥ 1.74 (headers only; used for `boost::hana`)
+- C++26 compiler — Clang 17+ recommended (GCC 13 has an ICE on deeply nested template instantiations; GCC 14+ may work)
+- [Boost](https://www.boost.org/) ≥ 1.74 (headers only; used for `boost::mp11`)
 - CMake ≥ 3.20
 
 ## Building
