@@ -1,5 +1,6 @@
 #pragma once
 #include "expressions.hpp"
+#include "operations.hpp"
 #include <boost/mp11.hpp>
 #include <concepts>
 #include <format>

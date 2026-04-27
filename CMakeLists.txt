@@ -70,6 +70,17 @@ enable_testing()
 if(DIFF_BUILD_BENCHMARKS)
     add_executable(benchmarks benchmark.cpp)
     target_link_libraries(benchmarks PRIVATE benchmark::benchmark diff)
+
+    set(BENCHMARK_RESULTS_DIR "${CMAKE_BINARY_DIR}/benchmark-results")
+    add_custom_target(benchmark_json
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${BENCHMARK_RESULTS_DIR}"
+            COMMAND $<TARGET_FILE:benchmarks>
+                    --benchmark_min_time=0.05s
+                    --benchmark_out="${BENCHMARK_RESULTS_DIR}/benchmarks.json"
+                    --benchmark_out_format=json
+            DEPENDS benchmarks
+            USES_TERMINAL
+            COMMENT "Running benchmarks and exporting JSON results")
 endif()
 
 if(MSVC)

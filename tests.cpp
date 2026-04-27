@@ -508,6 +508,34 @@ TEST(VectorEquationTest, ThreeOutputs) {
   ASSERT_DOUBLE_EQ(J[2][1], 10.0);  // 2y
 }
 
+TEST(VectorEquationTest, ReverseJacobianAgreesWithSymbolic) {
+  auto x = PV(2.0, 'x');
+  auto y = PV(3.0, 'y');
+  auto z = PV(4.0, 'z');
+  auto ve = VectorEquation(x * y, sin(x) + y * z, exp(z));
+
+  auto J_sym = ve.eval_jacobian();
+  auto J_rev = ve.eval_jacobian_reverse();
+
+  for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
+    for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
+      ASSERT_DOUBLE_EQ(J_rev[i][j], J_sym[i][j]);
+}
+
+TEST(VectorEquationTest, ReverseJacobianSingleOutputMatchesGradient) {
+  auto x = PV(2.0, 'x');
+  auto y = PV(5.0, 'y');
+  auto expr = exp(x) * sin(y);
+  auto ve = VectorEquation(expr);
+
+  auto J_rev = ve.eval_jacobian_reverse();
+  auto g = reverse_mode_gradient(expr);
+
+  static_assert(decltype(ve)::output_dim == 1);
+  for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
+    ASSERT_DOUBLE_EQ(J_rev[0][j], g[j]);
+}
+
 // ===========================================================================
 // Forward-mode automatic differentiation via dual numbers
 // ===========================================================================
@@ -640,14 +668,14 @@ TEST(ForwardModeAD, Equivalence) {
 }
 
 // ===========================================================================
-// Reverse-mode automatic differentiation via backward() / gradient()
+// Reverse-mode automatic differentiation via backward() / reverse_mode_gradient()
 // ===========================================================================
 
 TEST(ReverseModeAD, SingleVariableLinear) {
   // f(x) = 3*x  at x=5,  df/dx = 3
   auto x = PV(5.0, 'x');
   auto expr = PC(3.0) * x;
-  auto g = gradient(expr);
+  auto g = reverse_mode_gradient(expr);
   EXPECT_DOUBLE_EQ(g[0], 3.0);
 }
 
@@ -655,7 +683,7 @@ TEST(ReverseModeAD, ProductRule) {
   // f(x) = x*x  at x=4,  df/dx = 2x = 8
   auto x = Variable<double, 'x'>{4.0};
   auto expr = x * x;
-  auto g = gradient(expr);
+  auto g = reverse_mode_gradient(expr);
   EXPECT_DOUBLE_EQ(g[0], 8.0);
 }
 
@@ -664,7 +692,7 @@ TEST(ReverseModeAD, TwoVariables) {
   auto x = PV(3.0, 'x');
   auto y = PV(4.0, 'y');
   auto expr = x * y;
-  auto g = gradient(expr);
+  auto g = reverse_mode_gradient(expr);
   static_assert(g.size() == 2);
   EXPECT_DOUBLE_EQ(g[0], 4.0);  // df/dx = y
   EXPECT_DOUBLE_EQ(g[1], 3.0);  // df/dy = x
@@ -674,7 +702,7 @@ TEST(ReverseModeAD, Sum) {
   // f(x,y) = x + y,  df/dx=1, df/dy=1
   auto x = PV(2.0, 'x');
   auto y = PV(5.0, 'y');
-  auto g = gradient(x + y);
+  auto g = reverse_mode_gradient(x + y);
   EXPECT_DOUBLE_EQ(g[0], 1.0);
   EXPECT_DOUBLE_EQ(g[1], 1.0);
 }
@@ -683,7 +711,7 @@ TEST(ReverseModeAD, LinearCombination) {
   // f(x,y) = 2*x + 3*y,  df/dx=2, df/dy=3
   auto x = PV(1.0, 'x');
   auto y = PV(1.0, 'y');
-  auto g = gradient(PC(2.0) * x + PC(3.0) * y);
+  auto g = reverse_mode_gradient(PC(2.0) * x + PC(3.0) * y);
   EXPECT_DOUBLE_EQ(g[0], 2.0);
   EXPECT_DOUBLE_EQ(g[1], 3.0);
 }
@@ -692,7 +720,7 @@ TEST(ReverseModeAD, Divide) {
   // f(x) = x/c at x=6, c=3,  df/dx = 1/c = 1/3
   auto x = PV(6.0, 'x');
   auto c = PC(3.0);
-  auto g = gradient(x / c);
+  auto g = reverse_mode_gradient(x / c);
   EXPECT_DOUBLE_EQ(g[0], 1.0 / 3.0);
 }
 
@@ -700,7 +728,7 @@ TEST(ReverseModeAD, NegateViaSubtract) {
   // f(x,y) = x - y,  df/dx=1, df/dy=-1
   auto x = PV(5.0, 'x');
   auto y = PV(2.0, 'y');
-  auto g = gradient(x - y);
+  auto g = reverse_mode_gradient(x - y);
   EXPECT_DOUBLE_EQ(g[0],  1.0);
   EXPECT_DOUBLE_EQ(g[1], -1.0);
 }
@@ -708,21 +736,21 @@ TEST(ReverseModeAD, NegateViaSubtract) {
 TEST(ReverseModeAD, SinDerivative) {
   // f(x) = sin(x),  df/dx = cos(x)  at x=1
   auto x = PV(1.0, 'x');
-  auto g = gradient(sin(x));
+  auto g = reverse_mode_gradient(sin(x));
   EXPECT_DOUBLE_EQ(g[0], std::cos(1.0));
 }
 
 TEST(ReverseModeAD, CosDerivative) {
   // f(x) = cos(x),  df/dx = -sin(x)  at x=1
   auto x = PV(1.0, 'x');
-  auto g = gradient(cos(x));
+  auto g = reverse_mode_gradient(cos(x));
   EXPECT_DOUBLE_EQ(g[0], -std::sin(1.0));
 }
 
 TEST(ReverseModeAD, ExpDerivative) {
   // f(x) = exp(x),  df/dx = exp(x)  at x=2
   auto x = PV(2.0, 'x');
-  auto g = gradient(exp(x));
+  auto g = reverse_mode_gradient(exp(x));
   EXPECT_DOUBLE_EQ(g[0], std::exp(2.0));
 }
 
@@ -732,7 +760,7 @@ TEST(ReverseModeAD, ChainRuleSinOfProduct) {
   // df/dy = cos(x*y)*x = cos(6)*2
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
-  auto g = gradient(sin(x * y));
+  auto g = reverse_mode_gradient(sin(x * y));
   EXPECT_DOUBLE_EQ(g[0], std::cos(6.0) * 3.0);
   EXPECT_DOUBLE_EQ(g[1], std::cos(6.0) * 2.0);
 }
@@ -743,7 +771,7 @@ TEST(ReverseModeAD, ThreeVariables) {
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
   auto z = PV(4.0, 'z');
-  auto g = gradient(x * y + y * z);
+  auto g = reverse_mode_gradient(x * y + y * z);
   EXPECT_DOUBLE_EQ(g[0], 3.0);
   EXPECT_DOUBLE_EQ(g[1], 6.0);
   EXPECT_DOUBLE_EQ(g[2], 3.0);
@@ -803,6 +831,23 @@ TEST(VectorEquationForward, TrigJacobian) {
   EXPECT_DOUBLE_EQ(J[1][1], 6.0);
 }
 
+TEST(VectorEquationForward, ReverseAgreesWithForward) {
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{2.0}};
+  Variable<D, 'y'> y{D{3.0}};
+  auto ve_fwd = VectorEquation(x * y, sin(x) + y * y);
+  auto J_fwd = ve_fwd.eval_jacobian_forward({2.0, 3.0});
+
+  auto xs = PV(2.0, 'x');
+  auto ys = PV(3.0, 'y');
+  auto ve_rev = VectorEquation(xs * ys, sin(xs) + ys * ys);
+  auto J_rev = ve_rev.eval_jacobian_reverse();
+
+  for (std::size_t i = 0; i < 2; ++i)
+    for (std::size_t j = 0; j < 2; ++j)
+      EXPECT_DOUBLE_EQ(J_rev[i][j], J_fwd[i][j]);
+}
+
 TEST(VectorEquationForward, StateRestoredAfterCall) {
   // After eval_jacobian_forward the expressions should evaluate at the
   // original point (dual parts zeroed out).
@@ -817,11 +862,11 @@ TEST(VectorEquationForward, StateRestoredAfterCall) {
 }
 
 TEST(ReverseModeAD, ScalarLiteralCoercion) {
-  // gradient(3*x*y + y*z) with plain integer/double literals
+  // reverse_mode_gradient(3*x*y + y*z) with plain integer/double literals
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
   auto z = PV(4.0, 'z');
-  auto g = gradient(3.0 * x * y + y * z);
+  auto g = reverse_mode_gradient(3.0 * x * y + y * z);
   EXPECT_DOUBLE_EQ(g[0], 9.0);   // df/dx = 3*y = 9
   EXPECT_DOUBLE_EQ(g[1], 10.0);  // df/dy = 3*x + z = 10
   EXPECT_DOUBLE_EQ(g[2], 3.0);   // df/dz = y = 3
@@ -830,7 +875,7 @@ TEST(ReverseModeAD, ScalarLiteralCoercion) {
 TEST(ReverseModeAD, ScalarOnRight) {
   // expr * scalar and expr + scalar
   auto x = PV(5.0, 'x');
-  auto g = gradient(x * 4.0 + 1.0);
+  auto g = reverse_mode_gradient(x * 4.0 + 1.0);
   EXPECT_DOUBLE_EQ(g[0], 4.0);   // df/dx = 4
 }
 
@@ -840,7 +885,7 @@ TEST(ReverseModeAD, AgreesWithForwardMode) {
   double xv = 1.0, yv = std::numbers::pi / 4.0;
   auto x = PV(xv, 'x');
   auto y = PV(yv, 'y');
-  auto g = gradient(exp(x) * sin(y));
+  auto g = reverse_mode_gradient(exp(x) * sin(y));
   EXPECT_DOUBLE_EQ(g[0], std::exp(xv) * std::sin(yv));
   EXPECT_DOUBLE_EQ(g[1], std::exp(xv) * std::cos(yv));
 }

@@ -1,12 +1,12 @@
 #pragma once
 #include "dual.hpp"
 #include "expressions.hpp"
+#include "gradient.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
 #include <boost/mp11.hpp>
 #include <concepts>
 #include <tuple>
-#include <boost/range/combine.hpp>
 
 // Pretty-print a std::tuple of expressions, one per line.
 template <typename... Ts>
@@ -178,6 +178,19 @@ public:
         std::move(rows));
   }
 
+  // Reverse-mode Jacobian: one reverse-mode gradient pass per output
+  // component. Best suited to vector-valued functions with relatively few
+  // outputs.
+  [[nodiscard]] constexpr auto eval_jacobian_reverse() const {
+    auto rows = std::apply(
+        [](const auto &...exprs) {
+          return std::array<std::array<value_type, input_dim>, output_dim>{
+              reverse_mode_gradient(exprs)...};
+        },
+        expressions);
+    return rows;
+  }
+
   // Forward-mode Jacobian: one seeded pass per input variable.
   // Only available when value_type = Dual<S>.
   // values: evaluation point as plain scalars (one per input variable, ordered
@@ -202,9 +215,8 @@ public:
       }
     }
     // Restore zero dual parts so stored state is clean.
-    for (auto&& [seed, value] : boost::combine(seeds, values)) {
-      seed = value_type{value, S{}};
-    }
+    for (std::size_t i = 0; i < input_dim; ++i)
+      seeds[i] = value_type{values[i], S{}};
     update(symbols{}, seeds);
     return J;
   }

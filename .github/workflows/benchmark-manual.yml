@@ -1,0 +1,88 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            build_type: Release
+            c_compiler: clang
+            cpp_compiler: clang++
+            artifact_name: benchmark-results-ubuntu
+          - os: windows-latest
+            build_type: Release
+            c_compiler: cl
+            cpp_compiler: cl
+            artifact_name: benchmark-results-windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang and Boost (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y clang libboost-dev linux-tools-common linux-tools-generic
+
+      - name: Install Boost headers via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: vcpkg install boost-headers:x64-windows boost-mp11
+
+      - name: Set build directory
+        id: strings
+        shell: bash
+        run: echo "build-dir=${GITHUB_WORKSPACE}/build" >> "$GITHUB_OUTPUT"
+
+      - name: Configure CMake (Linux)
+        if: runner.os == 'Linux'
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-dir }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DDIFF_BUILD_BENCHMARKS=ON
+          -S ${{ github.workspace }}
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >
+          cmake -B "${{ steps.strings.outputs.build-dir }}"
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DDIFF_BUILD_BENCHMARKS=ON
+          "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -S "${{ github.workspace }}"
+
+      - name: Build benchmarks
+        run: cmake --build "${{ steps.strings.outputs.build-dir }}" --config ${{ matrix.build_type }} --target benchmark_json
+
+      - name: Save console output (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "${{ steps.strings.outputs.build-dir }}/benchmark-results"
+          "${{ steps.strings.outputs.build-dir }}/benchmarks" --benchmark_min_time=0.05s > "${{ steps.strings.outputs.build-dir }}/benchmark-results/benchmarks.txt"
+
+      - name: Save console output (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >
+          New-Item -ItemType Directory -Force -Path "${{ steps.strings.outputs.build-dir }}/benchmark-results" | Out-Null;
+          & "${{ steps.strings.outputs.build-dir }}\Release\benchmarks.exe" --benchmark_min_time=0.05s |
+          Out-File -FilePath "${{ steps.strings.outputs.build-dir }}/benchmark-results/benchmarks.txt" -Encoding utf8
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-${{ github.run_number }}
+          path: ${{ steps.strings.outputs.build-dir }}/benchmark-results
+          retention-days: 30
