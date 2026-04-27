@@ -16,8 +16,8 @@ jobs:
         include:
           - os: ubuntu-latest
             build_type: Release
-            c_compiler: gcc
-            cpp_compiler: g++
+            c_compiler: clang
+            cpp_compiler: clang++
           - os: windows-latest
             build_type: Release
             c_compiler: cl
@@ -26,60 +26,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache CMake files
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cmake
-            ${{ github.workspace }}/build/CMakeCache.txt
-            ${{ github.workspace }}/build/CMakeFiles
-          key: ${{ runner.os }}-cmake-${{ hashFiles('CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: |
-            ${{ runner.os }}-cmake-
+      - name: Install Clang and Boost (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y clang libboost-dev
 
-      - name: Set reusable strings
+      - name: Install Boost headers via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: vcpkg install boost-headers:x64-windows
+
+      - name: Set build directory
         id: strings
         shell: bash
-        run: |
-          echo "build-output-dir=${GITHUB_WORKSPACE}/build" >> "$GITHUB_OUTPUT"
+        run: echo "build-dir=${GITHUB_WORKSPACE}/build" >> "$GITHUB_OUTPUT"
 
-      - name: Setup MSVC Developer Command Prompt
-        if: runner.os == 'Windows'
-        uses: microsoft/setup-msbuild@v1.0.2
-
-      - name: Configure CMake
-        if: runner.os != 'Windows'
-        shell: bash
+      - name: Configure CMake (Linux)
+        if: runner.os == 'Linux'
         run: >
-          cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_STANDARD=26
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -S ${GITHUB_WORKSPACE}
-
-      - name: Configure CMake (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: >
-          cmake -B ${{ github.workspace }}\build
-          -DCMAKE_CXX_STANDARD=26
+          cmake -B ${{ steps.strings.outputs.build-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -S ${{ github.workspace }}
 
-      - name: Cache build
-        uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/build
-          key: ${{ runner.os }}-build-${{ hashFiles('**/*.cpp', '**/*.hpp', '**/*.h') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >
+          cmake -B "${{ steps.strings.outputs.build-dir }}"
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -S "${{ github.workspace }}"
 
       - name: Build
-        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+        run: cmake --build "${{ steps.strings.outputs.build-dir }}" --config ${{ matrix.build_type }}
 
       - name: Test
-        working-directory: ${{ steps.strings.outputs.build-output-dir }}
-        run: ctest --build-config ${{ matrix.build_type }}
+        working-directory: ${{ steps.strings.outputs.build-dir }}
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure

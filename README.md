@@ -2,170 +2,162 @@
 
 # Expression Differentiator
 
-A C++23 template library for symbolic mathematical
-expressions, derivatives, and equation systems
-with compile-time evaluation capabilities.
-
-## Overview
-
-ExpressionSolver is a modern C++ library that
-enables symbolic representation, manipulation, and
-evaluation of mathematical expressions. It
-supports automatic differentiation, equation
-systems, and provides a compile-time capable
-expression evaluation engine.
+A header-only C++26 template library for symbolic mathematical expressions with automatic differentiation, partial derivatives, and Jacobian computation — all resolved at compile time.
 
 ## Features
 
-- **Expression Representation**: Create and
-  manipulate complex mathematical expressions
-- **Automatic Differentiation**: Compute
-  derivatives symbolically
-- **Equation Systems**: Work with systems of
-  equations
-- **Compile-time Evaluation**: Evaluate
-  expressions at compile time when possible
-- **Type-safe Operations**: All operations are
-  type-safe and work with various numeric types. 
-
-  For user defined types, they would have to 
-  overload the operators `+`, `-`, `*`, `/` or 
-  specialize `std::plus<>{}`, `std::minus<>{}}`,
-  `std::multiplies<>{}`, `std::divides<>{}` for the types
+- **Symbolic Expressions**: Build expression trees from `Variable`, `Constant`, and operator types
+- **Automatic Differentiation**: Exact symbolic derivatives via chain, product, and quotient rules
+- **Partial Derivatives**: `Equation` wraps a scalar expression and exposes all partial derivatives
+- **Jacobian Matrices**: `VectorEquation` maps ℝⁿ → ℝᵐ and computes the full J[i][j] = ∂fᵢ/∂xⱼ
+- **Transcendental Functions**: `sin`, `cos`, `exp` with correct derivative rules
+- **Compile-time Evaluation**: Expressions over `Constant` values are `constexpr`
+- **Type-safe**: Works with any numeric type that provides `+`, `-`, `*`, `/`  
+  (or specializes `std::plus<>`, `std::minus<>`, `std::multiplies<>`, `std::divides<>`)
 
 ## Requirements
 
-- C++23 compatible compiler
+- C++26 compiler — Clang 17+ recommended (GCC 13 has an ICE on deeply nested Hana instantiations; GCC 14+ may work)
+- [Boost](https://www.boost.org/) ≥ 1.74 (headers only; used for `boost::hana`)
+- CMake ≥ 3.20
+
+## Building
+
+```sh
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+`CMakeLists.txt` automatically selects `clang++` when available.
 
 ## Core Components
 
-### Expressions
+### Primitives
 
-The library represents expressions as template
-classes that model the expression tree:
+| Type | Description |
+|------|-------------|
+| `Constant<T>` | A fixed numeric value; `derivative()` returns `Constant{0}` |
+| `Variable<T, char>` | A named symbolic variable; `derivative()` returns `Constant{1}` |
 
-- : Represents binary operations
-  `Expression<Op, LHS, RHS>`
-- : Represents unary operations
-  `MonoExpression<Op, Exp>`
-- : Represents constant values `Constant<T>`
-- `Variable<T, char>`: Represents variables with
-  symbolic identifiers
+### Expression nodes
+
+| Type | Description |
+|------|-------------|
+| `Expression<Op, LHS, RHS>` | Binary expression node (addition, multiplication, division) |
+| `MonoExpression<Op, Expr>` | Unary expression node (negation, sin, cos, exp) |
 
 ### Operations
 
-Mathematical operations are implemented as
-operator types:
+| Type | Description |
+|------|-------------|
+| `SumOp<T>` | Addition — also used internally to implement subtraction (`a - b` ≡ `a + (-b)`) |
+| `MultiplyOp<T>` | Multiplication |
+| `DivideOp<T>` | Division |
+| `NegateOp<T>` | Unary negation |
+| `SineOp<T>` | sin |
+| `CosineOp<T>` | cos |
+| `ExpOp<T>` | eˣ |
 
-- : Addition `SumOp<T>`
-- : Multiplication `MultiplyOp<T>`
-- : Division `DivideOp<T>`
-- : Subtraction `Op<T>`
-- : Negation `NegateOp<T>`
-- : Sine function `SineOp<T>`
-- : Cosine function `CosineOp<T>`
-- : Exponential function `ExpOp<T>`
+Operator overloads (`+`, `-`, `*`, `/`, `sin()`, `cos()`, `exp()`) accept any `Expression`, `Variable`, or `Constant`, so you rarely touch these types directly.
 
-A constant value can be created using the `PC(value)` macro.
-There are also handy udl such as `7_ci` for constant integer
-and `1.618_cd` for constant double.
+### Equations
 
-There are also operator overloads for operations `+`, `-`, `*`, `/`,
-`sin()`,`cos()`, `exp()` which take `Expression` objects or `Variable`
-objects or `Constant` objects as arguments. This makes usage rather convenient
-as can be seen in the [usage examples](#Usage Examples) section.
+| Type | Description |
+|------|-------------|
+| `Equation<Expr>` | Wraps a scalar expression. Exposes `.eval()`, `.eval_derivatives()` (returns `std::array`), and `operator[idx<N>()]` for individual partials |
+| `VectorEquation<Exprs...>` | Wraps multiple scalar expressions (ℝⁿ → ℝᵐ). Exposes `.eval()` and `.eval_jacobian()` |
 
-### Equations and Systems
+## Convenience Macros and UDLs
 
-- `Equation<TExpression>`: Wraps an expression
-  with its derivatives
-- : Manages systems of equations with Jacobian
-  computation `SystemOfEquations<TEquations...>`
-- `SystemOfEquations<TExpression>` supports the `std::get<>`
-interface which returns a reference to `Expression` at the index
-  of the system. 
-- `make_system_of_equations<TExpressions...>(TExpressions...)`: A helper function
-  to create a system of equations from a list of expressions. This
-allows the user to enter expressions in a more natural way, without having
-to explicitly create `0` valued `Variable<T>` terms in the expressions
-which don't contain the variable.
-This creates a system of equations with each `Equation`/`Expression` has
-the same number of variables.
+| Syntax | Expands to |
+|--------|------------|
+| `PC(v)` | `Constant<decltype(v)>{v}` |
+| `PV(v, 'x')` | `Variable<decltype(v), 'x'>{v}` |
+| `3_ci` | `Constant<int>{3}` |
+| `1.5_cd` | `Constant<double>{1.5}` |
+| `4_vi` | `Variable<int, 'c'>{4}` |
+| `2.0_vd` | `Variable<double, 'v'>{2.0}` |
 
-Note.  A jacobian would be available iff the system of equation is square
-
-### Process Variable
-
-- `ProcessVar<T>`: Represents a variable that can
-  be used in expressions and updated. This is used 
-  to provide reference semantics to variables in your 
-  application, allowing you to update the variable values 
-in the expression implicitly. 
-
- - User can create a `Variable<T>` or a `Constant<T>` from a `ProcessVar<T>` using the
-function `as_variable<char>()` or `as_constant<T>()` respectively. Any
-updates to the `ProcessVar<T>` will be reflected in the `Variable<T>` or `Constant<T>`
-and vice versa.
+Use `idx<N>()` (or the legacy `IDX(N)`) to index into an `Equation`'s derivative list.
 
 ## Usage Examples
 
-### Creating Expressions
+### Scalar expression with partial derivatives
 
-``` cpp
-// Define process variables
-auto x = PV(2, 'x');  // Variable x with initial value 2
-auto y = PV(3, 'y');  // Variable y with initial value 3
+```cpp
+auto x = PV(4, 'x');   // Variable<int, 'x'>{4}
+auto y = PV(2, 'y');   // Variable<int, 'y'>{2}
+auto expr = x * y + PC(3) * x * y * y;   // f(x,y) = xy + 3xy²
 
-// Create expressions
-auto expr = x + y + 3_ci * x * y;  // x + y + 3*x*y
-```
+std::cout << expr.eval();   // 4*2 + 3*4*4 = 56
 
-### Working with Equations
-
-``` cpp
-// Create an equation from an expression
 auto eq = Equation(expr);
-
-// Access the equation and its derivatives
-auto value = eq.eval();            // Evaluate the equation
-auto derivs = eq.eval_derivatives(); // Get all derivatives
+auto [df_dx, df_dy] = eq.eval_derivatives();
+// df/dx = y + 3y²  = 14
+// df/dy = x + 6xy  = 52
 ```
 
-### Systems of Equations
+### Indexing individual partials
 
-``` cpp
-// Create expressions
-auto expr1 = x + y + 3_ci * x * y * y;
-auto expr2 = x + y;
+```cpp
+auto x = PV(4, 'x');
+auto y = PV(2, 'y');
+auto eq = Equation(x * y);
 
-// Create a system of equations
-auto system = make_system_of_equations(expr1, expr2);
-
-// Evaluate the system
-auto result = system.eval();
-
-// Compute the Jacobian matrix
-auto jacobian = system.jacobian();
-
-// Update variable values
-std::array<int, 2> newValues = {42, 1729};
-system.update(newValues);
+eq[idx<1>()].eval();   // ∂(x*y)/∂x = y = 2
+eq[idx<2>()].eval();   // ∂(x*y)/∂y = x = 4
 ```
 
-### Process Variables
+### Transcendental functions
 
-``` cpp
-ProcessVar<double> pv(3.14);
-auto x = pv.as_variable<'x'>();
+```cpp
+auto x = PV(1.0, 'x');
+auto g = sin(x) * cos(x);
+g.eval();                  // sin(1)*cos(1) ≈ 0.455
+g.derivative().eval();     // cos²(x) − sin²(x) = cos(2) ≈ −0.416
+```
 
-x = 6.203; // updates pv
-pv.set_value(8.314); // updates x
+### Jacobian of a vector-valued function
+
+```cpp
+auto x = PV(3.0, 'x');
+auto y = PV(4.0, 'y');
+// f: ℝ² → ℝ²,  f(x,y) = (x + y,  x * y)
+auto ve = VectorEquation(x + y, x * y);
+
+auto fval = ve.eval();         // {7.0, 12.0}
+auto J    = ve.eval_jacobian();
+// J = [[∂(x+y)/∂x, ∂(x+y)/∂y],   [[1, 1],
+//      [∂(x*y)/∂x, ∂(x*y)/∂y]] =   [4, 3]]
+```
+
+### Rectangular Jacobian (ℝ² → ℝ³)
+
+```cpp
+auto x = PV(1.0, 'x');
+auto y = PV(2.0, 'y');
+auto ve = VectorEquation(x * x, sin(x) * y, x + y * y);
+// output_dim == 3, input_dim == 2
+auto J = ve.eval_jacobian();   // 3×2 std::array<std::array<double,2>,3>
+```
+
+### Updating variable values
+
+```cpp
+auto x = Variable<int, 'x'>{3};
+auto eq = Equation(x * x);
+
+eq.eval();            // 9
+eq[idx<1>()].eval();  // 6  (= 2x)
+
+using Syms = Equation<decltype(x * x)>::symbols;
+eq.update(Syms{}, std::array{5});
+
+eq.eval();            // 25
+eq[idx<1>()].eval();  // 10  (= 2x)
 ```
 
 ## Contributing
 
-This is a personal project, but contributions are welcome! I want 
-to learn, so please comment. I don't promise to implement all 
-suggestions, but I will surely think them through and through.
-
-<sub>I know the tests are far from complete. I will be working on them I promise.</sub>
+This is a personal project, but contributions are welcome! I want to learn, so please comment. I don't promise to implement all suggestions, but I will think them through.
