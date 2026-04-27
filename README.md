@@ -31,6 +31,46 @@ ctest --test-dir build --output-on-failure
 
 On Windows, the GitHub workflow builds with MSVC and vcpkg-provided Boost headers. The local CMake setup also falls back to fetching `boost/mp11` when `Boost::headers` is not already available.
 
+## Benchmarks
+
+Google Benchmark support is built by default through the `benchmarks` target.
+
+```sh
+cmake -S . -B build
+cmake --build build --config Release --target benchmarks
+./build/Release/benchmarks --benchmark_min_time=0.05s
+```
+
+PowerShell users should quote regex filters:
+
+```powershell
+.\build-win\Release\benchmarks.exe "--benchmark_filter=F1|F2|F3|F4" --benchmark_min_time=0.05s
+```
+
+The benchmark suite compares three ways of computing a full gradient for the same scalar function:
+
+- symbolic partials via `Equation(...).eval_derivatives()`
+- forward mode via `Dual<T>` with one seeded pass per input
+- reverse mode via `gradient(expr)`
+
+The current suite uses four functions:
+
+- `F1(x) = exp(x) * sin(x) + x^3 + 2x`
+- `F2(x, y) = xy + sin(x) + y^2 + exp(x + y)`
+- `F3(x, y, z) = exp(xy) + x sin(z) + yz + x^2 z`
+- `F4(x, y, z, w) = (x + y)(z - w) + exp(xz) + sin(yw) + xyzw`
+
+Current Release snapshot on this Windows machine:
+
+| Function | Symbolic | Forward | Reverse |
+|---|---:|---:|---:|
+| `F1` | 14.0 ns | 9.38 ns | 6.23 ns |
+| `F2` | 11.7 ns | 17.4 ns | 6.25 ns |
+| `F3` | 23.4 ns | 20.9 ns | 6.23 ns |
+| `F4` | 23.4 ns | 35.0 ns | 5.45 ns |
+
+In this snapshot, reverse mode is fastest on all four benchmarked functions. Treat these numbers as machine- and compiler-dependent measurements rather than fixed library-wide conclusions.
+
 ## Main types
 
 ### Primitives

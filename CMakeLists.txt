@@ -8,6 +8,7 @@ project(ExpressionDifferentor VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+option(DIFF_BUILD_BENCHMARKS "Build Google Benchmark benchmarks" ON)
 
 find_package(Boost 1.74 CONFIG QUIET)
 
@@ -34,6 +35,17 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+if(DIFF_BUILD_BENCHMARKS)
+    FetchContent_Declare(
+            googlebenchmark
+            URL https://github.com/google/benchmark/archive/refs/tags/v1.9.1.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googlebenchmark)
+endif()
+
 add_library(diff INTERFACE
         ${CMAKE_SOURCE_DIR}/include/expressions.hpp
         ${CMAKE_SOURCE_DIR}/include/operations.hpp
@@ -55,12 +67,20 @@ target_link_libraries(tests gtest_main diff)
 add_test(NAME tests COMMAND tests)
 enable_testing()
 
+if(DIFF_BUILD_BENCHMARKS)
+    add_executable(benchmarks benchmark.cpp)
+    target_link_libraries(benchmarks PRIVATE benchmark::benchmark diff)
+endif()
+
 if(MSVC)
     target_compile_options(main PRIVATE /Wall)
     target_compile_options(tests PRIVATE /Wall)
+    if(DIFF_BUILD_BENCHMARKS)
+        target_compile_options(benchmarks PRIVATE /Wall)
+    endif()
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-    foreach(target gtest gtest_main gmock gmock_main)
+    foreach(target gtest gtest_main gmock gmock_main benchmark benchmark_main)
         if(TARGET ${target})
             target_compile_options(${target} PRIVATE /W0 /wd4668)
             set_target_properties(${target} PROPERTIES
@@ -70,4 +90,7 @@ if(MSVC)
 else ()
     target_compile_options(main PRIVATE -Wall -Wpedantic -Wfatal-errors -Wextra)
     target_compile_options(tests PRIVATE -Wall -Wpedantic -Wfatal-errors -Wextra)
+    if(DIFF_BUILD_BENCHMARKS)
+        target_compile_options(benchmarks PRIVATE -Wall -Wpedantic -Wfatal-errors -Wextra)
+    endif()
 endif ()
