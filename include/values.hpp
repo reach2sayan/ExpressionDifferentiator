@@ -1,135 +1,139 @@
-//
-// Created by sayan on 4/13/25.
-//
-
 #pragma once
-#include <string>
+#include "expressions.hpp"
+#include <boost/hana.hpp>
 #include <concepts>
-
-template <typename T> struct DivideOp;
+#include <format>
+#include <string_view>
 
 constexpr bool PRINT_VARIABLE_VALUE = false;
 constexpr bool PRINT_VARIABLE_LABEL = true;
 constexpr bool PRINT_CONSTANT_VALUE = true;
 constexpr bool PRINT_CONSTANT_LABEL = false;
 
-#define VALUE_TYPE_MISMATCH_ASSERT(T, U)                                       \
-  static_assert(                                                               \
-      std::is_same_v<typename T::value_type, typename U::value_type> ||        \
-          std::is_convertible_v<typename T::value_type,                        \
-                                typename U::value_type> ||                     \
-          std::is_convertible_v<typename U::value_type,                        \
-                                typename T::value_type>,                       \
-      "Both expressions must have the same value type");
+// Concept replacing the VALUE_TYPE_MISMATCH_ASSERT macro: participates in
+// overload resolution rather than firing inside the body.
+template <typename LHS, typename RHS>
+concept CompatibleValueTypes =
+    std::is_same_v<typename LHS::value_type, typename RHS::value_type> ||
+    std::is_convertible_v<typename LHS::value_type, typename RHS::value_type> ||
+    std::is_convertible_v<typename RHS::value_type, typename LHS::value_type>;
+
 constexpr std::string_view letters =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 class character_generator {
   mutable size_t c = 0;
+
 public:
   constexpr char operator()() const { return letters[++c % 52]; }
 };
 constexpr static character_generator cgenerator{};
 
-template <char C, typename Tuple, std::size_t I = 0>
-constexpr std::size_t index_of_char_in_tuple() {
-  if constexpr (I >= std::tuple_size_v<std::decay_t<Tuple>>) {
-    static_assert(I < std::tuple_size_v<Tuple>, "Character not found in tuple");
-    return -1;
-  } else {
-    using Elem = std::tuple_element_t<I, std::decay_t<Tuple>>;
-    if constexpr (Elem::value == C) {
-      return I;
-    } else {
-      return index_of_char_in_tuple<C, Tuple, I + 1>();
-    }
-  }
+// Find the 0-based index of the first element with ::value == C in a
+// hana::tuple<integral_constant<char,C>...>.  Uses hana::take_while so the
+// result is a compile-time constant.
+template <char C, typename HanaTuple>
+consteval std::size_t index_of_char_in_hana() {
+  return static_cast<std::size_t>(
+      boost::hana::size(boost::hana::take_while(HanaTuple{}, [](auto e) {
+        return boost::hana::bool_c<(std::decay_t<decltype(e)>::value != C)>;
+      })));
 }
 
 struct IOperators {
-  template <typename LHS, typename RHS>
-  friend constexpr auto operator+(const LHS &a, const RHS &b);
 
-  template <typename LHS, typename RHS>
-  friend constexpr auto operator*(const LHS &a, const RHS &b);
-
-  template <typename LHS, typename RHS>
-  friend constexpr auto operator-(const LHS &a, const RHS &b);
-
-  template <typename LHS, typename RHS>
-  friend constexpr Expression<DivideOp<typename LHS::value_type>, LHS, RHS>
-  operator/(const LHS &a, const RHS &b);
-
-  template <typename Expr>
-  friend constexpr MonoExpression<SineOp<typename Expr::value_type>, Expr>
-  sin(const Expr &a) {
-    using value_type = typename Expr::value_type;
-    return Sine<value_type>(a);
+  template <ExpressionConcept LHS, ExpressionConcept RHS>
+    requires CompatibleValueTypes<LHS, RHS>
+  friend constexpr auto operator+(const LHS &a, const RHS &b) {
+    using value_type = typename LHS::value_type;
+    return Expression<SumOp<value_type>, LHS, RHS>{std::move(a), std::move(b)};
   }
 
-  template <typename Expr>
-  friend constexpr MonoExpression<CosineOp<typename Expr::value_type>, Expr>
-  cos(const Expr &a) {
-    using value_type = typename Expr::value_type;
-    return Cosine<value_type>(a);
+  template <ExpressionConcept LHS, ExpressionConcept RHS>
+    requires CompatibleValueTypes<LHS, RHS>
+  friend constexpr auto operator*(const LHS &a, const RHS &b) {
+    using value_type = typename LHS::value_type;
+    return Expression<MultiplyOp<value_type>, LHS, RHS>(std::move(a),
+                                                        std::move(b));
   }
 
-  template <typename Expr>
-  friend constexpr MonoExpression<ExpOp<typename Expr::value_type>, Expr>
-  exp(const Expr &a) {
+  template <ExpressionConcept LHS, ExpressionConcept RHS>
+    requires CompatibleValueTypes<LHS, RHS>
+  friend constexpr auto operator-(const LHS &a, const RHS &b) {
+    using value_type = typename LHS::value_type;
+    auto neg = MonoExpression<NegateOp<value_type>, RHS>(std::move(b));
+    return Expression<SumOp<value_type>, LHS, decltype(neg)>{std::move(a),
+                                                             std::move(neg)};
+  }
+
+  template <ExpressionConcept LHS, ExpressionConcept RHS>
+    requires CompatibleValueTypes<LHS, RHS>
+  friend constexpr auto operator/(const LHS &a, const RHS &b) {
+    using value_type = typename LHS::value_type;
+    return Expression<DivideOp<value_type>, LHS, RHS>{std::move(a),
+                                                      std::move(b)};
+  }
+
+  template <ExpressionConcept Expr> friend constexpr auto sin(const Expr &a) {
     using value_type = typename Expr::value_type;
-    return Exp<value_type>(a);
+    return MonoExpression<SineOp<value_type>, Expr>{std::move(a)};
+  }
+
+  template <ExpressionConcept Expr> friend constexpr auto cos(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<CosineOp<value_type>, Expr>{std::move(a)};
+  }
+
+  template <ExpressionConcept Expr> friend constexpr auto exp(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<ExpOp<value_type>, Expr>{std::move(a)};
   }
 };
 
-template <typename T> class Constant : public IOperators {
+template <Numeric T> class Constant : public IOperators {
   const T value;
   friend std::ostream &operator<<(std::ostream &out, const Constant<T> &c) {
-    if (PRINT_CONSTANT_VALUE)
-      out << std::to_string(c.value);
-    if (PRINT_CONSTANT_LABEL)
-      out << std::string_view{"_c"};
+    if constexpr (PRINT_CONSTANT_VALUE)
+      out << std::format("{}", c.value);
+    if constexpr (PRINT_CONSTANT_LABEL)
+      out << "_c";
     return out;
   }
-  constexpr auto eval() const { return value; }
+  [[nodiscard]] constexpr auto eval() const { return value; }
 
 public:
   using value_type = T;
   constexpr explicit Constant(T value) : value(value) {}
-  constexpr auto get() const { return value; }
+  [[nodiscard]] constexpr auto get() const { return value; }
   constexpr operator T() const { return value; }
-  constexpr auto derivative() const { return Constant{T{}}; }
-  constexpr void update(...) const {
-    // No update needed for constant
-  }
+  [[nodiscard]] constexpr auto derivative() const { return Constant{T{}}; }
+  constexpr void update(...) const {}
 };
 
-template <typename T, char symbol> class Variable : public IOperators {
+template <Numeric T, char symbol> class Variable : public IOperators {
   T value;
   friend std::ostream &operator<<(std::ostream &out,
                                   const Variable<T, symbol> &c) {
-    if (PRINT_VARIABLE_VALUE) {
-      out << std::to_string(c.value) << "_";
-    }
-    if (PRINT_VARIABLE_LABEL) {
+    if constexpr (PRINT_VARIABLE_VALUE)
+      out << std::format("{}_", c.value);
+    if constexpr (PRINT_VARIABLE_LABEL)
       out << symbol;
-    }
     return out;
   }
   static constexpr inline size_t static_counter = 0;
-  constexpr T eval() const { return value; }
+  [[nodiscard]] constexpr T eval() const { return value; }
 
 public:
   using value_type = T;
   constexpr explicit Variable(T value) : value(value) {}
   constexpr operator T() const { return value; }
-  constexpr auto get() const { return value; }
+  [[nodiscard]] constexpr auto get() const { return value; }
   template <typename U> constexpr decltype(auto) operator=(U &&v);
   constexpr void update(const auto &symbols, const auto &updates);
-  constexpr auto derivative() const;
+  [[nodiscard]] constexpr auto derivative() const;
 };
 
-template <typename T, char symbol>
+template <Numeric T, char symbol>
 template <typename U>
 constexpr decltype(auto) Variable<T, symbol>::operator=(U &&v) {
   if constexpr (std::is_same_v<decltype(value),
@@ -141,67 +145,37 @@ constexpr decltype(auto) Variable<T, symbol>::operator=(U &&v) {
   return *this;
 }
 
-template <typename T, char symbol>
+template <Numeric T, char symbol>
 constexpr void Variable<T, symbol>::update(const auto &symbols,
                                            const auto &updates) {
-  constexpr auto index = index_of_char_in_tuple<symbol, decltype(symbols)>();
+  using Syms = std::decay_t<decltype(symbols)>;
+  constexpr auto index = index_of_char_in_hana<symbol, Syms>();
   operator=(updates[index]);
 }
 
-template <typename T, char symbol>
+template <Numeric T, char symbol>
 constexpr auto Variable<T, symbol>::derivative() const {
   auto ret = T{};
   return Constant{++ret};
-}
-
-template<typename T>
-concept ExpressionConcept = is_expression_type<std::remove_cvref_t<T>>::value;
-
-template <ExpressionConcept LHS, ExpressionConcept RHS>
-constexpr auto operator+(const LHS &a, const RHS &b) {
-  VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
-  using value_type = typename LHS::value_type;
-  return Sum<value_type>(a, b);
-}
-template <ExpressionConcept LHS, ExpressionConcept RHS>
-constexpr auto operator*(const LHS &a, const RHS &b) {
-  VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
-  using value_type = typename LHS::value_type;
-  return Multiply<value_type>(a, b);
-}
-
-template <ExpressionConcept LHS, ExpressionConcept RHS>
-constexpr auto operator-(const LHS &a, const RHS &b) {
-  VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
-  using value_type = typename LHS::value_type;
-  return Minus<value_type>(a, b);
-}
-
-template <ExpressionConcept LHS, ExpressionConcept RHS>
-constexpr Expression<DivideOp<typename LHS::value_type>, LHS, RHS>
-operator/(const LHS &a, const RHS &b) {
-  VALUE_TYPE_MISMATCH_ASSERT(LHS, RHS);
-  using value_type = typename LHS::value_type;
-  return Divide<value_type>(a, b);
 }
 
 #define PV(x, label) Variable<decltype(x), label>(x)
 #define PC(x) Constant(x)
 
 #define DEFINE_CONST_UDL(type, suffix)                                         \
-  constexpr Constant<type> operator"" _##suffix(unsigned long long val) {      \
-    return Constant<type>{static_cast<type>(std::move(val))};                  \
+  consteval Constant<type> operator"" _##suffix(unsigned long long val) {      \
+    return Constant<type>{static_cast<type>(val)};                             \
   }                                                                            \
-  constexpr Constant<type> operator"" _##suffix(long double val) {             \
-    return Constant<type>{static_cast<type>(std::move(val))};                  \
+  consteval Constant<type> operator"" _##suffix(long double val) {             \
+    return Constant<type>{static_cast<type>(val)};                             \
   }
 
 #define DEFINE_VAR_UDL(type, suffix, label)                                    \
-  constexpr auto operator"" _##suffix(unsigned long long val) {                \
-    return Variable<type, label>{static_cast<type>(std::move(val))};           \
+  consteval auto operator"" _##suffix(unsigned long long val) {                \
+    return Variable<type, label>{static_cast<type>(val)};                      \
   }                                                                            \
-  constexpr auto operator"" _##suffix(long double val) {                       \
-    return Variable<type, label>{static_cast<type>(std::move(val))};           \
+  consteval auto operator"" _##suffix(long double val) {                       \
+    return Variable<type, label>{static_cast<type>(val)};                      \
   }
 
 DEFINE_CONST_UDL(int, ci)

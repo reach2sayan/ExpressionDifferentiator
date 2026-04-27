@@ -1,17 +1,9 @@
-//
-// Created by sayan on 4/13/25.
-//
-
 #pragma once
 
 #include "expressions.hpp"
-
 #include <cmath>
 #include <functional>
 #include <utility>
-
-template <typename Op, typename LHS, typename RHS> class Expression;
-template <typename> class Constant;
 
 enum class OpType : short {
   Unary = 0,
@@ -19,183 +11,122 @@ enum class OpType : short {
 };
 using ExpressionType = OpType;
 
-template <typename T> using unary_op_func = T(const T &);
-template <typename T> using binary_op_func = T(const T &, const T &);
+template <typename F, typename T>
+concept cunary_op = std::regular_invocable<F, const T &> &&
+                    std::same_as<std::invoke_result_t<F, const T &>, T>;
+
+template <typename F, typename T>
+concept cbinary_op =
+    std::regular_invocable<F, const T &, const T &> &&
+    std::same_as<std::invoke_result_t<F, const T &, const T &>, T>;
 
 template <typename T, OpType type> struct Op {
   using value_type = T;
   constexpr static OpType op_type = type;
 };
 
-template <typename T, unary_op_func<T> func, char symbol>
+template <typename T, typename func, char symbol>
+  requires cunary_op<func, T>
 struct UnaryOp : Op<T, OpType::Unary> {
   using value_type = Op<T, OpType::Unary>::value_type;
-  template <typename LHS> static void print(std::ostream &out, const LHS &lhs) {
+  static void print(std::ostream &out, const SymbolicExpr auto &lhs) {
     out << symbol << lhs;
   }
-
-  template <typename LHS> constexpr static auto eval(const LHS &lhs) {
-    return std::invoke(func, lhs);
+  [[nodiscard]] constexpr static auto
+  eval(const std::convertible_to<T> auto &lhs) {
+    return std::invoke(func{}, lhs);
   }
 };
 
-template <typename T, binary_op_func<T> func, char symbol>
+template <typename T, typename func, char symbol>
+  requires cbinary_op<func, T>
 struct BinaryOp : Op<T, OpType::Binary> {
   using value_type = Op<T, OpType::Binary>::value_type;
-  template <typename LHS, typename RHS>
-  static void print(std::ostream &out, const RHS &lhs, const LHS &rhs) {
+  static void print(std::ostream &out, const SymbolicExpr auto &lhs,
+                    const SymbolicExpr auto &rhs) {
     out << lhs << symbol << rhs;
   }
-  template <typename LHS, typename RHS>
-  constexpr static auto eval(const LHS &lhs, const RHS &rhs) {
-    return std::invoke(func, lhs, rhs);
+  [[nodiscard]] constexpr static auto
+  eval(const std::convertible_to<T> auto &lhs,
+       const std::convertible_to<T> auto &rhs) {
+    return std::invoke(func{}, lhs, rhs);
   }
 };
 
-#define DEPRECATED_DERIVATIVE true
-#if !DEPRECATED_DERIVATIVE
-template <typename Op> [[deprecated]] struct Derivative {
-  constexpr static size_t count = [](OpType op) {
-    return std::to_underlying(op) + 1;
-  }(Op::op_type);
-};
-static_assert(Derivative<ExpOp<int>>::count == 2);
-#endif
-
-template <typename T>
-struct SumOp
-    : BinaryOp<T,
-               [](const T &a, const T &b) -> T { return std::plus<T>{}(a, b); },
-               '+'> {
-  template <typename LHS, typename RHS>
-  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
+template <typename T> struct SumOp : BinaryOp<T, std::plus<T>, '+'> {
+  [[nodiscard]] constexpr static auto
+  derivative(const std::convertible_to<T> auto &lhs,
+             const std::convertible_to<T> auto &rhs) {
+    return lhs.derivative() + rhs.derivative();
+  }
 };
 
-template <typename T>
-template <typename LHS, typename RHS>
-constexpr auto SumOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
-  return Sum<T>(lhs.derivative(), rhs.derivative());
-}
-
-template <typename T>
-struct MultiplyOp : BinaryOp<T,
-                             [](const T &a, const T &b) -> T {
-                               return std::multiplies<T>{}(a, b);
-                             },
-                             '*'> {
-  template <typename LHS, typename RHS>
-  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
+template <typename T> struct MultiplyOp : BinaryOp<T, std::multiplies<T>, '*'> {
+  [[nodiscard]] constexpr static auto
+  derivative(const std::convertible_to<T> auto &lhs,
+             const std::convertible_to<T> auto &rhs) {
+    auto lmul = lhs.derivative() * rhs; // f'(x)g(x)
+    auto rmul = lhs * rhs.derivative(); // f(x)g'(x)
+    return std::move(lmul) + std::move(rmul);
+  }
 };
 
-template <typename T>
-template <typename LHS, typename RHS>
-constexpr auto MultiplyOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
-  auto lmul = Multiply<T>(lhs.derivative(), rhs); // f'(x)g(x)
-  auto rmul = Multiply<T>(lhs, rhs.derivative()); // f(x)g'(x)
-  return Sum<T>(std::move(lmul), std::move(rmul));
-}
+template <typename T> struct NegateOp : UnaryOp<T, std::negate<T>, '-'> {
+  [[nodiscard]] constexpr static auto
+  derivative(const std::convertible_to<T> auto &lhs) {
+    auto d = lhs.derivative();
+    return MonoExpression<NegateOp<T>, decltype(d)>{std::move(d)};
+  }
+};
 
-template <typename T>
-struct NegateOp : UnaryOp<T,
-                          [](const T &a) -> T {
-                            T v{};
-                            --v;
-                            return std::move(v) * a;
-                          },
-                          '-'> {
-  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+template <typename T> struct DivideOp : BinaryOp<T, std::divides<T>, '/'> {
+  [[nodiscard]] constexpr static auto
+  derivative(const std::convertible_to<T> auto &lhs,
+             const std::convertible_to<T> auto &rhs) {
+    auto num_l = lhs.derivative() * rhs;                  // f'(x)g(x)
+    auto num_r = lhs * rhs.derivative();                  // f(x)g'(x)
+    auto numerator = std::move(num_l) - std::move(num_r); // f'g - fg'
+    auto denominator = rhs * rhs;                         // g(x)^2
+    return std::move(numerator) / std::move(denominator);
+  }
 };
 
 template <typename T>
-template <typename Expr>
-constexpr auto NegateOp<T>::derivative(const Expr &lhs) {
-  auto d = lhs.derivative();
-  return MonoExpression<NegateOp<T>, decltype(d)>{std::move(d)};
-}
-
-template <typename T>
-struct DivideOp
-    : BinaryOp<T, [](const T &a, const T &b) -> T { return a / b; }, '/'> {
-  template <typename LHS, typename RHS>
-  constexpr static auto derivative(const LHS &lhs, const RHS &rhs);
-};
-template <typename T>
-template <typename LHS, typename RHS>
-constexpr auto DivideOp<T>::derivative(const LHS &lhs, const RHS &rhs) {
-  auto num_l = Multiply<T>(lhs.derivative(), rhs); // f'(x)g(x)
-  auto num_r = Multiply<T>(lhs, rhs.derivative()); // f(x) * g'(x)
-  auto numerator =
-      Minus<T>(std::move(num_l), std::move(num_r)); // f'(x)g(x) - f(x)g'(x)
-  auto denominator = Multiply<T>(rhs, rhs);         // g(x)^2
-  return Divide<T>(std::move(numerator), std::move(denominator));
-}
-template <typename T>
-struct SineOp : UnaryOp<T, [](const T &a) -> T { return std::sin(a); }, '$'> {
-  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+struct SineOp
+    : UnaryOp<T, decltype([](const T &a) -> T { return std::sin(a); }), '$'> {
+  template <typename Expr>
+  [[nodiscard]] constexpr static auto derivative(const Expr &lhs);
 };
 
 template <typename T>
-template <typename Expr>
-constexpr auto SineOp<T>::derivative(const Expr &expr) {
-  return Multiply<T>(Cosine<T>(expr), expr.derivative());
-}
-
-template <typename T>
-struct CosineOp : UnaryOp<T, [](const T &a) -> T { return std::cos(a); }, '['> {
-  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
+struct CosineOp
+    : UnaryOp<T, decltype([](const T &a) -> T { return std::cos(a); }), '['> {
+  template <typename Expr>
+  [[nodiscard]] constexpr static auto derivative(const Expr &lhs);
 };
 
 template <typename T>
 template <typename Expr>
 constexpr auto CosineOp<T>::derivative(const Expr &lhs) {
-  return Negate<T>(Multiply<T>(Sine<T>(lhs), lhs.derivative()));
+  return Negate<T>(sin(lhs)) * lhs.derivative();
 }
-
-template <typename T>
-struct ExpOp : UnaryOp<T, [](const T &a) -> T { return std::exp(a); }, 'e'> {
-  template <typename Expr> constexpr static auto derivative(const Expr &lhs);
-};
 
 template <typename T>
 template <typename Expr>
-constexpr auto ExpOp<T>::derivative(const Expr &expr) {
-  return Multiply<T>(Exp<T>(expr), expr.derivative());
+constexpr auto SineOp<T>::derivative(const Expr &expr) {
+  return cos(expr) * expr.derivative();
 }
 
-template <typename T, typename LHS, typename RHS>
-constexpr inline auto Multiply(LHS lhs, RHS rhs) {
-  return Expression<MultiplyOp<T>, LHS, RHS>(std::move(lhs), std::move(rhs));
-}
+template <typename T>
+struct ExpOp
+    : UnaryOp<T, decltype([](const T &a) -> T { return std::exp(a); }), 'e'> {
+  template <typename Expr>
+  [[nodiscard]] constexpr static auto derivative(const Expr &lhs) {
+    return MonoExpression<ExpOp<T>, Expr>{lhs} * lhs.derivative();
+  }
+};
 
-template <typename T, typename Expr> constexpr inline auto Negate(Expr expr) {
+template <typename T, typename Expr>
+[[nodiscard]] constexpr inline auto Negate(Expr expr) {
   return MonoExpression<NegateOp<T>, Expr>{std::move(expr)};
-}
-
-template <typename T, typename Expr> constexpr inline auto Cosine(Expr expr) {
-  return MonoExpression<CosineOp<T>, Expr>{std::move(expr)};
-}
-
-template <typename T, typename Expr> constexpr inline auto Sine(Expr expr) {
-  return MonoExpression<SineOp<T>, Expr>{std::move(expr)};
-}
-
-template <typename T, typename Expr> constexpr inline auto Exp(Expr expr) {
-  return MonoExpression<ExpOp<T>, Expr>{std::move(expr)};
-}
-
-template <typename T, typename LHS, typename RHS>
-constexpr inline auto Divide(LHS lhs, RHS rhs) {
-  return Expression<DivideOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
-}
-
-template <typename T, typename LHS, typename RHS>
-constexpr inline auto Minus(LHS lhs, RHS rhs) {
-  auto neg = MonoExpression<NegateOp<T>, RHS>(std::move(rhs));
-  return Expression<SumOp<T>, LHS, decltype(neg)>{std::move(lhs),
-                                                  std::move(neg)};
-}
-
-template <typename T, typename LHS, typename RHS>
-constexpr inline auto Sum(LHS lhs, RHS rhs) {
-  return Expression<SumOp<T>, LHS, RHS>{std::move(lhs), std::move(rhs)};
 }

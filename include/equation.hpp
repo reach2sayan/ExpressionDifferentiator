@@ -1,63 +1,54 @@
-//
-// Created by sayan on 4/17/25.
-//
-
 #pragma once
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
-#include <cassert>
+#include <boost/hana.hpp>
 #include <concepts>
 
-template <class... T>
-constexpr inline std::ostream &print_tup(std::ostream &out,
-                                         const std::tuple<T...> &_tup) {
-  auto print_tup_helper = []<class TupType, size_t... I>(
-                              std::ostream &out, const TupType &_tup,
-                              std::index_sequence<I...>) -> std::ostream & {
-    out << "(\n";
-    (..., (out << (I == 0 ? "" : "\n") << std::get<I>(_tup)));
-    out << "\n)";
-    return out;
-  };
-  return print_tup_helper(out, _tup, std::make_index_sequence<sizeof...(T)>());
+// Pretty-print a hana::tuple of expressions, one per line.
+template <typename... Ts>
+constexpr std::ostream &print_tup(std::ostream &out,
+                                  const boost::hana::tuple<Ts...> &tup) {
+  out << "(\n";
+  bool first = true;
+  [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+    (..., ([&] {
+       if (!first)
+         out << "\n";
+       out << boost::hana::at_c<Is>(tup);
+       first = false;
+     }()));
+  }(std::make_index_sequence<sizeof...(Ts)>{});
+  out << "\n)";
+  return out;
 }
 
-template <typename... Chars, typename Op, typename LHS, typename RHS>
-constexpr auto make_derivatives(const std::tuple<Chars...> &labels,
-                                const Expression<Op, LHS, RHS> &expr) {
-
-  auto make_derivatives_impl = []<typename Tuple, typename _Op, typename _LHS,
-                                  typename _RHS, std::size_t... Is>(
-                                   const Tuple &,
-                                   const Expression<_Op, _LHS, _RHS> &expr,
-                                   std::index_sequence<Is...>) {
-    return std::make_tuple(
-        make_all_constant_except<std::tuple_element_t<Is, Tuple>::value>(expr)
-            .derivative()...);
-  };
-  return make_derivatives_impl(labels, expr,
-                               std::index_sequence_for<Chars...>{});
+// Build a hana::tuple of partial derivatives — one per symbol.
+// hana::transform gives a heterogeneous tuple where each element has the
+// type of make_all_constant_except<C>(expr).derivative().
+constexpr auto make_derivatives(const auto &symbols,
+                                const ExpressionConcept auto &expr) {
+  return boost::hana::transform(symbols, [&expr](auto sym) {
+    constexpr char C = std::decay_t<decltype(sym)>::value;
+    return make_all_constant_except<C>(expr).derivative();
+  });
 }
 
 template <typename T>
 concept EquationConcept = ExpressionConcept<T> and std::constructible_from<T>;
 
 template <ExpressionConcept TExpression> class Equation {
-private:
   TExpression expression;
 
 public:
-  using symbolslist = typename extract_symbols_from_expr<TExpression>::type;
+  using symbols = typename extract_symbols_from_expr<TExpression>::type;
   using derivatives_t =
-      decltype(make_derivatives(std::declval<symbolslist>(), expression));
+      decltype(make_derivatives(std::declval<symbols>(), expression));
 
 private:
   derivatives_t derivatives;
   friend std::ostream &operator<<(std::ostream &out, const Equation &e) {
-    out << "Equation\n"
-        << e.expression << "\n"
-        << "Derivatives\n";
+    out << "Equation\n" << e.expression << "\nDerivatives\n";
     print_tup(out, e.derivatives);
     return out;
   }
@@ -65,45 +56,137 @@ private:
 public:
   using value_type = typename TExpression::value_type;
   constexpr static size_t number_of_derivatives =
-      std::tuple_size_v<derivatives_t>;
+      decltype(boost::hana::size(std::declval<derivatives_t>()))::value;
   constexpr operator value_type() const { return expression.eval(); }
+
+  // operator[IDX(0)] returns the expression itself; IDX(k) returns the k-th
+  // partial derivative (1-based).
   template <size_t N>
   constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) {
-    if constexpr (N == 0) {
+    if constexpr (N == 0)
       return (expression);
-    } else {
-      return std::get<N - 1>(derivatives);
-    }
+    else
+      return boost::hana::at_c<N - 1>(derivatives);
   }
   template <size_t N>
   constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) const {
-    if constexpr (N == 0) {
+    if constexpr (N == 0)
       return (expression);
-    } else {
-      return std::get<N - 1>(derivatives);
-    }
+    else
+      return boost::hana::at_c<N - 1>(derivatives);
   }
 
-  constexpr void update(const auto &symbols, const auto &updates) {
+  // symbols must be exactly the equation's own symbol list — enforced by type.
+  constexpr void update(const symbols &symbols, const auto &updates) {
     expression.update(symbols, updates);
-    assert(symbolslist{} == symbols);
-    std::apply(
-        [&](auto &...equations) { (equations.update(symbols, updates), ...); },
-        derivatives);
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+      (boost::hana::at_c<Is>(derivatives).update(symbols, updates), ...);
+    }(std::make_index_sequence<number_of_derivatives>{});
   }
-  constexpr auto eval() const { return expression.eval(); }
-  constexpr auto eval_derivatives() const {
-    auto eval_derivatives_helper =
-        []<typename Tuple, std::size_t... Is>(const Tuple &tup,
-                                              std::index_sequence<Is...>) {
-          return std::array{std::get<Is>(tup).eval()...};
-        };
-    return eval_derivatives_helper(
-        derivatives,
-        std::make_index_sequence<std::tuple_size_v<derivatives_t>>{});
+
+  [[nodiscard]] constexpr auto eval() const { return expression.eval(); }
+  [[nodiscard]] constexpr auto eval_derivatives() const {
+    return boost::hana::unpack(
+        boost::hana::transform(derivatives,
+                               [](const auto &d) { return d.eval(); }),
+        [](auto... vs) { return std::array{vs...}; });
   }
   constexpr Equation(const TExpression &e)
-      : expression{e}, derivatives{make_derivatives(symbolslist{}, e)} {}
+      : expression{e}, derivatives{make_derivatives(symbols{}, e)} {}
 };
 
 template <ExpressionConcept T> Equation(T &&) -> Equation<std::decay_t<T>>;
+
+template <typename SymsList, typename Exprs>
+constexpr auto make_jac_rows(const Exprs &es, SymsList symbols = {}) {
+  return boost::hana::transform(es, [&](const auto &e) {
+    return make_derivatives(std::move(symbols), e);
+  });
+}
+
+// ===========================================================================
+// VectorEquation — f: ℝⁿ → ℝᵐ.
+// Holds one expression per output component and precomputes the full Jacobian.
+// All components must share the same value_type.
+// J[i][j] = ∂fᵢ/∂xⱼ  (row-major, output_dim × input_dim).
+// ===========================================================================
+template <ExpressionConcept TFirst, ExpressionConcept... TRest>
+  requires(
+      std::same_as<typename TFirst::value_type, typename TRest::value_type> &&
+      ...)
+class VectorEquation {
+public:
+  using value_type = typename TFirst::value_type;
+  using symbols = sort_tuple_t<
+      tuple_union_t<typename extract_symbols_from_expr<TFirst>::type,
+                    typename extract_symbols_from_expr<TRest>::type...>>;
+
+  static constexpr std::size_t output_dim = 1 + sizeof...(TRest);
+  static constexpr std::size_t input_dim =
+      decltype(boost::hana::size(std::declval<symbols>()))::value;
+
+private:
+  using Exprs = boost::hana::tuple<TFirst, TRest...>;
+  using jacobian_t = decltype(make_jac_rows<symbols>(std::declval<Exprs>()));
+  Exprs expressions;
+  jacobian_t jacobian;
+
+  friend std::ostream &operator<<(std::ostream &out, const VectorEquation &ve) {
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+      (..., ([&] {
+         out << "f" << Is << ": " << boost::hana::at_c<Is>(ve.expressions)
+             << "grad: ";
+         print_tup(out, boost::hana::at_c<Is>(ve.jacobian));
+         out << '\n';
+       }()));
+    }(std::make_index_sequence<output_dim>{});
+    return out;
+  }
+
+public:
+  constexpr VectorEquation(TFirst first, TRest... rest)
+      : expressions{first, rest...},
+        jacobian{make_jac_rows(expressions, symbols{})} {}
+
+  // Evaluate all components — returns std::array<value_type, output_dim>.
+  [[nodiscard]] constexpr auto eval() const {
+    return boost::hana::unpack(
+        boost::hana::transform(
+            expressions, [](const auto &e) -> value_type { return e.eval(); }),
+        [](auto... vs) { return std::array<value_type, output_dim>{vs...}; });
+  }
+
+  // Full Jacobian — returns std::array<std::array<value_type, input_dim>,
+  // output_dim>.
+  [[nodiscard]] constexpr auto eval_jacobian() const {
+    auto rows = boost::hana::transform(jacobian, [](const auto &row) {
+      return boost::hana::unpack(
+          boost::hana::transform(row, [](const auto &d) { return d.eval(); }),
+          [](auto... vs) { return std::array{vs...}; });
+    });
+    // Explicit Row type to prevent C++20 aggregate CTAD from deducing through
+    // the inner array's elements instead of treating it as a single element.
+    return boost::hana::unpack(rows, []<typename... Rows>(Rows... rs) {
+      using Row = std::common_type_t<std::decay_t<Rows>...>;
+      return std::array<Row, sizeof...(Rows)>{rs...};
+    });
+  }
+
+  // Update live variables in all expressions and Jacobian rows.
+  constexpr void update(const symbols &symbols, const auto &updates) {
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+      (boost::hana::at_c<Is>(expressions).update(symbols, updates), ...);
+    }(std::make_index_sequence<output_dim>{});
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+      (..., ([&] {
+         auto &row = boost::hana::at_c<Is>(jacobian);
+         [&]<std::size_t... Js>(std::index_sequence<Js...>) {
+           (boost::hana::at_c<Js>(row).update(symbols, updates), ...);
+         }(std::make_index_sequence<input_dim>{});
+       }()));
+    }(std::make_index_sequence<output_dim>{});
+  }
+};
+
+template <ExpressionConcept T, ExpressionConcept... Ts>
+VectorEquation(T, Ts...) -> VectorEquation<T, Ts...>;

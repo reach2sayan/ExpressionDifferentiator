@@ -1,52 +1,56 @@
-
-#define REMOVE_MATRIX 1
-#if !defined(REMOVE_MATRIX)
-#include "matrix.hpp"
-#endif
-
-template <typename... T> struct TD;
-
 #include "equation.hpp"
-#include "procvar.hpp"
-#include "soequations.hpp"
-#include "traits.hpp"
 #include "values.hpp"
 #include <iostream>
-#include <string>
-
-#define PRINT_TUP(tup) print_tup(tup)
 
 int main() {
-  auto a = PV(2, 'x');
-  auto b = PV(3, 'y');
-  auto expr2 = a + b;
-  auto x1 = PV(4, 'y');                        // x = 4
-  auto y2 = PV(2, 'x');                        // y = 2
-  auto expr1 = x1 + y2 + PC(3) * x1 * y2 * y2; // (x + y) * (x - y)
-  auto soee = make_system_of_equations(expr1, expr2);
-  auto soee2 = make_system_of_equations(expr1);
-  std::cout << soee << "\n";
-  auto result = soee.eval();
-  for (auto r : result) {
-    std::cout << r << ", ";
-  }
-  std::cout << "\n";
-  auto d = soee.jacobian();
-  for (auto r : d) {
-    std::cout << r << ", ";
-  }
-  std::cout << "\nchanging\n";
-  constexpr std::array<int, 2> arr = {10, 11};
-  soee.update(arr);
-  auto expr3 = expr1 + a;
+  // f(x, y) = x * y + 3 * x * y^2
+  auto x = PV(4, 'x');
+  auto y = PV(2, 'y');
+  auto expr = x * y + PC(3) * x * y * y;
 
-  auto result2 = soee.eval();
-  for (auto r : result2) {
-    std::cout << r << ", ";
-  }
-  std::cout << "\n";
-  auto d2 = soee.jacobian();
-  for (auto r : d2) {
-    std::cout << r << ", ";
-  }
+  std::cout << "f(x,y) = " << expr << "\n";
+  std::cout << "f(4,2) = " << expr.eval() << "\n";
+
+  auto eq = Equation(expr);
+  auto [dx, dy] = eq.eval_derivatives();
+  std::cout << "df/dx at (4,2) = " << dx << "\n";
+  std::cout << "df/dy at (4,2) = " << dy << "\n";
+
+  // trig: g(x) = sin(x) * cos(x)
+  auto vx = PV(1.0, 'x');
+  auto trig = sin(vx) * cos(vx);
+  std::cout << "\ng(1.0) = sin(x)*cos(x) = " << trig.eval() << "\n";
+  std::cout << "g'(1.0) = " << trig.derivative().eval() << "\n";
+
+  // --- VectorEquation: f: R^2 -> R^2 ---
+  // f(x, y) = (x + y,  x * y)
+  auto vx2 = PV(3.0, 'x');
+  auto vy2 = PV(4.0, 'y');
+  auto ve = VectorEquation(vx2 + vy2, vx2 * vy2);
+  std::cout << "\n--- VectorEquation f(x,y) = (x+y, x*y) at (3, 4) ---\n";
+  std::cout << ve;
+
+  auto fval = ve.eval();
+  std::cout << "f(3,4) = (" << fval[0] << ", " << fval[1] << ")\n";
+
+  auto J = ve.eval_jacobian();
+  std::cout << "Jacobian:\n";
+  std::cout << "  [df0/dx, df0/dy] = [" << J[0][0] << ", " << J[0][1] << "]\n";
+  std::cout << "  [df1/dx, df1/dy] = [" << J[1][0] << ", " << J[1][1] << "]\n";
+
+  // --- VectorEquation: f: R^2 -> R^3 ---
+  // f(x, y) = (x*x,  sin(x)*y,  x + y*y)
+  auto vx3 = PV(1.0, 'x');
+  auto vy3 = PV(2.0, 'y');
+  auto ve3 = VectorEquation(vx3 * vx3, sin(vx3) * vy3, vx3 + vy3 * vy3);
+  std::cout << "\n--- VectorEquation f(x,y) = (x^2, sin(x)*y, x+y^2) at (1, 2) ---\n";
+  std::cout << ve3;
+
+  auto fval3 = ve3.eval();
+  std::cout << "f(1,2) = (" << fval3[0] << ", " << fval3[1] << ", " << fval3[2] << ")\n";
+
+  auto J3 = ve3.eval_jacobian();
+  std::cout << "Jacobian:\n";
+  for (std::size_t i = 0; i < 3; ++i)
+    std::cout << "  row " << i << ": [" << J3[i][0] << ", " << J3[i][1] << "]\n";
 }
