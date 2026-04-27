@@ -231,6 +231,7 @@ constexpr void Variable<T, symbol>::backward(const auto &syms, T adj,
   grads[idx] += adj;
 }
 
+#define PDV(x, label) Variable<Dual<decltype(x)>, label>(Dual<decltype(x)>{x, 0})
 #define PV(x, label) Variable<decltype(x), label>(x)
 #define PC(x) Constant(x)
 

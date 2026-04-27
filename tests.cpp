@@ -806,15 +806,14 @@ TEST(VectorEquationForward, TrigJacobian) {
 TEST(VectorEquationForward, StateRestoredAfterCall) {
   // After eval_jacobian_forward the expressions should evaluate at the
   // original point (dual parts zeroed out).
-  using D = Dual<double>;
-  Variable<D, 'x'> x{D{3.0}};
-  Variable<D, 'y'> y{D{4.0}};
+  auto x = PDV(3.0,'x');
+  auto y = PDV(4.0,'y');
   auto ve = VectorEquation(x * y, x + y);
   auto jac = ve.eval_jacobian_forward({3.0, 4.0});
-  auto vals = ve.eval();
-  EXPECT_DOUBLE_EQ(vals[0].template get<0>(), 12.0);  // x*y = 12
-  EXPECT_DOUBLE_EQ(vals[0].template get<1>(),  0.0);  // dual part zeroed
-  EXPECT_DOUBLE_EQ(vals[1].template get<0>(),  7.0);  // x+y = 7
+  auto [v0, v1] = ve.eval();
+  EXPECT_DOUBLE_EQ(v0.template get<0>(), 12.0);  // x*y = 12
+  EXPECT_DOUBLE_EQ(v0.template get<1>(),  0.0);  // dual part zeroed
+  EXPECT_DOUBLE_EQ(v1.template get<0>(),  7.0);  // x+y = 7
 }
 
 TEST(ReverseModeAD, ScalarLiteralCoercion) {
