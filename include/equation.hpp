@@ -6,6 +6,7 @@
 #include <boost/mp11.hpp>
 #include <concepts>
 #include <tuple>
+#include <boost/range/combine.hpp>
 
 // Pretty-print a std::tuple of expressions, one per line.
 template <typename... Ts>
@@ -174,7 +175,7 @@ public:
           using Row = std::common_type_t<std::decay_t<Rows>...>;
           return std::array<Row, sizeof...(Rows)>{rs...};
         },
-        rows);
+        std::move(rows));
   }
 
   // Forward-mode Jacobian: one seeded pass per input variable.
@@ -191,16 +192,19 @@ public:
     std::array<value_type, input_dim> seeds{};
 
     for (std::size_t j = 0; j < input_dim; ++j) {
-      for (std::size_t i = 0; i < input_dim; ++i)
+      for (std::size_t i = 0; i < input_dim; ++i) {
         seeds[i] = value_type{values[i], i == j ? S{1} : S{}};
+      }
       update(symbols{}, seeds);
       auto vals = eval();
-      for (std::size_t i = 0; i < output_dim; ++i)
+      for (std::size_t i = 0; i < output_dim; ++i) {
         J[i][j] = vals[i].template get<1>();
+      }
     }
     // Restore zero dual parts so stored state is clean.
-    for (std::size_t i = 0; i < input_dim; ++i)
-      seeds[i] = value_type{values[i], S{}};
+    for (auto&& [seed, value] : boost::combine(seeds, values)) {
+      seed = value_type{value, S{}};
+    }
     update(symbols{}, seeds);
     return J;
   }
