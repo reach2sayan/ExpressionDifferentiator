@@ -59,6 +59,12 @@ template <typename T> struct SumOp : BinaryOp<T, std::plus<T>, '+'> {
              const std::convertible_to<T> auto &rhs) {
     return lhs.derivative() + rhs.derivative();
   }
+  // ā += w̄,  b̄ += w̄
+  constexpr static void backward(const auto &lhs, const auto &rhs,
+                                 T adj, const auto &syms, auto &grads) {
+    lhs.backward(syms, adj, grads);
+    rhs.backward(syms, adj, grads);
+  }
 };
 
 template <typename T> struct MultiplyOp : BinaryOp<T, std::multiplies<T>, '*'> {
@@ -69,6 +75,12 @@ template <typename T> struct MultiplyOp : BinaryOp<T, std::multiplies<T>, '*'> {
     auto rmul = lhs * rhs.derivative(); // f(x)g'(x)
     return std::move(lmul) + std::move(rmul);
   }
+  // ā += w̄·b,  b̄ += w̄·a
+  constexpr static void backward(const auto &lhs, const auto &rhs,
+                                 T adj, const auto &syms, auto &grads) {
+    lhs.backward(syms, adj * static_cast<T>(rhs), grads);
+    rhs.backward(syms, adj * static_cast<T>(lhs), grads);
+  }
 };
 
 template <typename T> struct NegateOp : UnaryOp<T, std::negate<T>, '-'> {
@@ -76,6 +88,11 @@ template <typename T> struct NegateOp : UnaryOp<T, std::negate<T>, '-'> {
   derivative(const std::convertible_to<T> auto &lhs) {
     auto d = lhs.derivative();
     return MonoExpression<NegateOp<T>, decltype(d)>{std::move(d)};
+  }
+  // ā += -w̄
+  constexpr static void backward(const auto &expr,
+                                 T adj, const auto &syms, auto &grads) {
+    expr.backward(syms, -adj, grads);
   }
 };
 
@@ -89,20 +106,39 @@ template <typename T> struct DivideOp : BinaryOp<T, std::divides<T>, '/'> {
     auto denominator = rhs * rhs;                         // g(x)^2
     return std::move(numerator) / std::move(denominator);
   }
+  // ā += w̄/b,  b̄ += -w̄·a/b²
+  constexpr static void backward(const auto &lhs, const auto &rhs,
+                                 T adj, const auto &syms, auto &grads) {
+    const T b = static_cast<T>(rhs);
+    lhs.backward(syms, adj / b, grads);
+    rhs.backward(syms, -adj * static_cast<T>(lhs) / (b * b), grads);
+  }
 };
 
 template <typename T>
 struct SineOp
-    : UnaryOp<T, decltype([](const T &a) -> T { return std::sin(a); }), '$'> {
+    : UnaryOp<T, decltype([](const T &a) -> T { using std::sin; return sin(a); }), '$'> {
   template <typename Expr>
   [[nodiscard]] constexpr static auto derivative(const Expr &lhs);
+  // ā += w̄·cos(a)
+  constexpr static void backward(const auto &expr,
+                                 T adj, const auto &syms, auto &grads) {
+    using std::cos;
+    expr.backward(syms, adj * cos(static_cast<T>(expr)), grads);
+  }
 };
 
 template <typename T>
 struct CosineOp
-    : UnaryOp<T, decltype([](const T &a) -> T { return std::cos(a); }), '['> {
+    : UnaryOp<T, decltype([](const T &a) -> T { using std::cos; return cos(a); }), '['> {
   template <typename Expr>
   [[nodiscard]] constexpr static auto derivative(const Expr &lhs);
+  // ā += -w̄·sin(a)
+  constexpr static void backward(const auto &expr,
+                                 T adj, const auto &syms, auto &grads) {
+    using std::sin;
+    expr.backward(syms, -adj * sin(static_cast<T>(expr)), grads);
+  }
 };
 
 template <typename T>
@@ -119,10 +155,16 @@ constexpr auto SineOp<T>::derivative(const Expr &expr) {
 
 template <typename T>
 struct ExpOp
-    : UnaryOp<T, decltype([](const T &a) -> T { return std::exp(a); }), 'e'> {
+    : UnaryOp<T, decltype([](const T &a) -> T { using std::exp; return exp(a); }), 'e'> {
   template <typename Expr>
   [[nodiscard]] constexpr static auto derivative(const Expr &lhs) {
     return MonoExpression<ExpOp<T>, Expr>{lhs} * lhs.derivative();
+  }
+  // ā += w̄·exp(a)
+  constexpr static void backward(const auto &expr,
+                                 T adj, const auto &syms, auto &grads) {
+    using std::exp;
+    expr.backward(syms, adj * exp(static_cast<T>(expr)), grads);
   }
 };
 

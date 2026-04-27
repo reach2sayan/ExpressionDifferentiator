@@ -1,4 +1,5 @@
 #pragma once
+#include "dual.hpp"
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
@@ -174,6 +175,34 @@ public:
           return std::array<Row, sizeof...(Rows)>{rs...};
         },
         rows);
+  }
+
+  // Forward-mode Jacobian: one seeded pass per input variable.
+  // Only available when value_type = Dual<S>.
+  // values: evaluation point as plain scalars (one per input variable, ordered
+  //         by the sorted symbol list).
+  // Returns J[i][j] = ∂fᵢ/∂xⱼ  (output_dim × input_dim).
+  [[nodiscard]] constexpr auto eval_jacobian_forward(
+      std::array<dual_scalar_t<value_type>, input_dim> values)
+    requires is_dual_v<value_type>
+  {
+    using S = dual_scalar_t<value_type>;
+    std::array<std::array<S, input_dim>, output_dim> J{};
+    std::array<value_type, input_dim> seeds{};
+
+    for (std::size_t j = 0; j < input_dim; ++j) {
+      for (std::size_t i = 0; i < input_dim; ++i)
+        seeds[i] = value_type{values[i], i == j ? S{1} : S{}};
+      update(symbols{}, seeds);
+      auto vals = eval();
+      for (std::size_t i = 0; i < output_dim; ++i)
+        J[i][j] = vals[i].template get<1>();
+    }
+    // Restore zero dual parts so stored state is clean.
+    for (std::size_t i = 0; i < input_dim; ++i)
+      seeds[i] = value_type{values[i], S{}};
+    update(symbols{}, seeds);
+    return J;
   }
 
   // Update live variables in all expressions and Jacobian rows.

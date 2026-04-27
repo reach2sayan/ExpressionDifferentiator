@@ -69,6 +69,19 @@ template <AnOp Op> struct BaseExpression {
 };
 
 // ===========================================================================
+// Helper: selects the structured-binding element type for an expression.
+//   - When value_type is tuple-like (e.g. Dual<T>): delegate to it.
+//   - Otherwise: both elements are value_type (eval / derivative.eval).
+// ===========================================================================
+template <typename V, std::size_t I, typename = void>
+struct expression_element { using type = V; };
+
+template <typename V, std::size_t I>
+struct expression_element<V, I, std::void_t<typename std::tuple_element<I, V>::type>> {
+  using type = std::tuple_element_t<I, V>;
+};
+
+// ===========================================================================
 // MonoExpression — unary expression node.
 // ===========================================================================
 template <AnOp Op, typename Exp>
@@ -84,6 +97,18 @@ public:
   using lhs_type = Exp;
   using value_type = typename BaseExpression<Op>::value_type;
   constexpr MonoExpression(Exp expr) : expression{std::move(expr)} {}
+
+  template <std::size_t I>
+  [[nodiscard]] constexpr auto get() const {
+    static_assert(I < 2);
+    if constexpr (requires { std::tuple_size<value_type>::value; })
+      return eval().template get<I>();                     // Dual path
+    else if constexpr (I == 0)
+      return eval();                                       // value
+    else
+      return static_cast<value_type>(derivative());        // derivative
+  }
+
   [[nodiscard]] constexpr auto derivative() const {
     return Op::derivative(expression);
   }
@@ -91,6 +116,9 @@ public:
   [[nodiscard]] constexpr auto eval() const { return Op::eval(expression); }
   constexpr void update(const auto &symbols, const auto &updates) {
     expression.update(symbols, updates);
+  }
+  constexpr void backward(const auto &syms, value_type adj, auto &grads) const {
+    Op::backward(expression, adj, syms, grads);
   }
 };
 
@@ -118,6 +146,18 @@ public:
   }
   constexpr Expression(LHS lhs, RHS rhs)
       : inner_expressions({std::move(lhs), std::move(rhs)}) {}
+
+  template <std::size_t I>
+  [[nodiscard]] constexpr auto get() const {
+    static_assert(I < 2);
+    if constexpr (requires { std::tuple_size<value_type>::value; })
+      return eval().template get<I>();                     // Dual path
+    else if constexpr (I == 0)
+      return eval();                                       // value
+    else
+      return static_cast<value_type>(derivative());        // derivative
+  }
+
   [[nodiscard]] constexpr auto eval() const {
     return std::apply([](const auto &...e) { return Op::eval(e...); },
                       inner_expressions);
@@ -131,4 +171,33 @@ public:
     std::apply([&](auto &...e) { (e.update(symbols, updates), ...); },
                inner_expressions);
   }
+  constexpr void backward(const auto &syms, value_type adj, auto &grads) const {
+    std::apply([&](const auto &...e) { Op::backward(e..., adj, syms, grads); },
+               inner_expressions);
+  }
+};
+
+// ===========================================================================
+// Structured-binding support: size=2 for all expression types.
+// Element type delegates to value_type when it's tuple-like (e.g. Dual<T>),
+// otherwise both elements are value_type ({eval, derivative}).
+// ===========================================================================
+template <AnOp Op, typename LHS, typename RHS>
+struct std::tuple_size<Expression<Op, LHS, RHS>>
+    : std::integral_constant<std::size_t, 2> {};
+
+template <std::size_t I, AnOp Op, typename LHS, typename RHS>
+struct std::tuple_element<I, Expression<Op, LHS, RHS>> {
+  using type = typename expression_element<
+      typename Expression<Op, LHS, RHS>::value_type, I>::type;
+};
+
+template <AnOp Op, typename Exp>
+struct std::tuple_size<MonoExpression<Op, Exp>>
+    : std::integral_constant<std::size_t, 2> {};
+
+template <std::size_t I, AnOp Op, typename Exp>
+struct std::tuple_element<I, MonoExpression<Op, Exp>> {
+  using type = typename expression_element<
+      typename MonoExpression<Op, Exp>::value_type, I>::type;
 };

@@ -1,4 +1,6 @@
+#include "dual.hpp"
 #include "equation.hpp"
+#include "gradient.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
 #include "values.hpp"
@@ -504,4 +506,342 @@ TEST(VectorEquationTest, ThreeOutputs) {
   ASSERT_DOUBLE_EQ(J[1][1], 2.0);   // x
   ASSERT_DOUBLE_EQ(J[2][0], 0.0);   // 0
   ASSERT_DOUBLE_EQ(J[2][1], 10.0);  // 2y
+}
+
+// ===========================================================================
+// Forward-mode automatic differentiation via dual numbers
+// ===========================================================================
+
+TEST(ForwardModeAD, ExpressionStructuredBinding) {
+  // Non-Dual: auto [f, df] = expr gives {eval(), derivative().eval()}
+  auto x = PV(3.0, 'x');
+  auto [f, df] = x * x;                 // f=9, df=2*3=6
+  EXPECT_DOUBLE_EQ(f,  9.0);
+  EXPECT_DOUBLE_EQ(df, 6.0);
+
+  auto [g, dg] = sin(PV(0.0, 'x'));     // g=sin(0)=0, dg=cos(0)*1=1
+  EXPECT_DOUBLE_EQ(g,  0.0);
+  EXPECT_DOUBLE_EQ(dg, 1.0);
+}
+
+TEST(ForwardModeAD, DualNumericConcept) {
+  static_assert(Numeric<Dual<double>>);
+  static_assert(Numeric<Dual<float>>);
+}
+
+TEST(ForwardModeAD, StructuredBinding) {
+  Dual<double> d{3.0, 7.0};
+  auto [v, dv] = d;
+  EXPECT_DOUBLE_EQ(v,  3.0);
+  EXPECT_DOUBLE_EQ(dv, 7.0);
+  static_assert(std::tuple_size_v<Dual<double>> == 2);
+  static_assert(std::is_same_v<std::tuple_element_t<0, Dual<double>>, double>);
+  static_assert(std::is_same_v<std::tuple_element_t<1, Dual<double>>, double>);
+}
+
+TEST(ForwardModeAD, BasicArithmetic) {
+  // Verify dual number arithmetic rules directly.
+  constexpr Dual<double> a{3.0, 1.0};
+  constexpr Dual<double> b{2.0, 0.0};
+  auto [sum_val, sum_deriv] = a + b;
+  EXPECT_DOUBLE_EQ(sum_val,   5.0);
+  EXPECT_DOUBLE_EQ(sum_deriv, 1.0);
+  auto [prod_val, prod_deriv] = a * b;
+  EXPECT_DOUBLE_EQ(prod_val,   6.0);
+  EXPECT_DOUBLE_EQ(prod_deriv, 2.0);  // 1*2 + 3*0 = 2
+  auto [quot_val, quot_deriv] = a / b;
+  EXPECT_DOUBLE_EQ(quot_val,   1.5);
+  EXPECT_DOUBLE_EQ(quot_deriv, 0.5);  // (1*2 - 3*0)/4 = 0.5
+}
+
+TEST(ForwardModeAD, PolynomialDerivative) {
+  // f(x) = x^2 + x,  f'(x) = 2x + 1
+  // At x=3: f=12, f'=7
+  Variable<Dual<double>, 'x'> x{Dual<double>{3.0, 1.0}};
+  auto [f, df] = (x * x + x).eval();
+  EXPECT_DOUBLE_EQ(f,  12.0);
+  EXPECT_DOUBLE_EQ(df,  7.0);
+}
+
+TEST(ForwardModeAD, PartialDerivativeX) {
+  // f(x,y) = x*y,  df/dx = y
+  // At (3,4): f=12, df/dx=4
+  Variable<Dual<double>, 'x'> x{Dual<double>{3.0, 1.0}};
+  Variable<Dual<double>, 'y'> y{Dual<double>{4.0, 0.0}};
+  auto [f, df] = (x * y).eval();
+  EXPECT_DOUBLE_EQ(f,  12.0);
+  EXPECT_DOUBLE_EQ(df,  4.0);
+}
+
+TEST(ForwardModeAD, PartialDerivativeY) {
+  // f(x,y) = x*y,  df/dy = x
+  // At (3,4): f=12, df/dy=3
+  Variable<Dual<double>, 'x'> x{Dual<double>{3.0, 0.0}};
+  Variable<Dual<double>, 'y'> y{Dual<double>{4.0, 1.0}};
+  auto [f, df] = (x * y).eval();
+  EXPECT_DOUBLE_EQ(f,  12.0);
+  EXPECT_DOUBLE_EQ(df,  3.0);
+}
+
+TEST(ForwardModeAD, SinDerivative) {
+  // f(x) = sin(x),  f'(x) = cos(x)
+  double x0 = std::numbers::pi / 4.0;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = sin(x).eval();
+  EXPECT_DOUBLE_EQ(f,  std::sin(x0));
+  EXPECT_DOUBLE_EQ(df, std::cos(x0));
+}
+
+TEST(ForwardModeAD, CosDerivative) {
+  // f(x) = cos(x),  f'(x) = -sin(x)
+  double x0 = std::numbers::pi / 3.0;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = cos(x).eval();
+  EXPECT_DOUBLE_EQ(f,   std::cos(x0));
+  EXPECT_DOUBLE_EQ(df, -std::sin(x0));
+}
+
+TEST(ForwardModeAD, ExpDerivative) {
+  // f(x) = exp(x),  f'(x) = exp(x)
+  double x0 = 2.0;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = exp(x).eval();
+  auto [f2, df2] = exp(x);
+  EXPECT_DOUBLE_EQ(f,  std::exp(x0));
+  EXPECT_DOUBLE_EQ(df, std::exp(x0));
+  EXPECT_DOUBLE_EQ(f,  f2);
+  EXPECT_DOUBLE_EQ(df, df2);
+}
+
+TEST(ForwardModeAD, ChainRule) {
+  // f(x) = sin(x^2),  f'(x) = 2x*cos(x^2)
+  double x0 = 1.0;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto l = sin(x*x);
+  auto [f, df] = sin(x * x);
+  EXPECT_DOUBLE_EQ(f,  std::sin(x0 * x0));
+  EXPECT_DOUBLE_EQ(df, 2.0 * x0 * std::cos(x0 * x0));
+}
+
+TEST(ForwardModeAD, Equivalence) {
+  // f(x) = sin(x^2),  f'(x) = 2x*cos(x^2)
+  double x0 = 1.0;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  double x0v = 1.0;
+  auto xv = PV(x0, 'x');
+  auto l = sin(xv*xv);
+  auto [f, df] = sin(x * x);
+  auto f2 = l.eval();
+  auto df2 = l.derivative().eval();
+  EXPECT_DOUBLE_EQ(f,  std::sin(x0 * x0));
+  EXPECT_DOUBLE_EQ(df, 2.0 * x0 * std::cos(x0 * x0));
+  EXPECT_DOUBLE_EQ(df, df2);
+  EXPECT_DOUBLE_EQ(f, f2);
+}
+
+// ===========================================================================
+// Reverse-mode automatic differentiation via backward() / gradient()
+// ===========================================================================
+
+TEST(ReverseModeAD, SingleVariableLinear) {
+  // f(x) = 3*x  at x=5,  df/dx = 3
+  auto x = PV(5.0, 'x');
+  auto expr = PC(3.0) * x;
+  auto g = gradient(expr);
+  EXPECT_DOUBLE_EQ(g[0], 3.0);
+}
+
+TEST(ReverseModeAD, ProductRule) {
+  // f(x) = x*x  at x=4,  df/dx = 2x = 8
+  auto x = Variable<double, 'x'>{4.0};
+  auto expr = x * x;
+  auto g = gradient(expr);
+  EXPECT_DOUBLE_EQ(g[0], 8.0);
+}
+
+TEST(ReverseModeAD, TwoVariables) {
+  // f(x,y) = x*y  at (3,4),  df/dx=4, df/dy=3
+  auto x = PV(3.0, 'x');
+  auto y = PV(4.0, 'y');
+  auto expr = x * y;
+  auto g = gradient(expr);
+  static_assert(g.size() == 2);
+  EXPECT_DOUBLE_EQ(g[0], 4.0);  // df/dx = y
+  EXPECT_DOUBLE_EQ(g[1], 3.0);  // df/dy = x
+}
+
+TEST(ReverseModeAD, Sum) {
+  // f(x,y) = x + y,  df/dx=1, df/dy=1
+  auto x = PV(2.0, 'x');
+  auto y = PV(5.0, 'y');
+  auto g = gradient(x + y);
+  EXPECT_DOUBLE_EQ(g[0], 1.0);
+  EXPECT_DOUBLE_EQ(g[1], 1.0);
+}
+
+TEST(ReverseModeAD, LinearCombination) {
+  // f(x,y) = 2*x + 3*y,  df/dx=2, df/dy=3
+  auto x = PV(1.0, 'x');
+  auto y = PV(1.0, 'y');
+  auto g = gradient(PC(2.0) * x + PC(3.0) * y);
+  EXPECT_DOUBLE_EQ(g[0], 2.0);
+  EXPECT_DOUBLE_EQ(g[1], 3.0);
+}
+
+TEST(ReverseModeAD, Divide) {
+  // f(x) = x/c at x=6, c=3,  df/dx = 1/c = 1/3
+  auto x = PV(6.0, 'x');
+  auto c = PC(3.0);
+  auto g = gradient(x / c);
+  EXPECT_DOUBLE_EQ(g[0], 1.0 / 3.0);
+}
+
+TEST(ReverseModeAD, NegateViaSubtract) {
+  // f(x,y) = x - y,  df/dx=1, df/dy=-1
+  auto x = PV(5.0, 'x');
+  auto y = PV(2.0, 'y');
+  auto g = gradient(x - y);
+  EXPECT_DOUBLE_EQ(g[0],  1.0);
+  EXPECT_DOUBLE_EQ(g[1], -1.0);
+}
+
+TEST(ReverseModeAD, SinDerivative) {
+  // f(x) = sin(x),  df/dx = cos(x)  at x=1
+  auto x = PV(1.0, 'x');
+  auto g = gradient(sin(x));
+  EXPECT_DOUBLE_EQ(g[0], std::cos(1.0));
+}
+
+TEST(ReverseModeAD, CosDerivative) {
+  // f(x) = cos(x),  df/dx = -sin(x)  at x=1
+  auto x = PV(1.0, 'x');
+  auto g = gradient(cos(x));
+  EXPECT_DOUBLE_EQ(g[0], -std::sin(1.0));
+}
+
+TEST(ReverseModeAD, ExpDerivative) {
+  // f(x) = exp(x),  df/dx = exp(x)  at x=2
+  auto x = PV(2.0, 'x');
+  auto g = gradient(exp(x));
+  EXPECT_DOUBLE_EQ(g[0], std::exp(2.0));
+}
+
+TEST(ReverseModeAD, ChainRuleSinOfProduct) {
+  // f(x,y) = sin(x*y)  at (2,3)
+  // df/dx = cos(x*y)*y = cos(6)*3
+  // df/dy = cos(x*y)*x = cos(6)*2
+  auto x = PV(2.0, 'x');
+  auto y = PV(3.0, 'y');
+  auto g = gradient(sin(x * y));
+  EXPECT_DOUBLE_EQ(g[0], std::cos(6.0) * 3.0);
+  EXPECT_DOUBLE_EQ(g[1], std::cos(6.0) * 2.0);
+}
+
+TEST(ReverseModeAD, ThreeVariables) {
+  // f(x,y,z) = x*y + y*z  at (2,3,4)
+  // df/dx=y=3, df/dy=x+z=6, df/dz=y=3
+  auto x = PV(2.0, 'x');
+  auto y = PV(3.0, 'y');
+  auto z = PV(4.0, 'z');
+  auto g = gradient(x * y + y * z);
+  EXPECT_DOUBLE_EQ(g[0], 3.0);
+  EXPECT_DOUBLE_EQ(g[1], 6.0);
+  EXPECT_DOUBLE_EQ(g[2], 3.0);
+}
+
+// ===========================================================================
+// VectorEquation — forward-mode Jacobian via dual numbers
+// ===========================================================================
+
+TEST(VectorEquationForward, TwoVariables) {
+  // f(x,y) = (x*y, x+y)  at (3,4)
+  // J = [[y, x], [1, 1]] = [[4, 3], [1, 1]]
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{3.0}};
+  Variable<D, 'y'> y{D{4.0}};
+  auto ve = VectorEquation(x * y, x + y);
+  auto J = ve.eval_jacobian_forward({3.0, 4.0});
+  EXPECT_DOUBLE_EQ(J[0][0], 4.0);  // ∂(x*y)/∂x = y = 4
+  EXPECT_DOUBLE_EQ(J[0][1], 3.0);  // ∂(x*y)/∂y = x = 3
+  EXPECT_DOUBLE_EQ(J[1][0], 1.0);  // ∂(x+y)/∂x
+  EXPECT_DOUBLE_EQ(J[1][1], 1.0);  // ∂(x+y)/∂y
+}
+
+TEST(VectorEquationForward, AgreesWithSymbolic) {
+  // Build the same VectorEquation two ways and compare Jacobians.
+  double xv = 2.0, yv = 3.0;
+
+  // Symbolic path
+  auto xs = PV(xv, 'x');
+  auto ys = PV(yv, 'y');
+  auto ve_sym = VectorEquation(xs * xs, xs * ys, ys * ys);
+  auto J_sym = ve_sym.eval_jacobian();
+
+  // Forward-mode path
+  using D = Dual<double>;
+  Variable<D, 'x'> xd{D{xv}};
+  Variable<D, 'y'> yd{D{yv}};
+  auto ve_fwd = VectorEquation(xd * xd, xd * yd, yd * yd);
+  auto J_fwd = ve_fwd.eval_jacobian_forward({xv, yv});
+
+  for (std::size_t i = 0; i < 3; ++i)
+    for (std::size_t j = 0; j < 2; ++j)
+      EXPECT_DOUBLE_EQ(J_fwd[i][j], J_sym[i][j]);
+}
+
+TEST(VectorEquationForward, TrigJacobian) {
+  // f(x,y) = (x*y, sin(x) + y*y)  at (2, 3) — same as VectorEquationTest
+  // J = [[y, x], [cos(x), 2y]] = [[3, 2], [cos(2), 6]]
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{2.0}};
+  Variable<D, 'y'> y{D{3.0}};
+  auto ve = VectorEquation(x * y, sin(x) + y * y);
+  auto J = ve.eval_jacobian_forward({2.0, 3.0});
+  EXPECT_DOUBLE_EQ(J[0][0], 3.0);
+  EXPECT_DOUBLE_EQ(J[0][1], 2.0);
+  EXPECT_DOUBLE_EQ(J[1][0], std::cos(2.0));
+  EXPECT_DOUBLE_EQ(J[1][1], 6.0);
+}
+
+TEST(VectorEquationForward, StateRestoredAfterCall) {
+  // After eval_jacobian_forward the expressions should evaluate at the
+  // original point (dual parts zeroed out).
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{3.0}};
+  Variable<D, 'y'> y{D{4.0}};
+  auto ve = VectorEquation(x * y, x + y);
+  auto jac = ve.eval_jacobian_forward({3.0, 4.0});
+  auto vals = ve.eval();
+  EXPECT_DOUBLE_EQ(vals[0].template get<0>(), 12.0);  // x*y = 12
+  EXPECT_DOUBLE_EQ(vals[0].template get<1>(),  0.0);  // dual part zeroed
+  EXPECT_DOUBLE_EQ(vals[1].template get<0>(),  7.0);  // x+y = 7
+}
+
+TEST(ReverseModeAD, ScalarLiteralCoercion) {
+  // gradient(3*x*y + y*z) with plain integer/double literals
+  auto x = PV(2.0, 'x');
+  auto y = PV(3.0, 'y');
+  auto z = PV(4.0, 'z');
+  auto g = gradient(3.0 * x * y + y * z);
+  EXPECT_DOUBLE_EQ(g[0], 9.0);   // df/dx = 3*y = 9
+  EXPECT_DOUBLE_EQ(g[1], 10.0);  // df/dy = 3*x + z = 10
+  EXPECT_DOUBLE_EQ(g[2], 3.0);   // df/dz = y = 3
+}
+
+TEST(ReverseModeAD, ScalarOnRight) {
+  // expr * scalar and expr + scalar
+  auto x = PV(5.0, 'x');
+  auto g = gradient(x * 4.0 + 1.0);
+  EXPECT_DOUBLE_EQ(g[0], 4.0);   // df/dx = 4
+}
+
+TEST(ReverseModeAD, AgreesWithForwardMode) {
+  // f(x,y) = exp(x) * sin(y)  at (1, pi/4)
+  // df/dx = exp(x)*sin(y), df/dy = exp(x)*cos(y)
+  double xv = 1.0, yv = std::numbers::pi / 4.0;
+  auto x = PV(xv, 'x');
+  auto y = PV(yv, 'y');
+  auto g = gradient(exp(x) * sin(y));
+  EXPECT_DOUBLE_EQ(g[0], std::exp(xv) * std::sin(yv));
+  EXPECT_DOUBLE_EQ(g[1], std::exp(xv) * std::cos(yv));
 }

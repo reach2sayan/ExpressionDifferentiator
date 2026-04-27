@@ -84,6 +84,50 @@ struct IOperators {
     using value_type = typename Expr::value_type;
     return MonoExpression<ExpOp<value_type>, Expr>{std::move(a)};
   }
+
+  // Scalar-on-left overloads: wrap the scalar as Constant<VT> and delegate.
+  template <Numeric S, ExpressionConcept RHS>
+  friend constexpr auto operator+(S s, const RHS &b) {
+    using VT = typename RHS::value_type;
+    return Constant<VT>{static_cast<VT>(s)} + b;
+  }
+  template <Numeric S, ExpressionConcept RHS>
+  friend constexpr auto operator*(S s, const RHS &b) {
+    using VT = typename RHS::value_type;
+    return Constant<VT>{static_cast<VT>(s)} * b;
+  }
+  template <Numeric S, ExpressionConcept RHS>
+  friend constexpr auto operator-(S s, const RHS &b) {
+    using VT = typename RHS::value_type;
+    return Constant<VT>{static_cast<VT>(s)} - b;
+  }
+  template <Numeric S, ExpressionConcept RHS>
+  friend constexpr auto operator/(S s, const RHS &b) {
+    using VT = typename RHS::value_type;
+    return Constant<VT>{static_cast<VT>(s)} / b;
+  }
+
+  // Scalar-on-right overloads.
+  template <ExpressionConcept LHS, Numeric S>
+  friend constexpr auto operator+(const LHS &a, S s) {
+    using VT = typename LHS::value_type;
+    return a + Constant<VT>{static_cast<VT>(s)};
+  }
+  template <ExpressionConcept LHS, Numeric S>
+  friend constexpr auto operator*(const LHS &a, S s) {
+    using VT = typename LHS::value_type;
+    return a * Constant<VT>{static_cast<VT>(s)};
+  }
+  template <ExpressionConcept LHS, Numeric S>
+  friend constexpr auto operator-(const LHS &a, S s) {
+    using VT = typename LHS::value_type;
+    return a - Constant<VT>{static_cast<VT>(s)};
+  }
+  template <ExpressionConcept LHS, Numeric S>
+  friend constexpr auto operator/(const LHS &a, S s) {
+    using VT = typename LHS::value_type;
+    return a / Constant<VT>{static_cast<VT>(s)};
+  }
 };
 
 template <Numeric T> class Constant : public IOperators {
@@ -104,6 +148,18 @@ public:
   constexpr operator T() const { return value; }
   [[nodiscard]] constexpr auto derivative() const { return Constant{T{}}; }
   constexpr void update(...) const {}
+  constexpr void backward(const auto &, T, auto &) const {} // constant: no variable to accumulate to
+
+  template <std::size_t I>
+  [[nodiscard]] constexpr auto get() const {
+    static_assert(I < 2);
+    if constexpr (requires { std::tuple_size<T>::value; })
+      return eval().template get<I>();
+    else if constexpr (I == 0)
+      return eval();
+    else
+      return static_cast<T>(derivative());
+  }
 };
 
 template <Numeric T, char symbol> class Variable : public IOperators {
@@ -127,6 +183,18 @@ public:
   template <typename U> constexpr decltype(auto) operator=(U &&v);
   constexpr void update(const auto &symbols, const auto &updates);
   [[nodiscard]] constexpr auto derivative() const;
+  constexpr void backward(const auto &syms, T adj, auto &grads) const;
+
+  template <std::size_t I>
+  [[nodiscard]] constexpr auto get() const {
+    static_assert(I < 2);
+    if constexpr (requires { std::tuple_size<T>::value; })
+      return eval().template get<I>();
+    else if constexpr (I == 0)
+      return eval();
+    else
+      return static_cast<T>(derivative());
+  }
 };
 
 template <Numeric T, char symbol>
@@ -155,6 +223,14 @@ constexpr auto Variable<T, symbol>::derivative() const {
   return Constant{++ret};
 }
 
+template <Numeric T, char symbol>
+constexpr void Variable<T, symbol>::backward(const auto &syms, T adj,
+                                             auto &grads) const {
+  using Syms = std::decay_t<decltype(syms)>;
+  constexpr auto idx = index_of_char_in_hana<symbol, Syms>();
+  grads[idx] += adj;
+}
+
 #define PV(x, label) Variable<decltype(x), label>(x)
 #define PC(x) Constant(x)
 
@@ -178,3 +254,19 @@ DEFINE_CONST_UDL(int, ci)
 DEFINE_CONST_UDL(double, cd)
 DEFINE_VAR_UDL(int, vi, 'c')
 DEFINE_VAR_UDL(double, vd, 'v')
+
+template <Numeric T>
+struct std::tuple_size<Constant<T>> : std::integral_constant<std::size_t, 2> {};
+
+template <std::size_t I, Numeric T>
+struct std::tuple_element<I, Constant<T>> {
+  using type = typename expression_element<T, I>::type;
+};
+
+template <Numeric T, char C>
+struct std::tuple_size<Variable<T, C>> : std::integral_constant<std::size_t, 2> {};
+
+template <std::size_t I, Numeric T, char C>
+struct std::tuple_element<I, Variable<T, C>> {
+  using type = typename expression_element<T, I>::type;
+};
