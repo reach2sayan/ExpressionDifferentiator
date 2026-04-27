@@ -1,7 +1,7 @@
 #pragma once
 #include "values.hpp"
 #include <array>
-#include <boost/hana.hpp>
+#include <boost/mp11.hpp>
 #include <type_traits>
 
 // --- compile-time "is this a Constant?" ---
@@ -160,70 +160,47 @@ constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
 }
 
 // ===========================================================================
-// Tuple metaprogramming via Boost.Hana
+// Type-list metaprogramming via Boost.MP11
 //
-// All symbol sets are hana::tuple<integral_constant<char,C>...> — no
-// std::tuple involved.  Hana algorithms operate on these tuples directly,
-// giving sorted, deduplicated, set-union and set-difference operations at
-// compile time with idiomatic hana code.
+// All symbol sets are mp_list<integral_constant<char,C>...> — purely
+// type-level lists.  MP11 algorithms give sorted, deduplicated, set-union
+// and set-difference operations at compile time.
 // ===========================================================================
-namespace detail {
+
 // Strict-weak-ordering on integral_constant<char,C> by char value.
-constexpr auto ic_less = [](auto a, auto b) {
-  return boost::hana::bool_c<(std::decay_t<decltype(a)>::value <
-                              std::decay_t<decltype(b)>::value)>;
-};
+template <typename A, typename B>
+using ic_less = boost::mp11::mp_bool<(A::value < B::value)>;
 
-// Equality predicate on integral_constant<char,C>.
-constexpr auto ic_equal = [](auto a, auto b) {
-  return boost::hana::bool_c<(std::decay_t<decltype(a)>::value ==
-                              std::decay_t<decltype(b)>::value)>;
-};
+// Sort an mp_list of integral_constant<char,C> by char value.
+template <typename List>
+using sort_tuple_t = boost::mp11::mp_sort<List, ic_less>;
 
-// Set-union fold step: append x to acc only if not already present.
-constexpr auto set_union_step = [](auto acc, auto x) {
-  return boost::hana::if_(boost::hana::contains(acc, x), acc,
-                          boost::hana::append(acc, x));
-};
-} // namespace detail
+// Deduplicate a *sorted* mp_list (removes consecutive equal types).
+template <typename List> using unique_tuple_t = boost::mp11::mp_unique<List>;
 
-// Sort a hana::tuple of integral_constant<char,C> types by char value.
-template <typename HanaTuple>
-using sort_tuple_t = decltype(boost::hana::sort(HanaTuple{}, detail::ic_less));
+// mp_bool — true iff T appears in List.
+template <typename T, typename List>
+using tuple_contains = boost::mp11::mp_contains<List, T>;
 
-// Deduplicate a *sorted* hana::tuple (removes consecutive equal elements).
-template <typename HanaTuple>
-using unique_tuple_t =
-    decltype(boost::hana::unique(HanaTuple{}, detail::ic_equal));
-
-// boost::hana::bool_<B> — true iff T appears in HanaTuple.
-template <typename T, typename HanaTuple>
-using tuple_contains = decltype(boost::hana::contains(HanaTuple{}, T{}));
-
-// Set union of any number of hana::tuples (no duplicates, L1-order first).
-template <typename... HanaTuples>
-using tuple_union_t = decltype(boost::hana::fold_left(
-    boost::hana::make_tuple(HanaTuples{}...), boost::hana::make_tuple(),
-    [](auto acc, auto xs) {
-      return boost::hana::fold_left(xs, acc, detail::set_union_step);
-    }));
+// Sorted set-union of any number of mp_lists.
+template <typename... Lists>
+using tuple_union_t = boost::mp11::mp_unique<
+    boost::mp11::mp_sort<boost::mp11::mp_append<Lists...>, ic_less>>;
 
 // Elements of L1 that are not in L2.
 template <typename L1, typename L2>
-using tuple_difference_t = decltype(boost::hana::filter(L1{}, [](auto x) {
-  return boost::hana::not_(boost::hana::contains(L2{}, x));
-}));
+using tuple_difference_t = boost::mp11::mp_set_difference<L1, L2>;
 
 // ===========================================================================
 // Extract the set of Variable symbols from an expression type.
-// Result is a sorted, deduplicated hana::tuple<integral_constant<char,C>...>.
+// Result is a sorted, deduplicated mp_list<integral_constant<char,C>...>.
 // ===========================================================================
 template <typename T> struct extract_variable_symbols {
-  using type = boost::hana::tuple<>;
+  using type = boost::mp11::mp_list<>;
 };
 template <typename T, char symbol>
 struct extract_variable_symbols<Variable<T, symbol>> {
-  using type = boost::hana::tuple<std::integral_constant<char, symbol>>;
+  using type = boost::mp11::mp_list<std::integral_constant<char, symbol>>;
 };
 
 template <typename T> struct extract_symbols_from_expr {
@@ -234,18 +211,14 @@ template <typename Op, typename LHS, typename RHS>
 struct extract_symbols_from_expr<Expression<Op, LHS, RHS>> {
   using left = typename extract_symbols_from_expr<LHS>::type;
   using right = typename extract_symbols_from_expr<RHS>::type;
-  static constexpr auto combined = boost::hana::concat(left{}, right{});
-  static constexpr auto sorted = boost::hana::sort(combined, detail::ic_less);
-  static constexpr auto unique = boost::hana::unique(sorted, detail::ic_equal);
-  using type = decltype(unique);
+  using type = boost::mp11::mp_unique<
+      boost::mp11::mp_sort<boost::mp11::mp_append<left, right>, ic_less>>;
 };
 
 template <typename Op, typename Expr>
 struct extract_symbols_from_expr<MonoExpression<Op, Expr>> {
-  using left = typename extract_symbols_from_expr<Expr>::type;
-  static constexpr auto sorted = boost::hana::sort(left{}, detail::ic_less);
-  static constexpr auto unique = boost::hana::unique(sorted, detail::ic_equal);
-  using type = decltype(unique);
+  using inner = typename extract_symbols_from_expr<Expr>::type;
+  using type = boost::mp11::mp_unique<boost::mp11::mp_sort<inner, ic_less>>;
 };
 
 // ===========================================================================

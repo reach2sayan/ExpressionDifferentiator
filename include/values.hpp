@@ -1,6 +1,6 @@
 #pragma once
 #include "expressions.hpp"
-#include <boost/hana.hpp>
+#include <boost/mp11.hpp>
 #include <concepts>
 #include <format>
 #include <string_view>
@@ -29,15 +29,11 @@ public:
 };
 constexpr static character_generator cgenerator{};
 
-// Find the 0-based index of the first element with ::value == C in a
-// hana::tuple<integral_constant<char,C>...>.  Uses hana::take_while so the
-// result is a compile-time constant.
-template <char C, typename HanaTuple>
+// Find the 0-based index of integral_constant<char,C> in an mp_list.
+template <char C, typename SymList>
 consteval std::size_t index_of_char_in_hana() {
-  return static_cast<std::size_t>(
-      boost::hana::size(boost::hana::take_while(HanaTuple{}, [](auto e) {
-        return boost::hana::bool_c<(std::decay_t<decltype(e)>::value != C)>;
-      })));
+  return boost::mp11::mp_find<SymList,
+                              std::integral_constant<char, C>>::value;
 }
 
 struct IOperators {

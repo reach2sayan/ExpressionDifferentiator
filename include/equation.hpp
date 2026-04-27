@@ -2,20 +2,21 @@
 #include "expressions.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
-#include <boost/hana.hpp>
+#include <boost/mp11.hpp>
 #include <concepts>
+#include <tuple>
 
-// Pretty-print a hana::tuple of expressions, one per line.
+// Pretty-print a std::tuple of expressions, one per line.
 template <typename... Ts>
 constexpr std::ostream &print_tup(std::ostream &out,
-                                  const boost::hana::tuple<Ts...> &tup) {
+                                  const std::tuple<Ts...> &tup) {
   out << "(\n";
   bool first = true;
   [&]<std::size_t... Is>(std::index_sequence<Is...>) {
     (..., ([&] {
        if (!first)
          out << "\n";
-       out << boost::hana::at_c<Is>(tup);
+       out << std::get<Is>(tup);
        first = false;
      }()));
   }(std::make_index_sequence<sizeof...(Ts)>{});
@@ -23,15 +24,13 @@ constexpr std::ostream &print_tup(std::ostream &out,
   return out;
 }
 
-// Build a hana::tuple of partial derivatives — one per symbol.
-// hana::transform gives a heterogeneous tuple where each element has the
-// type of make_all_constant_except<C>(expr).derivative().
-constexpr auto make_derivatives(const auto &symbols,
-                                const ExpressionConcept auto &expr) {
-  return boost::hana::transform(symbols, [&expr](auto sym) {
-    constexpr char C = std::decay_t<decltype(sym)>::value;
-    return make_all_constant_except<C>(expr).derivative();
-  });
+// Build a std::tuple of partial derivatives — one per symbol in the mp_list.
+// Each element type is make_all_constant_except<C>(expr).derivative().
+template <typename... Syms, ExpressionConcept Expr>
+constexpr auto make_derivatives(boost::mp11::mp_list<Syms...>,
+                                const Expr &expr) {
+  return std::make_tuple(
+      make_all_constant_except<Syms::value>(expr).derivative()...);
 }
 
 template <typename T>
@@ -42,8 +41,7 @@ template <ExpressionConcept TExpression> class Equation {
 
 public:
   using symbols = typename extract_symbols_from_expr<TExpression>::type;
-  using derivatives_t =
-      decltype(make_derivatives(std::declval<symbols>(), expression));
+  using derivatives_t = decltype(make_derivatives(symbols{}, expression));
 
 private:
   derivatives_t derivatives;
@@ -55,53 +53,58 @@ private:
 
 public:
   using value_type = typename TExpression::value_type;
-  constexpr static size_t number_of_derivatives =
-      decltype(boost::hana::size(std::declval<derivatives_t>()))::value;
+  constexpr static std::size_t number_of_derivatives =
+      std::tuple_size_v<derivatives_t>;
   constexpr operator value_type() const { return expression.eval(); }
 
   // operator[IDX(0)] returns the expression itself; IDX(k) returns the k-th
   // partial derivative (1-based).
-  template <size_t N>
-  constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) {
+  template <std::size_t N>
+  constexpr decltype(auto) operator[](std::integral_constant<std::size_t, N>) {
     if constexpr (N == 0)
       return (expression);
     else
-      return boost::hana::at_c<N - 1>(derivatives);
+      return std::get<N - 1>(derivatives);
   }
-  template <size_t N>
-  constexpr decltype(auto) operator[](std::integral_constant<size_t, N>) const {
+  template <std::size_t N>
+  constexpr decltype(auto)
+  operator[](std::integral_constant<std::size_t, N>) const {
     if constexpr (N == 0)
       return (expression);
     else
-      return boost::hana::at_c<N - 1>(derivatives);
+      return std::get<N - 1>(derivatives);
   }
 
-  // symbols must be exactly the equation's own symbol list — enforced by type.
-  constexpr void update(const symbols &symbols, const auto &updates) {
-    expression.update(symbols, updates);
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-      (boost::hana::at_c<Is>(derivatives).update(symbols, updates), ...);
-    }(std::make_index_sequence<number_of_derivatives>{});
+  constexpr void update(const symbols &syms, const auto &updates) {
+    expression.update(syms, updates);
+    std::apply([&](auto &...ds) { (ds.update(syms, updates), ...); },
+               derivatives);
   }
 
   [[nodiscard]] constexpr auto eval() const { return expression.eval(); }
   [[nodiscard]] constexpr auto eval_derivatives() const {
-    return boost::hana::unpack(
-        boost::hana::transform(derivatives,
-                               [](const auto &d) { return d.eval(); }),
-        [](auto... vs) { return std::array{vs...}; });
+    return std::apply(
+        [](const auto &...ds) { return std::array{ds.eval()...}; },
+        derivatives);
   }
+
   constexpr Equation(const TExpression &e)
       : expression{e}, derivatives{make_derivatives(symbols{}, e)} {}
 };
 
 template <ExpressionConcept T> Equation(T &&) -> Equation<std::decay_t<T>>;
 
-template <typename SymsList, typename Exprs>
-constexpr auto make_jac_rows(const Exprs &es, SymsList symbols = {}) {
-  return boost::hana::transform(es, [&](const auto &e) {
-    return make_derivatives(std::move(symbols), e);
-  });
+// Build a std::tuple of Jacobian rows — one row (std::tuple of derivatives)
+// per expression in the std::tuple es.
+template <typename... Syms, typename... Exprs>
+constexpr auto make_jac_rows(const std::tuple<Exprs...> &es,
+                             boost::mp11::mp_list<Syms...> = {}) {
+  return std::apply(
+      [](const auto &...exprs) {
+        return std::make_tuple(
+            make_derivatives(boost::mp11::mp_list<Syms...>{}, exprs)...);
+      },
+      es);
 }
 
 // ===========================================================================
@@ -122,21 +125,19 @@ public:
                     typename extract_symbols_from_expr<TRest>::type...>>;
 
   static constexpr std::size_t output_dim = 1 + sizeof...(TRest);
-  static constexpr std::size_t input_dim =
-      decltype(boost::hana::size(std::declval<symbols>()))::value;
+  static constexpr std::size_t input_dim = boost::mp11::mp_size<symbols>::value;
 
 private:
-  using Exprs = boost::hana::tuple<TFirst, TRest...>;
-  using jacobian_t = decltype(make_jac_rows<symbols>(std::declval<Exprs>()));
+  using Exprs = std::tuple<TFirst, TRest...>;
+  using jacobian_t = decltype(make_jac_rows(std::declval<Exprs>(), symbols{}));
   Exprs expressions;
   jacobian_t jacobian;
 
   friend std::ostream &operator<<(std::ostream &out, const VectorEquation &ve) {
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
       (..., ([&] {
-         out << "f" << Is << ": " << boost::hana::at_c<Is>(ve.expressions)
-             << "grad: ";
-         print_tup(out, boost::hana::at_c<Is>(ve.jacobian));
+         out << "f" << Is << ": " << std::get<Is>(ve.expressions) << "grad: ";
+         print_tup(out, std::get<Is>(ve.jacobian));
          out << '\n';
        }()));
     }(std::make_index_sequence<output_dim>{});
@@ -150,41 +151,42 @@ public:
 
   // Evaluate all components — returns std::array<value_type, output_dim>.
   [[nodiscard]] constexpr auto eval() const {
-    return boost::hana::unpack(
-        boost::hana::transform(
-            expressions, [](const auto &e) -> value_type { return e.eval(); }),
-        [](auto... vs) { return std::array<value_type, output_dim>{vs...}; });
+    return std::apply(
+        [](const auto &...exprs) {
+          return std::array<value_type, output_dim>{exprs.eval()...};
+        },
+        expressions);
   }
 
   // Full Jacobian — returns std::array<std::array<value_type, input_dim>,
   // output_dim>.
   [[nodiscard]] constexpr auto eval_jacobian() const {
-    auto rows = boost::hana::transform(jacobian, [](const auto &row) {
-      return boost::hana::unpack(
-          boost::hana::transform(row, [](const auto &d) { return d.eval(); }),
-          [](auto... vs) { return std::array{vs...}; });
-    });
-    // Explicit Row type to prevent C++20 aggregate CTAD from deducing through
-    // the inner array's elements instead of treating it as a single element.
-    return boost::hana::unpack(rows, []<typename... Rows>(Rows... rs) {
-      using Row = std::common_type_t<std::decay_t<Rows>...>;
-      return std::array<Row, sizeof...(Rows)>{rs...};
-    });
+    auto rows = std::apply(
+        [](const auto &...jac_rows) {
+          return std::make_tuple(std::apply(
+              [](const auto &...ds) { return std::array{ds.eval()...}; },
+              jac_rows)...);
+        },
+        jacobian);
+    return std::apply(
+        []<typename... Rows>(const Rows &...rs) {
+          using Row = std::common_type_t<std::decay_t<Rows>...>;
+          return std::array<Row, sizeof...(Rows)>{rs...};
+        },
+        rows);
   }
 
   // Update live variables in all expressions and Jacobian rows.
-  constexpr void update(const symbols &symbols, const auto &updates) {
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-      (boost::hana::at_c<Is>(expressions).update(symbols, updates), ...);
-    }(std::make_index_sequence<output_dim>{});
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-      (..., ([&] {
-         auto &row = boost::hana::at_c<Is>(jacobian);
-         [&]<std::size_t... Js>(std::index_sequence<Js...>) {
-           (boost::hana::at_c<Js>(row).update(symbols, updates), ...);
-         }(std::make_index_sequence<input_dim>{});
-       }()));
-    }(std::make_index_sequence<output_dim>{});
+  constexpr void update(const symbols &syms, const auto &updates) {
+    std::apply([&](auto &...exprs) { (exprs.update(syms, updates), ...); },
+               expressions);
+    std::apply(
+        [&](auto &...jac_rows) {
+          (std::apply([&](auto &...ds) { (ds.update(syms, updates), ...); },
+                      jac_rows),
+           ...);
+        },
+        jacobian);
   }
 };
 

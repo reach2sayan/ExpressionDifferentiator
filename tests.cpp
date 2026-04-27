@@ -3,6 +3,7 @@
 #include "traits.hpp"
 #include "values.hpp"
 
+#include <boost/mp11.hpp>
 #include <gtest/gtest.h>
 #include <numbers>
 #include <ranges>
@@ -51,21 +52,21 @@ TEST(ConceptTest, AnOpSatisfied) {
 TEST(SymbolTest, SingleVariable) {
   using E = Variable<double, 'x'>;
   using Syms = extract_symbols_from_expr<E>::type;
-  static_assert(decltype(boost::hana::size(Syms{}))::value == 1);
-  static_assert(boost::hana::at_c<0>(Syms{}) ==
-                std::integral_constant<char, 'x'>{});
+  static_assert(boost::mp11::mp_size<Syms>::value == 1);
+  static_assert(std::is_same_v<boost::mp11::mp_at_c<Syms, 0>,
+                               std::integral_constant<char, 'x'>>);
 }
 
 TEST(SymbolTest, TwoVariables) {
   using E = decltype(std::declval<Variable<double, 'x'>>() *
                      std::declval<Variable<double, 'y'>>());
   using Syms = extract_symbols_from_expr<E>::type;
-  static_assert(decltype(boost::hana::size(Syms{}))::value == 2);
+  static_assert(boost::mp11::mp_size<Syms>::value == 2);
   // Symbols are sorted by char value: 'x' < 'y'
-  static_assert(boost::hana::at_c<0>(Syms{}) ==
-                std::integral_constant<char, 'x'>{});
-  static_assert(boost::hana::at_c<1>(Syms{}) ==
-                std::integral_constant<char, 'y'>{});
+  static_assert(std::is_same_v<boost::mp11::mp_at_c<Syms, 0>,
+                               std::integral_constant<char, 'x'>>);
+  static_assert(std::is_same_v<boost::mp11::mp_at_c<Syms, 1>,
+                               std::integral_constant<char, 'y'>>);
 }
 
 TEST(SymbolTest, DuplicateSymbolsDeduplicated) {
@@ -73,7 +74,7 @@ TEST(SymbolTest, DuplicateSymbolsDeduplicated) {
   using E = decltype(std::declval<Variable<double, 'x'>>() *
                      std::declval<Variable<double, 'x'>>());
   using Syms = extract_symbols_from_expr<E>::type;
-  static_assert(decltype(boost::hana::size(Syms{}))::value == 1);
+  static_assert(boost::mp11::mp_size<Syms>::value == 1);
 }
 
 TEST(SymbolTest, ThreeVariables) {
@@ -82,7 +83,7 @@ TEST(SymbolTest, ThreeVariables) {
   auto z = PV(3.0, 'z');
   auto expr = x + y + z;
   using Syms = extract_symbols_from_expr<decltype(expr)>::type;
-  static_assert(decltype(boost::hana::size(Syms{}))::value == 3);
+  static_assert(boost::mp11::mp_size<Syms>::value == 3);
 }
 
 // ===========================================================================

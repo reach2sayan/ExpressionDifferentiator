@@ -18,24 +18,13 @@ jobs:
             build_type: Release
             c_compiler: clang
             cpp_compiler: clang++
-          - os: windows-latest
-            build_type: Release
-            c_compiler: cl
-            cpp_compiler: cl
 
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Clang and Boost (Ubuntu)
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y clang libboost-dev
-
-      - name: Install Boost headers via vcpkg (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: vcpkg install boost-headers:x64-windows boost-hana
 
       - name: Set build directory
         id: strings
@@ -43,24 +32,12 @@ jobs:
         run: echo "build-dir=${GITHUB_WORKSPACE}/build" >> "$GITHUB_OUTPUT"
 
       - name: Configure CMake (Linux)
-        if: runner.os == 'Linux'
         run: >
           cmake -B ${{ steps.strings.outputs.build-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -S ${{ github.workspace }}
-
-      - name: Configure CMake (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: >
-          cmake -B "${{ steps.strings.outputs.build-dir }}"
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          -S "${{ github.workspace }}"
 
       - name: Build
         run: cmake --build "${{ steps.strings.outputs.build-dir }}" --config ${{ matrix.build_type }}
