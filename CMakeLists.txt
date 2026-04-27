@@ -1,18 +1,36 @@
 cmake_minimum_required(VERSION 3.20)
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
+
 project(ExpressionDifferentor VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
-if (MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Wall")
-    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-else ()
-    add_compile_options(-Wall -Wpedantic -Wfatal-errors -Wextra)
-endif ()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Boost 1.74 REQUIRED)
+find_package(Boost 1.74 CONFIG QUIET)
 
 include(FetchContent)
-FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip)
+if(NOT TARGET Boost::headers)
+    FetchContent_Declare(
+            boost_mp11
+            GIT_REPOSITORY https://github.com/boostorg/mp11.git
+            GIT_TAG c3eba6ac6be2e21af33a1b2ec97634cd01bcc447
+    )
+    FetchContent_MakeAvailable(boost_mp11)
+
+    add_library(boost_headers INTERFACE)
+    add_library(Boost::headers ALIAS boost_headers)
+    target_include_directories(boost_headers INTERFACE
+            ${boost_mp11_SOURCE_DIR}/include)
+endif()
+
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
@@ -36,3 +54,20 @@ target_link_libraries(tests gtest_main diff)
 
 add_test(NAME tests COMMAND tests)
 enable_testing()
+
+if(MSVC)
+    target_compile_options(main PRIVATE /Wall)
+    target_compile_options(tests PRIVATE /Wall)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+    foreach(target gtest gtest_main gmock gmock_main)
+        if(TARGET ${target})
+            target_compile_options(${target} PRIVATE /W0 /wd4668)
+            set_target_properties(${target} PROPERTIES
+                    COMPILE_WARNING_AS_ERROR OFF)
+        endif()
+    endforeach()
+else ()
+    target_compile_options(main PRIVATE -Wall -Wpedantic -Wfatal-errors -Wextra)
+    target_compile_options(tests PRIVATE -Wall -Wpedantic -Wfatal-errors -Wextra)
+endif ()
