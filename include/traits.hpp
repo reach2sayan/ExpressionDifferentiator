@@ -195,16 +195,21 @@ using tuple_difference_t = boost::mp11::mp_set_difference<L1, L2>;
 // Extract the set of Variable symbols from an expression type.
 // Result is a sorted, deduplicated mp_list<integral_constant<char,C>...>.
 // ===========================================================================
-template <typename T> struct extract_variable_symbols {
-  using type = boost::mp11::mp_list<>;
-};
+
+template <typename T>
+auto extract_variable_symbols_impl(std::type_identity<T>)
+    -> boost::mp11::mp_list<>;
+
 template <typename T, char symbol>
-struct extract_variable_symbols<Variable<T, symbol>> {
-  using type = boost::mp11::mp_list<std::integral_constant<char, symbol>>;
-};
+auto extract_variable_symbols_impl(std::type_identity<Variable<T, symbol>>)
+    -> boost::mp11::mp_list<std::integral_constant<char, symbol>>;
+
+template <typename T>
+using extract_variable_symbols_t =
+    decltype(extract_variable_symbols_impl(std::type_identity<T>{}));
 
 template <typename T> struct extract_symbols_from_expr {
-  using type = typename extract_variable_symbols<T>::type;
+  using type = extract_variable_symbols_t<T>;
 };
 
 template <typename Op, typename LHS, typename RHS>
