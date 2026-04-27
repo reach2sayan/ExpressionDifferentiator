@@ -2,164 +2,93 @@
 
 # Expression Differentiator
 
-A C++23 template library for symbolic mathematical
-expressions, derivatives, and equation systems
-with compile-time evaluation capabilities.
+Expression Differentiator is a lightweight C++ library for symbolic differentiation and evaluation of mathematical expressions. It allows you to define expressions using variables and constants, evaluate them numerically, and compute derivatives automatically.
 
-## Overview
-
-ExpressionSolver is a modern C++ library that
-enables symbolic representation, manipulation, and
-evaluation of mathematical expressions. It
-supports automatic differentiation, equation
-systems, and provides a compile-time capable
-expression evaluation engine.
+The library supports scalar and vector-valued functions, making it useful for mathematical modeling, optimization, and educational purposes.
 
 ## Features
+* Symbolic expression construction using C++ operators
+* Automatic differentiation (first-order derivatives)
+* Numerical evaluation of expressions
+* Support for:
+	* Polynomial expressions
+	* Multivariable functions
+	* Trigonometric functions (sin, cos, etc.)
+	* Vector-valued functions (ℝⁿ → ℝᵐ)
+* Clean and composable expression system
 
-- **Expression Representation**: Create and
-  manipulate complex mathematical expressions
-- **Automatic Differentiation**: Compute
-  derivatives symbolically
-- **Equation Systems**: Work with systems of
-  equations
-- **Compile-time Evaluation**: Evaluate
-  expressions at compile time when possible
-- **Type-safe Operations**: All operations are
-  type-safe and work with various numeric types. 
-
-  For user defined types, they would have to 
-  overload the operators `+`, `-`, `*`, `/` or 
-  specialize `std::plus<>{}`, `std::minus<>{}}`,
-  `std::multiplies<>{}`, `std::divides<>{}` for the types
-
-## Requirements
-
-- C++23 compatible compiler
-
-## Core Components
-
-### Expressions
-
-The library represents expressions as template
-classes that model the expression tree:
-
-- : Represents binary operations
-  `Expression<Op, LHS, RHS>`
-- : Represents unary operations
-  `MonoExpression<Op, Exp>`
-- : Represents constant values `Constant<T>`
-- `Variable<T, char>`: Represents variables with
-  symbolic identifiers
-
-### Operations
-
-Mathematical operations are implemented as
-operator types:
-
-- : Addition `SumOp<T>`
-- : Multiplication `MultiplyOp<T>`
-- : Division `DivideOp<T>`
-- : Subtraction `Op<T>`
-- : Negation `NegateOp<T>`
-- : Sine function `SineOp<T>`
-- : Cosine function `CosineOp<T>`
-- : Exponential function `ExpOp<T>`
-
-A constant value can be created using the `PC(value)` macro.
-There are also handy udl such as `7_ci` for constant integer
-and `1.618_cd` for constant double.
-
-There are also operator overloads for operations `+`, `-`, `*`, `/`,
-`sin()`,`cos()`, `exp()` which take `Expression` objects or `Variable`
-objects or `Constant` objects as arguments. This makes usage rather convenient
-as can be seen in the [usage examples](#Usage Examples) section.
-
-### Equations and Systems
-
-- `Equation<TExpression>`: Wraps an expression
-  with its derivatives
-- : Manages systems of equations with Jacobian
-  computation `SystemOfEquations<TEquations...>`
-- `SystemOfEquations<TExpression>` supports the `std::get<>`
-interface which returns a reference to `Expression` at the index
-  of the system. 
-- `make_system_of_equations<TExpressions...>(TExpressions...)`: A helper function
-  to create a system of equations from a list of expressions. This
-allows the user to enter expressions in a more natural way, without having
-to explicitly create `0` valued `Variable<T>` terms in the expressions
-which don't contain the variable.
-This creates a system of equations with each `Equation`/`Expression` has
-the same number of variables.
-
-Note.  A jacobian would be available iff the system of equation is square
-
-### Process Variable
-
-- `ProcessVar<T>`: Represents a variable that can
-  be used in expressions and updated. This is used 
-  to provide reference semantics to variables in your 
-  application, allowing you to update the variable values 
-in the expression implicitly. 
-
- - User can create a `Variable<T>` or a `Constant<T>` from a `ProcessVar<T>` using the
-function `as_variable<char>()` or `as_constant<T>()` respectively. Any
-updates to the `ProcessVar<T>` will be reflected in the `Variable<T>` or `Constant<T>`
-and vice versa.
-
-## Usage Examples
-
-### Creating Expressions
-
-``` cpp
-// Define process variables
-auto x = PV(2, 'x');  // Variable x with initial value 2
-auto y = PV(3, 'y');  // Variable y with initial value 3
-
-// Create expressions
-auto expr = x + y + 3_ci * x * y;  // x + y + 3*x*y
+## Project Structure
+```
+SymDiff/
+├── include/        # Core headers (expressions, operations, values, etc.)
+├── src/            # Example / main program
+├── tests.cpp       # Unit tests
+├── CMakeLists.txt  # Build configuration
+└── build/          # Build artifacts (generated)
 ```
 
-### Working with Equations
+##  Usage Examples
+### Scalar Function with Multiple Variables
+```cpp
+// f(x, y) = x*y + 3*x*y^2
+auto x = PV(4, 'x');
+auto y = PV(2, 'y');
+auto expr = x * y + PC(3) * x * y * y;
 
-``` cpp
-// Create an equation from an expression
+std::cout << expr << "\n"; // symbolic form
+std::cout << expr.eval() << "\n"; // numerical evaluation
+```
+### Compute Partial Derivatives
+```cpp
 auto eq = Equation(expr);
+auto [dx, dy] = eq.eval_derivatives();
 
-// Access the equation and its derivatives
-auto value = eq.eval();            // Evaluate the equation
-auto derivs = eq.eval_derivatives(); // Get all derivatives
+std::cout << "df/dx = " << dx << "\n";
+std::cout << "df/dy = " << dy << "\n";
+```
+### Trigonometric Differentiation
+```cpp
+auto x = PV(1.0, 'x');
+auto expr = sin(x) * cos(x);
+
+std::cout << expr.eval() << "\n"; // value
+std::cout << expr.derivative().eval() << "\n"; // derivative
+```
+### Vector-Valued Functions
+```cpp
+
+// f(x, y) = (x + y, x * y)
+auto x = PV(3.0, 'x');
+auto y = PV(4.0, 'y');
+auto f = VectorEquation(x + y, x * y);
+auto result = f.eval();
+std::cout << f;
+```
+##  Core Concepts
+### ```PV``` — Parameter Variable
+Represents a variable with a value and identifier.
+```cpp
+auto x = PV(2.0, 'x');
+```
+### ```PC``` — Parameter Constant
+Represents a constant value.
+```cpp
+auto c = PC(3.0);
+```
+### Expressions
+Built using operator overloading:
+```cpp
+auto expr = x * y + 2 * x;
 ```
 
-### Systems of Equations
-
-``` cpp
-// Create expressions
-auto expr1 = x + y + 3_ci * x * y * y;
-auto expr2 = x + y;
-
-// Create a system of equations
-auto system = make_system_of_equations(expr1, expr2);
-
-// Evaluate the system
-auto result = system.eval();
-
-// Compute the Jacobian matrix
-auto jacobian = system.jacobian();
-
-// Update variable values
-std::array<int, 2> newValues = {42, 1729};
-system.update(newValues);
+### Differentiation
+```cpp
+auto d = expr.derivative();
 ```
 
-### Process Variables
-
-``` cpp
-ProcessVar<double> pv(3.14);
-auto x = pv.as_variable<'x'>();
-
-x = 6.203; // updates pv
-pv.set_value(8.314); // updates x
+### Evaluation
+```cpp
+double value = expr.eval();
 ```
 
 ## Contributing
@@ -167,5 +96,3 @@ pv.set_value(8.314); // updates x
 This is a personal project, but contributions are welcome! I want 
 to learn, so please comment. I don't promise to implement all 
 suggestions, but I will surely think them through and through.
-
-<sub>I know the tests are far from complete. I will be working on them I promise.</sub>
