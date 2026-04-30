@@ -59,12 +59,11 @@ concept ExpressionConcept = is_expression_type<std::remove_cvref_t<T>>::value;
 // eval_seeded uses this to inject seeded values into one recursive pass
 // without calling update() + eval() separately.
 // ===========================================================================
-template <Numeric T>
-struct EvalResult {
-    using value_type = T;
-    T value;
-    [[nodiscard]] constexpr T eval() const { return value; }
-    constexpr operator T() const { return value; }
+template <Numeric T> struct EvalResult {
+  using value_type = T;
+  T value;
+  [[nodiscard]] constexpr T eval() const { return value; }
+  constexpr operator T() const { return value; }
 };
 
 template <Numeric T>
@@ -75,19 +74,6 @@ struct is_expression_type<EvalResult<T>> : std::true_type {};
 // ===========================================================================
 template <AnOp Op> struct BaseExpression {
   using value_type = typename Op::value_type;
-};
-
-// ===========================================================================
-// Helper: selects the structured-binding element type for an expression.
-//   - When value_type is tuple-like (e.g. Dual<T>): delegate to it.
-//   - Otherwise: both elements are value_type (eval / derivative.eval).
-// ===========================================================================
-template <typename V, std::size_t I, typename = void>
-struct expression_element { using type = V; };
-
-template <typename V, std::size_t I>
-struct expression_element<V, I, std::void_t<typename std::tuple_element<I, V>::type>> {
-  using type = std::tuple_element_t<I, V>;
 };
 
 // ===========================================================================
@@ -107,15 +93,14 @@ public:
   using value_type = typename BaseExpression<Op>::value_type;
   constexpr MonoExpression(Exp expr) : expression{std::move(expr)} {}
 
-  template <std::size_t I>
-  [[nodiscard]] constexpr auto get() const {
+  template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);
     if constexpr (requires { std::tuple_size<value_type>::value; })
-      return eval().template get<I>();                     // Dual path
+      return eval().template get<I>(); // Dual path
     else if constexpr (I == 0)
-      return eval();                                       // value
+      return eval(); // value
     else
-      return static_cast<value_type>(derivative());        // derivative
+      return static_cast<value_type>(derivative()); // derivative
   }
 
   [[nodiscard]] constexpr auto derivative() const {
@@ -125,8 +110,10 @@ public:
   [[nodiscard]] constexpr auto eval() const { return Op::eval(expression); }
 
   template <typename Syms, std::size_t N>
-  [[nodiscard]] constexpr auto eval_seeded(const std::array<value_type, N> &vals) const {
-    return Op::eval(EvalResult<value_type>{expression.template eval_seeded<Syms>(vals)});
+  [[nodiscard]] constexpr auto
+  eval_seeded(const std::array<value_type, N> &vals) const {
+    return Op::eval(
+        EvalResult<value_type>{expression.template eval_seeded<Syms>(vals)});
   }
 
   constexpr void update(const auto &symbols, const auto &updates) {
@@ -162,15 +149,14 @@ public:
   constexpr Expression(LHS lhs, RHS rhs)
       : inner_expressions({std::move(lhs), std::move(rhs)}) {}
 
-  template <std::size_t I>
-  [[nodiscard]] constexpr auto get() const {
+  template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);
     if constexpr (requires { std::tuple_size<value_type>::value; })
-      return eval().template get<I>();                     // Dual path
+      return eval().template get<I>(); // Dual path
     else if constexpr (I == 0)
-      return eval();                                       // value
+      return eval(); // value
     else
-      return static_cast<value_type>(derivative());        // derivative
+      return static_cast<value_type>(derivative()); // derivative
   }
 
   [[nodiscard]] constexpr auto eval() const {
@@ -184,10 +170,13 @@ public:
   }
 
   template <typename Syms, std::size_t N>
-  [[nodiscard]] constexpr auto eval_seeded(const std::array<value_type, N> &vals) const {
+  [[nodiscard]] constexpr auto
+  eval_seeded(const std::array<value_type, N> &vals) const {
     return Op::eval(
-        EvalResult<value_type>{inner_expressions.first.template eval_seeded<Syms>(vals)},
-        EvalResult<value_type>{inner_expressions.second.template eval_seeded<Syms>(vals)});
+        EvalResult<value_type>{
+            inner_expressions.first.template eval_seeded<Syms>(vals)},
+        EvalResult<value_type>{
+            inner_expressions.second.template eval_seeded<Syms>(vals)});
   }
 
   constexpr void update(const auto &symbols, const auto &updates) {
@@ -205,22 +194,41 @@ public:
 // Element type delegates to value_type when it's tuple-like (e.g. Dual<T>),
 // otherwise both elements are value_type ({eval, derivative}).
 // ===========================================================================
-template <AnOp Op, typename LHS, typename RHS>
-struct std::tuple_size<Expression<Op, LHS, RHS>>
-    : std::integral_constant<std::size_t, 2> {};
 
-template <std::size_t I, AnOp Op, typename LHS, typename RHS>
-struct std::tuple_element<I, Expression<Op, LHS, RHS>> {
-  using type = typename expression_element<
-      typename Expression<Op, LHS, RHS>::value_type, I>::type;
+// ===========================================================================
+// Helper: selects the structured-binding element type for an expression.
+//   - When value_type is tuple-like (e.g. Dual<T>): delegate to it.
+//   - Otherwise: both elements are value_type (eval / derivative.eval).
+// ===========================================================================
+template <typename V, std::size_t I, typename = void>
+struct expression_element {
+  using type = V;
+};
+
+template <typename V, std::size_t I>
+struct expression_element<
+    V, I, std::void_t<typename std::tuple_element<I, V>::type>> {
+  using type = std::tuple_element_t<I, V>;
+};
+
+namespace std {
+template <AnOp Op, typename LHS, typename RHS>
+struct tuple_size<Expression<Op, LHS, RHS>> : integral_constant<size_t, 2> {};
+
+template <size_t I, AnOp Op, typename LHS, typename RHS>
+struct tuple_element<I, Expression<Op, LHS, RHS>> {
+  using type =
+      typename expression_element<typename Expression<Op, LHS, RHS>::value_type,
+                                  I>::type;
 };
 
 template <AnOp Op, typename Exp>
-struct std::tuple_size<MonoExpression<Op, Exp>>
-    : std::integral_constant<std::size_t, 2> {};
+struct tuple_size<MonoExpression<Op, Exp>> : integral_constant<size_t, 2> {};
 
-template <std::size_t I, AnOp Op, typename Exp>
-struct std::tuple_element<I, MonoExpression<Op, Exp>> {
-  using type = typename expression_element<
-      typename MonoExpression<Op, Exp>::value_type, I>::type;
+template <size_t I, AnOp Op, typename Exp>
+struct tuple_element<I, MonoExpression<Op, Exp>> {
+  using type =
+      typename expression_element<typename MonoExpression<Op, Exp>::value_type,
+                                  I>::type;
 };
+} // namespace std

@@ -4,14 +4,16 @@
 #include "expressions.hpp"
 #include "traits.hpp"
 #include <array>
-#include <boost/mp11.hpp>
+#include <boost/mp11/algorithm.hpp>
+
+namespace mp = boost::mp11;
 
 template <ExpressionConcept Expr, typename T = typename Expr::value_type>
   requires (!is_dual_v<T>)
 [[nodiscard]] constexpr auto reverse_mode_gradient(const Expr &expr) {
   using Syms =
       typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
-  constexpr auto N = boost::mp11::mp_size<Syms>::value;
+  constexpr auto N = mp::mp_size<Syms>::value;
   std::array<T, N> grads{};
   expr.backward(Syms{}, T{1}, grads);
   return grads;
@@ -23,12 +25,14 @@ template <ExpressionConcept Expr, typename T = typename Expr::value_type>
   using scalar_t = dual_scalar_t<T>;
   using Syms =
       typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
-  constexpr auto N = boost::mp11::mp_size<Syms>::value;
+  constexpr auto N = mp::mp_size<Syms>::value;
   std::array<T, N> grads{};
   expr.backward(Syms{}, T{1}, grads);
   std::array<scalar_t, N> result{};
-  for (std::size_t i = 0; i < N; ++i)
+  for (std::size_t i = 0; i < N; ++i) {
     result[i] = grads[i].template get<0>();
+  }
+
   return result;
 }
 
@@ -40,7 +44,7 @@ template <
     ExpressionConcept Expr,
     typename TArr =
         dual_scalar_t<typename std::remove_cvref_t<Expr>::value_type>,
-    std::size_t N = boost::mp11::mp_size<typename extract_symbols_from_expr<
+    std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
         std::remove_cvref_t<Expr>>::type>::value>
 [[nodiscard]] constexpr auto forward_mode_gradient(const Expr &expr,
                                                    std::array<TArr, N> values)
@@ -50,21 +54,19 @@ template <
   using value_type = typename expr_type::value_type;
   using scalar_type = dual_scalar_t<value_type>;
   using symbols = typename extract_symbols_from_expr<expr_type>::type;
-  constexpr std::size_t n = boost::mp11::mp_size<symbols>::value;
+  constexpr std::size_t n = mp::mp_size<symbols>::value;
 
   // For each pass J, build a fresh independent seed array with only variable J
   // seeded to 1. Independent arrays have no aliasing between passes so the
   // compiler can pipeline or constant-fold all N evaluations in parallel.
   std::array<scalar_type, n> gradients{};
-  [&]<std::size_t... Js>(std::index_sequence<Js...>) {
-    (..., [&]<std::size_t J>() {
-      const auto s = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        return std::array{
-            value_type{values[Is], Is == J ? scalar_type{1} : scalar_type{}}...};
-      }(std::make_index_sequence<n>{});
-      gradients[J] = expr.template eval_seeded<symbols>(s).template get<1>();
-    }.template operator()<Js>());
-  }(std::make_index_sequence<n>{});
+  static_for<n>([&]<std::size_t J>() {
+    std::array<value_type, n> s{};
+    static_for<n>([&]<std::size_t I>() {
+      s[I] = value_type{values[I], I == J ? scalar_type{1} : scalar_type{}};
+    });
+    gradients[J] = expr.template eval_seeded<symbols>(s).template get<1>();
+  });
 
   return gradients;
 }

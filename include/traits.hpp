@@ -1,8 +1,14 @@
 #pragma once
 #include "values.hpp"
 #include <array>
-#include <boost/mp11.hpp>
+#include <boost/mp11/algorithm.hpp>
 #include <type_traits>
+
+namespace mp = boost::mp11;
+template <std::size_t N, class F> constexpr void static_for(F &&f) {
+  mp::mp_for_each<mp::mp_iota_c<N>>(
+      [&]<class I>(I) { f.template operator()<I::value>(); });
+}
 
 // --- compile-time "is this a Constant?" ---
 template <typename T> constexpr static bool is_const = false;
@@ -169,18 +175,17 @@ constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
 
 // Strict-weak-ordering on integral_constant<char,C> by char value.
 template <typename A, typename B>
-using ic_less = boost::mp11::mp_bool<(A::value < B::value)>;
+using ic_less = mp::mp_bool<(A::value < B::value)>;
 
 // Sort an mp_list of integral_constant<char,C> by char value.
-template <typename List>
-using sort_tuple_t = boost::mp11::mp_sort<List, ic_less>;
+template <typename List> using sort_tuple_t = mp::mp_sort<List, ic_less>;
 
 template <typename List>
-using unique_tuple_t = boost::mp11::mp_unique<sort_tuple_t<List>>;
+using unique_tuple_t = mp::mp_unique<sort_tuple_t<List>>;
 
 // Sorted set-union of any number of mp_lists.
 template <typename... Lists>
-using tuple_union_t = unique_tuple_t<boost::mp11::mp_append<Lists...>>;
+using tuple_union_t = unique_tuple_t<mp::mp_append<Lists...>>;
 
 // ===========================================================================
 // Extract the set of Variable symbols from an expression type.
@@ -188,12 +193,11 @@ using tuple_union_t = unique_tuple_t<boost::mp11::mp_append<Lists...>>;
 // ===========================================================================
 
 template <typename T>
-auto extract_variable_symbols_impl(std::type_identity<T>)
-    -> boost::mp11::mp_list<>;
+auto extract_variable_symbols_impl(std::type_identity<T>) -> mp::mp_list<>;
 
 template <typename T, char symbol>
 auto extract_variable_symbols_impl(std::type_identity<Variable<T, symbol>>)
-    -> boost::mp11::mp_list<std::integral_constant<char, symbol>>;
+    -> mp::mp_list<std::integral_constant<char, symbol>>;
 
 template <typename T>
 using extract_variable_symbols_t =
@@ -206,7 +210,8 @@ template <typename T> struct extract_symbols_from_expr {
 template <typename Op, typename... Exprs>
 struct extract_symbols_from_expr<Expression<Op, Exprs...>> {
   static_assert(sizeof...(Exprs) > 0);
-  using type = tuple_union_t<typename extract_symbols_from_expr<Exprs>::type...>;
+  using type =
+      tuple_union_t<typename extract_symbols_from_expr<Exprs>::type...>;
 };
 
 template <typename Op, typename Expr>

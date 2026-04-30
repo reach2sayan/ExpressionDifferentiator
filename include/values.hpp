@@ -1,7 +1,7 @@
 #pragma once
 #include "expressions.hpp"
 #include "operations.hpp"
-#include <boost/mp11.hpp>
+#include <boost/mp11/algorithm.hpp>
 #include <concepts>
 #include <format>
 #include <string_view>
