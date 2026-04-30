@@ -83,6 +83,46 @@ struct IOperators {
     using value_type = typename Expr::value_type;
     return MonoExpression<ExpOp<value_type>, Expr>{std::move(a)};
   }
+  template <ExpressionConcept Expr> friend constexpr auto tan(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<TanOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto log(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<LogOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto sqrt(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<SqrtOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto abs(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<AbsOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto asin(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<AsinOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto acos(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<AcosOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto atan(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<AtanOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto sinh(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<SinhOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto cosh(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<CoshOp<value_type>, Expr>{std::move(a)};
+  }
+  template <ExpressionConcept Expr> friend constexpr auto tanh(const Expr &a) {
+    using value_type = typename Expr::value_type;
+    return MonoExpression<TanhOp<value_type>, Expr>{std::move(a)};
+  }
 
   // Scalar-on-left overloads: wrap the scalar as Constant<VT> and delegate.
   template <typename S, ExpressionConcept RHS>
@@ -155,8 +195,10 @@ public:
   constexpr operator T() const { return value; }
   [[nodiscard]] constexpr auto derivative() const { return Constant{T{}}; }
   constexpr void update(...) const {}
-  constexpr void backward(const auto &, T, auto &) const {
-  } // constant: no variable to accumulate to
+  constexpr void backward(const auto &, T, auto &) const {}
+
+  template <typename Syms, std::size_t N>
+  [[nodiscard]] constexpr T eval_seeded(const std::array<T, N> &) const { return value; }
 
   template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);
@@ -191,6 +233,12 @@ public:
   constexpr void update(const auto &symbols, const auto &updates);
   [[nodiscard]] constexpr auto derivative() const;
   constexpr void backward(const auto &syms, T adj, auto &grads) const;
+
+  template <typename Syms, std::size_t N>
+  [[nodiscard]] constexpr T eval_seeded(const std::array<T, N> &vals) const {
+    constexpr auto idx = find_index_of_char<symbol, Syms>();
+    return vals[idx];
+  }
 
   template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);

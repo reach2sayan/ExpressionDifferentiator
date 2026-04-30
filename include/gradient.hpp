@@ -32,13 +32,17 @@ template <ExpressionConcept Expr, typename T = typename Expr::value_type>
   return result;
 }
 
+// Stateless forward-mode gradient: no update() calls, no mutation of expr.
+// Each of the N passes does one eval_seeded() traversal instead of the old
+// update()+eval() double-traversal, plus a final restore traversal.
+// Cost: N traversals (was 2N+1).
 template <
     ExpressionConcept Expr,
     typename TArr =
         dual_scalar_t<typename std::remove_cvref_t<Expr>::value_type>,
     std::size_t N = boost::mp11::mp_size<typename extract_symbols_from_expr<
         std::remove_cvref_t<Expr>>::type>::value>
-[[nodiscard]] constexpr auto forward_mode_gradient(Expr &expr,
+[[nodiscard]] constexpr auto forward_mode_gradient(const Expr &expr,
                                                    std::array<TArr, N> values)
   requires is_dual_v<typename std::remove_cvref_t<Expr>::value_type>
 {
@@ -48,22 +52,19 @@ template <
   using symbols = typename extract_symbols_from_expr<expr_type>::type;
   constexpr std::size_t n = boost::mp11::mp_size<symbols>::value;
 
+  // For each pass J, build a fresh independent seed array with only variable J
+  // seeded to 1. Independent arrays have no aliasing between passes so the
+  // compiler can pipeline or constant-fold all N evaluations in parallel.
   std::array<scalar_type, n> gradients{};
-  std::array<value_type, n> seeded{};
-
-  for (std::size_t j = 0; j < n; ++j) {
-    for (std::size_t i = 0; i < n; ++i) {
-      seeded[i] =
-          value_type{values[i], i == j ? scalar_type{1} : scalar_type{}};
-    }
-    expr.update(symbols{}, seeded);
-    gradients[j] = expr.eval().template get<1>();
-  }
-
-  for (std::size_t i = 0; i < n; ++i) {
-    seeded[i] = value_type{values[i], scalar_type{}};
-  }
-  expr.update(symbols{}, seeded);
+  [&]<std::size_t... Js>(std::index_sequence<Js...>) {
+    (..., [&]<std::size_t J>() {
+      const auto s = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        return std::array{
+            value_type{values[Is], Is == J ? scalar_type{1} : scalar_type{}}...};
+      }(std::make_index_sequence<n>{});
+      gradients[J] = expr.template eval_seeded<symbols>(s).template get<1>();
+    }.template operator()<Js>());
+  }(std::make_index_sequence<n>{});
 
   return gradients;
 }

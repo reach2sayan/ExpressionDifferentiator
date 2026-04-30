@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(DIFF_BUILD_BENCHMARKS "Build Google Benchmark benchmarks" ON)
+option(DIFF_BUILD_COMPARE   "Build comparison benchmarks against autodiff" OFF)
 option(DIFF_BUILD_TIMING    "Emit per-TU compile-time traces (Clang: -ftime-trace, GCC: -ftime-report)" OFF)
 
 find_package(Boost 1.74 CONFIG QUIET)
@@ -36,7 +37,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-if(DIFF_BUILD_BENCHMARKS)
+if(DIFF_BUILD_BENCHMARKS OR DIFF_BUILD_COMPARE)
     FetchContent_Declare(
             googlebenchmark
             URL https://github.com/google/benchmark/archive/refs/tags/v1.9.1.zip
@@ -45,6 +46,21 @@ if(DIFF_BUILD_BENCHMARKS)
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
     set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googlebenchmark)
+endif()
+
+if(DIFF_BUILD_COMPARE)
+    # autodiff is header-only; disable its sub-targets to avoid extra build time.
+    set(AUTODIFF_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
+    set(AUTODIFF_BUILD_PYTHON   OFF CACHE BOOL "" FORCE)
+    set(AUTODIFF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(AUTODIFF_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+            autodiff_lib
+            GIT_REPOSITORY https://github.com/autodiff/autodiff.git
+            GIT_TAG        v1.1.2
+            GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(autodiff_lib)
 endif()
 
 add_library(diff INTERFACE
@@ -69,8 +85,16 @@ target_link_libraries(tests gtest_main diff)
 add_test(NAME tests COMMAND tests)
 enable_testing()
 
+if(DIFF_BUILD_COMPARE)
+    add_executable(benchmarks_compare benchmarks/benchmark_compare.cpp)
+    target_link_libraries(benchmarks_compare PRIVATE benchmark::benchmark diff autodiff::autodiff)
+    if(NOT MSVC)
+        target_compile_options(benchmarks_compare PRIVATE -Wall -Wextra)
+    endif()
+endif()
+
 if(DIFF_BUILD_BENCHMARKS)
-    add_executable(benchmarks benchmark.cpp)
+    add_executable(benchmarks benchmarks/benchmark.cpp)
     target_link_libraries(benchmarks PRIVATE benchmark::benchmark diff)
 
     set(BENCHMARK_RESULTS_DIR "${CMAKE_BINARY_DIR}/benchmark-results")

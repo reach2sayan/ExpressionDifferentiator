@@ -11,6 +11,333 @@
 #include <ranges>
 
 // ===========================================================================
+// Math function tests — ported from autodiff's test suite
+// Covers: tan, log, sqrt, abs, asin, acos, atan, sinh, cosh, tanh,
+//         identity checks, and reverse/forward mode coverage for all.
+// ===========================================================================
+
+TEST(MathFunctionTest, TanEvalAndDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(tan(x).eval(), std::tan(x0));
+  ASSERT_DOUBLE_EQ(tan(x).derivative().eval(),
+                   1.0 / (std::cos(x0) * std::cos(x0)));
+}
+
+TEST(MathFunctionTest, LogEvalAndDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(log(x).eval(), std::log(x0));
+  ASSERT_DOUBLE_EQ(log(x).derivative().eval(), 1.0 / x0);
+}
+
+TEST(MathFunctionTest, SqrtEvalAndDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(sqrt(x).eval(), std::sqrt(x0));
+  ASSERT_DOUBLE_EQ(sqrt(x).derivative().eval(), 0.5 / std::sqrt(x0));
+}
+
+TEST(MathFunctionTest, AsinDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(asin(x).eval(), std::asin(x0));
+  ASSERT_DOUBLE_EQ(asin(x).derivative().eval(),
+                   1.0 / std::sqrt(1.0 - x0 * x0));
+}
+
+TEST(MathFunctionTest, AcosDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(acos(x).eval(), std::acos(x0));
+  ASSERT_DOUBLE_EQ(acos(x).derivative().eval(),
+                   -1.0 / std::sqrt(1.0 - x0 * x0));
+}
+
+TEST(MathFunctionTest, AtanDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(atan(x).eval(), std::atan(x0));
+  ASSERT_DOUBLE_EQ(atan(x).derivative().eval(), 1.0 / (1.0 + x0 * x0));
+}
+
+TEST(MathFunctionTest, SinhDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(sinh(x).eval(), std::sinh(x0));
+  ASSERT_DOUBLE_EQ(sinh(x).derivative().eval(), std::cosh(x0));
+}
+
+TEST(MathFunctionTest, CoshDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(cosh(x).eval(), std::cosh(x0));
+  ASSERT_DOUBLE_EQ(cosh(x).derivative().eval(), std::sinh(x0));
+}
+
+TEST(MathFunctionTest, TanhDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  ASSERT_DOUBLE_EQ(tanh(x).eval(), std::tanh(x0));
+  double c = std::cosh(x0);
+  ASSERT_DOUBLE_EQ(tanh(x).derivative().eval(), 1.0 / (c * c));
+}
+
+TEST(MathFunctionTest, AbsEval) {
+  ASSERT_DOUBLE_EQ(abs(PV(3.0, 'x')).eval(), 3.0);
+  ASSERT_DOUBLE_EQ(abs(PV(-3.0, 'x')).eval(), 3.0);
+  ASSERT_DOUBLE_EQ(abs(PV(0.0, 'x')).eval(), 0.0);
+}
+
+// Chain rule with new ops
+TEST(MathFunctionTest, ChainRuleTan) {
+  // d/dx tan(2x) = 2/cos²(2x)
+  double x0 = 0.4;
+  auto x = PV(x0, 'x');
+  auto expr = tan(PC(2.0) * x);
+  ASSERT_DOUBLE_EQ(expr.derivative().eval(),
+                   2.0 / (std::cos(2.0 * x0) * std::cos(2.0 * x0)));
+}
+
+TEST(MathFunctionTest, ChainRuleLog) {
+  // d/dx log(x²) = 2/x
+  double x0 = 0.8;
+  auto x = PV(x0, 'x');
+  auto expr = log(x * x);
+  ASSERT_DOUBLE_EQ(expr.derivative().eval(), 2.0 / x0);
+}
+
+TEST(MathFunctionTest, ChainRuleSqrt) {
+  // d/dx sqrt(sin(x)) = cos(x) / (2·sqrt(sin(x)))
+  double x0 = 1.0;
+  auto x = PV(x0, 'x');
+  auto expr = sqrt(sin(x));
+  double expected = std::cos(x0) / (2.0 * std::sqrt(std::sin(x0)));
+  ASSERT_NEAR(expr.derivative().eval(), expected, 1e-12);
+}
+
+// Mathematical identities — value must be constant, derivative must be zero
+TEST(MathFunctionTest, PythagoreanIdentity) {
+  // sin²(x) + cos²(x) = 1, derivative = 0
+  for (double v : {0.0, 0.5, 1.0, 2.0}) {
+    auto x = PV(v, 'x');
+    auto expr = sin(x) * sin(x) + cos(x) * cos(x);
+    ASSERT_NEAR(expr.eval(), 1.0, 1e-12);
+    ASSERT_NEAR(expr.derivative().eval(), 0.0, 1e-12);
+  }
+}
+
+TEST(MathFunctionTest, HyperbolicIdentity) {
+  // cosh²(x) - sinh²(x) = 1, derivative = 0
+  for (double v : {0.0, 0.5, 1.0, 2.0}) {
+    auto x = PV(v, 'x');
+    auto expr = cosh(x) * cosh(x) - sinh(x) * sinh(x);
+    ASSERT_NEAR(expr.eval(), 1.0, 1e-12);
+    ASSERT_NEAR(expr.derivative().eval(), 0.0, 1e-12);
+  }
+}
+
+TEST(MathFunctionTest, ExpLogIdentity) {
+  // exp(log(x)) = x, derivative = 1
+  for (double v : {0.3, 0.5, 1.0, 2.0}) {
+    auto x = PV(v, 'x');
+    auto expr = exp(log(x));
+    ASSERT_NEAR(expr.eval(), v, 1e-12);
+    ASSERT_NEAR(expr.derivative().eval(), 1.0, 1e-12);
+  }
+}
+
+TEST(MathFunctionTest, QuotientSelfIsConstant) {
+  // x/x = 1, derivative = 0
+  for (double v : {1.0, 2.0, 5.0}) {
+    auto x = PV(v, 'x');
+    auto expr = x / x;
+    ASSERT_NEAR(expr.eval(), 1.0, 1e-12);
+    ASSERT_NEAR(expr.derivative().eval(), 0.0, 1e-12);
+  }
+}
+
+TEST(MathFunctionTest, TanEqualsRatio) {
+  // tan(x) = sin(x)/cos(x), derivatives agree
+  double x0 = 0.7;
+  auto x1 = PV(x0, 'x');
+  auto x2 = PV(x0, 'x');
+  ASSERT_NEAR(tan(x1).derivative().eval(),
+              (sin(x2) / cos(x2)).derivative().eval(), 1e-12);
+}
+
+// ===========================================================================
+// Reverse-mode gradients for new math functions
+// ===========================================================================
+
+TEST(ReverseModeAD, TanDerivative) {
+  auto x = PV(0.5, 'x');
+  auto g = reverse_mode_gradient(tan(x));
+  ASSERT_DOUBLE_EQ(g[0], 1.0 / (std::cos(0.5) * std::cos(0.5)));
+}
+
+TEST(ReverseModeAD, LogDerivative) {
+  auto x = PV(0.5, 'x');
+  auto g = reverse_mode_gradient(log(x));
+  ASSERT_DOUBLE_EQ(g[0], 2.0);
+}
+
+TEST(ReverseModeAD, SqrtDerivative) {
+  auto x = PV(4.0, 'x');
+  auto g = reverse_mode_gradient(sqrt(x));
+  ASSERT_DOUBLE_EQ(g[0], 0.25);  // 0.5/sqrt(4) = 0.25
+}
+
+TEST(ReverseModeAD, AsinDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  auto g = reverse_mode_gradient(asin(x));
+  ASSERT_DOUBLE_EQ(g[0], 1.0 / std::sqrt(1.0 - x0 * x0));
+}
+
+TEST(ReverseModeAD, AcosDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  auto g = reverse_mode_gradient(acos(x));
+  ASSERT_DOUBLE_EQ(g[0], -1.0 / std::sqrt(1.0 - x0 * x0));
+}
+
+TEST(ReverseModeAD, AtanDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  auto g = reverse_mode_gradient(atan(x));
+  ASSERT_DOUBLE_EQ(g[0], 1.0 / (1.0 + x0 * x0));
+}
+
+TEST(ReverseModeAD, SinhDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  auto g = reverse_mode_gradient(sinh(x));
+  ASSERT_DOUBLE_EQ(g[0], std::cosh(x0));
+}
+
+TEST(ReverseModeAD, CoshDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  auto g = reverse_mode_gradient(cosh(x));
+  ASSERT_DOUBLE_EQ(g[0], std::sinh(x0));
+}
+
+TEST(ReverseModeAD, TanhDerivative) {
+  double x0 = 0.5;
+  auto x = PV(x0, 'x');
+  auto g = reverse_mode_gradient(tanh(x));
+  double c = std::cosh(x0);
+  ASSERT_DOUBLE_EQ(g[0], 1.0 / (c * c));
+}
+
+TEST(ReverseModeAD, AbsDerivativePositive) {
+  auto x = PV(1.0, 'x');
+  ASSERT_DOUBLE_EQ(reverse_mode_gradient(abs(x))[0], 1.0);
+}
+
+TEST(ReverseModeAD, AbsDerivativeNegative) {
+  auto x = PV(-1.0, 'x');
+  ASSERT_DOUBLE_EQ(reverse_mode_gradient(abs(x))[0], -1.0);
+}
+
+TEST(ReverseModeAD, AbsDerivativeAtZero) {
+  auto x = PV(0.0, 'x');
+  ASSERT_DOUBLE_EQ(reverse_mode_gradient(abs(x))[0], 0.0);
+}
+
+// ===========================================================================
+// Forward-mode (Dual) for new math functions
+// ===========================================================================
+
+TEST(ForwardModeAD, TanDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = tan(x).eval();
+  ASSERT_DOUBLE_EQ(f, std::tan(x0));
+  ASSERT_DOUBLE_EQ(df, 1.0 / (std::cos(x0) * std::cos(x0)));
+}
+
+TEST(ForwardModeAD, LogDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = log(x).eval();
+  ASSERT_DOUBLE_EQ(f, std::log(x0));
+  ASSERT_DOUBLE_EQ(df, 1.0 / x0);
+}
+
+TEST(ForwardModeAD, SqrtDerivative) {
+  double x0 = 4.0;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = sqrt(x).eval();
+  ASSERT_DOUBLE_EQ(f, 2.0);
+  ASSERT_DOUBLE_EQ(df, 0.25);
+}
+
+TEST(ForwardModeAD, AsinDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = asin(x).eval();
+  ASSERT_DOUBLE_EQ(f, std::asin(x0));
+  ASSERT_DOUBLE_EQ(df, 1.0 / std::sqrt(1.0 - x0 * x0));
+}
+
+TEST(ForwardModeAD, AcosDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = acos(x).eval();
+  ASSERT_DOUBLE_EQ(f, std::acos(x0));
+  ASSERT_DOUBLE_EQ(df, -1.0 / std::sqrt(1.0 - x0 * x0));
+}
+
+TEST(ForwardModeAD, AtanDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = atan(x).eval();
+  ASSERT_DOUBLE_EQ(f, std::atan(x0));
+  ASSERT_DOUBLE_EQ(df, 1.0 / (1.0 + x0 * x0));
+}
+
+TEST(ForwardModeAD, SinhDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = sinh(x).eval();
+  ASSERT_DOUBLE_EQ(f, std::sinh(x0));
+  ASSERT_DOUBLE_EQ(df, std::cosh(x0));
+}
+
+TEST(ForwardModeAD, CoshDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = cosh(x).eval();
+  ASSERT_DOUBLE_EQ(f, std::cosh(x0));
+  ASSERT_DOUBLE_EQ(df, std::sinh(x0));
+}
+
+TEST(ForwardModeAD, TanhDerivative) {
+  double x0 = 0.5;
+  Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
+  auto [f, df] = tanh(x).eval();
+  double c = std::cosh(x0);
+  ASSERT_DOUBLE_EQ(f, std::tanh(x0));
+  ASSERT_DOUBLE_EQ(df, 1.0 / (c * c));
+}
+
+TEST(ForwardModeAD, AbsDerivativePositive) {
+  Variable<Dual<double>, 'x'> x{Dual<double>{2.0, 1.0}};
+  auto [f, df] = abs(x).eval();
+  ASSERT_DOUBLE_EQ(f, 2.0);
+  ASSERT_DOUBLE_EQ(df, 1.0);
+}
+
+TEST(ForwardModeAD, AbsDerivativeNegative) {
+  Variable<Dual<double>, 'x'> x{Dual<double>{-2.0, 1.0}};
+  auto [f, df] = abs(x).eval();
+  ASSERT_DOUBLE_EQ(f, 2.0);
+  ASSERT_DOUBLE_EQ(df, -1.0);
+}
+
+// ===========================================================================
 // Concept satisfaction (static_assert — compile-time contract tests)
 // ===========================================================================
 

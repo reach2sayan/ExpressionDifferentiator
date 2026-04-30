@@ -54,6 +54,23 @@ template <typename T>
 concept ExpressionConcept = is_expression_type<std::remove_cvref_t<T>>::value;
 
 // ===========================================================================
+// EvalResult<T> — a pre-computed value that satisfies ExpressionConcept so
+// it can be passed to Op::eval without those impls needing modification.
+// eval_seeded uses this to inject seeded values into one recursive pass
+// without calling update() + eval() separately.
+// ===========================================================================
+template <Numeric T>
+struct EvalResult {
+    using value_type = T;
+    T value;
+    [[nodiscard]] constexpr T eval() const { return value; }
+    constexpr operator T() const { return value; }
+};
+
+template <Numeric T>
+struct is_expression_type<EvalResult<T>> : std::true_type {};
+
+// ===========================================================================
 // BaseExpression: injects value_type from the Op into derived classes.
 // ===========================================================================
 template <AnOp Op> struct BaseExpression {
@@ -106,6 +123,12 @@ public:
   }
   constexpr operator value_type() const { return eval(); }
   [[nodiscard]] constexpr auto eval() const { return Op::eval(expression); }
+
+  template <typename Syms, std::size_t N>
+  [[nodiscard]] constexpr auto eval_seeded(const std::array<value_type, N> &vals) const {
+    return Op::eval(EvalResult<value_type>{expression.template eval_seeded<Syms>(vals)});
+  }
+
   constexpr void update(const auto &symbols, const auto &updates) {
     expression.update(symbols, updates);
   }
@@ -159,6 +182,14 @@ public:
     return std::apply([](const auto &...e) { return Op::derivative(e...); },
                       inner_expressions);
   }
+
+  template <typename Syms, std::size_t N>
+  [[nodiscard]] constexpr auto eval_seeded(const std::array<value_type, N> &vals) const {
+    return Op::eval(
+        EvalResult<value_type>{inner_expressions.first.template eval_seeded<Syms>(vals)},
+        EvalResult<value_type>{inner_expressions.second.template eval_seeded<Syms>(vals)});
+  }
+
   constexpr void update(const auto &symbols, const auto &updates) {
     std::apply([&](auto &...e) { (e.update(symbols, updates), ...); },
                inner_expressions);

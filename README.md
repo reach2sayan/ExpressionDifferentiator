@@ -42,7 +42,7 @@ cmake --build build --target benchmarks
 ./build/benchmarks
 ```
 
-See [BENCHMARKS.md](BENCHMARKS.md) for the full suite description, snapshots, and notes on what was tried.
+See [BENCHMARKS.md](benchmarks/BENCHMARKS.md) for the full suite description, snapshots, and notes on what was tried.
 
 ## Main types
 

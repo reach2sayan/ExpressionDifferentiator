@@ -63,6 +63,50 @@ public:
     const T e = exp(d.val);
     return Dual{e, e * d.deriv};
   }
+  [[nodiscard]] friend constexpr Dual tan(const Dual &d) {
+    using std::tan, std::cos;
+    const T c = cos(d.val);
+    return Dual{tan(d.val), d.deriv / (c * c)};
+  }
+  [[nodiscard]] friend constexpr Dual log(const Dual &d) {
+    using std::log;
+    return Dual{log(d.val), d.deriv / d.val};
+  }
+  [[nodiscard]] friend constexpr Dual sqrt(const Dual &d) {
+    using std::sqrt;
+    const T s = sqrt(d.val);
+    return Dual{s, d.deriv / (T{2} * s)};
+  }
+  [[nodiscard]] friend constexpr Dual abs(const Dual &d) {
+    using std::abs;
+    const T sign = d.val > T{} ? T{1} : d.val < T{} ? T{-1} : T{};
+    return Dual{abs(d.val), sign * d.deriv};
+  }
+  [[nodiscard]] friend constexpr Dual asin(const Dual &d) {
+    using std::asin, std::sqrt;
+    return Dual{asin(d.val), d.deriv / sqrt(T{1} - d.val * d.val)};
+  }
+  [[nodiscard]] friend constexpr Dual acos(const Dual &d) {
+    using std::acos, std::sqrt;
+    return Dual{acos(d.val), -d.deriv / sqrt(T{1} - d.val * d.val)};
+  }
+  [[nodiscard]] friend constexpr Dual atan(const Dual &d) {
+    using std::atan;
+    return Dual{atan(d.val), d.deriv / (T{1} + d.val * d.val)};
+  }
+  [[nodiscard]] friend constexpr Dual sinh(const Dual &d) {
+    using std::sinh, std::cosh;
+    return Dual{sinh(d.val), cosh(d.val) * d.deriv};
+  }
+  [[nodiscard]] friend constexpr Dual cosh(const Dual &d) {
+    using std::sinh, std::cosh;
+    return Dual{cosh(d.val), sinh(d.val) * d.deriv};
+  }
+  [[nodiscard]] friend constexpr Dual tanh(const Dual &d) {
+    using std::tanh, std::cosh;
+    const T c = cosh(d.val);
+    return Dual{tanh(d.val), d.deriv / (c * c)};
+  }
 };
 
 static_assert(Numeric<Dual<double>>);

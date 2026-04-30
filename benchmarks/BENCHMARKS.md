@@ -28,7 +28,7 @@ PowerShell:
 ```
 
 A manual GitHub Actions workflow at
-[.github/workflows/benchmark-manual.yml](.github/workflows/benchmark-manual.yml)
+[.github/workflows/benchmark-manual.yml](../.github/workflows/benchmark-manual.yml)
 builds on Ubuntu and Windows, exports JSON, and uploads results as artifacts.
 
 ---
