@@ -495,3 +495,4 @@ build/
 /cmake-build-debug/
 /cmake-build-release/
 /build-win
+/cmake-build-clang/*
