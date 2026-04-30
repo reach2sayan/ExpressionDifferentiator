@@ -14,6 +14,7 @@ private:
 public:
   constexpr Dual() = default;
   constexpr explicit Dual(T v, T d = T{}) : val(v), deriv(d) {}
+
   constexpr Dual operator+(const Dual &o) const {
     return Dual{val + o.val, deriv + o.deriv};
   }
@@ -26,6 +27,10 @@ public:
   constexpr Dual operator/(const Dual &o) const {
     return Dual{val / o.val, (deriv * o.val - val * o.deriv) / (o.val * o.val)};
   }
+  constexpr Dual &operator+=(const Dual &o) { val += o.val; deriv += o.deriv; return *this; }
+  constexpr Dual &operator-=(const Dual &o) { val -= o.val; deriv -= o.deriv; return *this; }
+  constexpr Dual &operator*=(const Dual &o) { *this = *this * o; return *this; }
+  constexpr Dual &operator/=(const Dual &o) { *this = *this / o; return *this; }
   constexpr Dual operator-() const { return Dual{-val, -deriv}; }
   constexpr Dual &operator++() {
     ++val;
@@ -63,21 +68,25 @@ public:
 static_assert(Numeric<Dual<double>>);
 static_assert(Numeric<Dual<float>>);
 
-template <typename T> struct is_dual : std::false_type {};
-template <typename T> struct is_dual<Dual<T>> : std::true_type {};
-template <typename T> inline constexpr bool is_dual_v = is_dual<T>::value;
+namespace {
+template <typename T> T dual_scalar_impl(T &&);
+template <typename T> T dual_scalar_impl(Dual<T> &&);
+template <typename T> consteval bool is_dual_impl(std::type_identity<T>) {
+  return false;
+}
+template <typename T> consteval bool is_dual_impl(std::type_identity<Dual<T>>) {
+  return true;
+}
+} // namespace
 
-template <typename T> struct dual_scalar {
-  using type = T;
-};
-template <typename T> struct dual_scalar<Dual<T>> {
-  using type = T;
-};
-template <typename T> using dual_scalar_t = typename dual_scalar<T>::type;
+template <typename T>
+inline constexpr bool is_dual_v = is_dual_impl(std::type_identity<T>{});
+
+template <typename T>
+using dual_scalar_t = decltype(dual_scalar_impl(std::declval<T>()));
 
 template <typename T>
 struct std::tuple_size<Dual<T>> : std::integral_constant<std::size_t, 2> {};
 template <typename T, std::size_t N> struct std::tuple_element<N, Dual<T>> {
   using type = T;
 };
-

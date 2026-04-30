@@ -247,8 +247,6 @@ static void BM_Symbolic_Batched_F4(benchmark::State &state) {
   auto expr0 =
       (x0 + y0) * (z0 - w0) + exp(x0 * z0) + sin(y0 * w0) + x0 * y0 * z0 * w0;
   using equation_type = Equation<decltype(expr0)>;
-  using symbols = typename equation_type::symbols;
-
   std::vector<equation_type> equations;
   equations.reserve(count);
   for (std::size_t i = 0; i < count; ++i) {
@@ -358,5 +356,71 @@ static void BM_Forward_Batched_F4(benchmark::State &state) {
   state.counters["object_bytes"] = static_cast<double>(sizeof(expr_type));
 }
 BENCHMARK(BM_Forward_Batched_F4)->Arg(256)->Arg(1024)->Arg(4096);
+
+// ===========================================================================
+// Dual-variable reverse mode (PDV path)
+// ===========================================================================
+
+static void BM_Reverse_Dual_F1_Univariate(benchmark::State &state) {
+  auto x = PDV(1.25, 'x');
+  auto expr = exp(x) * sin(x) + x * x * x + 2.0 * x;
+  run_reverse(state, expr);
+}
+BENCHMARK(BM_Reverse_Dual_F1_Univariate);
+
+static void BM_Reverse_Dual_F2_Bivariate(benchmark::State &state) {
+  auto x = PDV(1.3, 'x');
+  auto y = PDV(0.7, 'y');
+  auto expr = x * y + sin(x) + y * y + exp(x + y);
+  run_reverse(state, expr);
+}
+BENCHMARK(BM_Reverse_Dual_F2_Bivariate);
+
+static void BM_Reverse_Dual_F4_FourVariables(benchmark::State &state) {
+  auto x = PDV(1.0, 'x');
+  auto y = PDV(0.5, 'y');
+  auto z = PDV(1.7, 'z');
+  auto w = PDV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto expr = (x + y) * (z - w) + exp(x * z) + sin(y * w) + x * y * z * w;
+  run_reverse(state, expr);
+}
+BENCHMARK(BM_Reverse_Dual_F4_FourVariables);
+
+static void BM_Reverse_Dual_Batched_F4(benchmark::State &state) {
+  const auto count = static_cast<std::size_t>(state.range(0));
+
+  auto x0 = PDV(1.0, 'x');
+  auto y0 = PDV(0.5, 'y');
+  auto z0 = PDV(1.7, 'z');
+  auto w0 = PDV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto expr0 = (x0 + y0) * (z0 - w0) + exp(x0 * z0) + sin(y0 * w0) + x0 * y0 * z0 * w0;
+  using expr_type = decltype(expr0);
+
+  std::vector<expr_type> expressions;
+  expressions.reserve(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    auto x = PDV(1.0 + 0.001 * i, 'x');
+    auto y = PDV(0.5 + 0.001 * i, 'y');
+    auto z = PDV(1.7 + 0.001 * i, 'z');
+    auto w = PDV(std::numbers::pi_v<double> / 6.0 + 0.001 * i, 'w');
+    expressions.emplace_back(
+        (x + y) * (z - w) + exp(x * z) + sin(y * w) + x * y * z * w);
+  }
+
+  for (auto _ : state) {
+    double sink = 0.0;
+    for (const auto &expr : expressions) {
+      auto grads = reverse_mode_gradient(expr);
+      sink += grads[0];
+    }
+    benchmark::DoNotOptimize(sink);
+    benchmark::ClobberMemory();
+  }
+
+  state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(count));
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(count * sizeof(expr_type)));
+  state.counters["object_bytes"] = static_cast<double>(sizeof(expr_type));
+}
+BENCHMARK(BM_Reverse_Dual_Batched_F4)->Arg(256)->Arg(1024)->Arg(4096);
 
 BENCHMARK_MAIN();

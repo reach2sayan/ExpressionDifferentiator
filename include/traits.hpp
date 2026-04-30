@@ -175,21 +175,12 @@ using ic_less = boost::mp11::mp_bool<(A::value < B::value)>;
 template <typename List>
 using sort_tuple_t = boost::mp11::mp_sort<List, ic_less>;
 
-// Deduplicate a *sorted* mp_list (removes consecutive equal types).
-template <typename List> using unique_tuple_t = boost::mp11::mp_unique<List>;
-
-// mp_bool — true iff T appears in List.
-template <typename T, typename List>
-using tuple_contains = boost::mp11::mp_contains<List, T>;
+template <typename List>
+using unique_tuple_t = boost::mp11::mp_unique<sort_tuple_t<List>>;
 
 // Sorted set-union of any number of mp_lists.
 template <typename... Lists>
-using tuple_union_t = boost::mp11::mp_unique<
-    boost::mp11::mp_sort<boost::mp11::mp_append<Lists...>, ic_less>>;
-
-// Elements of L1 that are not in L2.
-template <typename L1, typename L2>
-using tuple_difference_t = boost::mp11::mp_set_difference<L1, L2>;
+using tuple_union_t = unique_tuple_t<boost::mp11::mp_append<Lists...>>;
 
 // ===========================================================================
 // Extract the set of Variable symbols from an expression type.
@@ -212,20 +203,16 @@ template <typename T> struct extract_symbols_from_expr {
   using type = extract_variable_symbols_t<T>;
 };
 
-template <typename Op, typename LHS, typename RHS>
-struct extract_symbols_from_expr<Expression<Op, LHS, RHS>> {
-  using left = typename extract_symbols_from_expr<LHS>::type;
-  using right = typename extract_symbols_from_expr<RHS>::type;
-  using type = boost::mp11::mp_unique<
-      boost::mp11::mp_sort<boost::mp11::mp_append<left, right>, ic_less>>;
+template <typename Op, typename... Exprs>
+struct extract_symbols_from_expr<Expression<Op, Exprs...>> {
+  static_assert(sizeof...(Exprs) > 0);
+  using type = tuple_union_t<typename extract_symbols_from_expr<Exprs>::type...>;
 };
 
 template <typename Op, typename Expr>
 struct extract_symbols_from_expr<MonoExpression<Op, Expr>> {
-  using inner = typename extract_symbols_from_expr<Expr>::type;
-  using type = boost::mp11::mp_unique<boost::mp11::mp_sort<inner, ic_less>>;
+  using type = typename extract_symbols_from_expr<Expr>::type;
 };
-
 // ===========================================================================
 // idx<N>(): consteval replacement for the IDX macro.
 //   Old:  eq[IDX(1)]

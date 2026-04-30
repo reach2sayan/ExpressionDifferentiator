@@ -29,7 +29,7 @@ template <typename T, typename func, char symbol>
   requires cunary_op<func, T>
 struct UnaryOp : Op<T, OpType::Unary> {
   using value_type = Op<T, OpType::Unary>::value_type;
-  static void print(std::ostream &out, const SymbolicExpr auto &lhs) {
+  static void print(std::ostream &out, const ExpressionConcept auto &lhs) {
     out << symbol << lhs;
   }
   [[nodiscard]] constexpr static auto
@@ -42,8 +42,8 @@ template <typename T, typename func, char symbol>
   requires cbinary_op<func, T>
 struct BinaryOp : Op<T, OpType::Binary> {
   using value_type = Op<T, OpType::Binary>::value_type;
-  static void print(std::ostream &out, const SymbolicExpr auto &lhs,
-                    const SymbolicExpr auto &rhs) {
+  static void print(std::ostream &out, const ExpressionConcept auto &lhs,
+                    const ExpressionConcept auto &rhs) {
     out << lhs << symbol << rhs;
   }
   [[nodiscard]] constexpr static auto
@@ -115,12 +115,22 @@ template <typename T> struct DivideOp : BinaryOp<T, std::divides<T>, '/'> {
   }
 };
 
-template <typename T>
-struct SineOp : UnaryOp<T, decltype([](const T &a) -> T {
-                          using std::sin;
-                          return sin(a);
-                        }),
-                        '$'> {
+namespace detail {
+template <typename T> struct sine_impl {
+  T operator()(const T &a) const {
+    using std::sin;
+    return sin(a);
+  }
+};
+template <typename T> struct cosine_impl {
+  T operator()(const T &a) const {
+    using std::cos;
+    return cos(a);
+  }
+};
+} // namespace detail
+
+template <typename T> struct SineOp : UnaryOp<T, detail::sine_impl<T>, '$'> {
   template <typename Expr>
   [[nodiscard]] constexpr static auto derivative(const Expr &lhs);
   // ā += w̄·cos(a)
@@ -132,11 +142,7 @@ struct SineOp : UnaryOp<T, decltype([](const T &a) -> T {
 };
 
 template <typename T>
-struct CosineOp : UnaryOp<T, decltype([](const T &a) -> T {
-                            using std::cos;
-                            return cos(a);
-                          }),
-                          '['> {
+struct CosineOp : UnaryOp<T, detail::cosine_impl<T>, '['> {
   template <typename Expr>
   [[nodiscard]] constexpr static auto derivative(const Expr &lhs);
   // ā += -w̄·sin(a)
@@ -159,12 +165,16 @@ constexpr auto SineOp<T>::derivative(const Expr &expr) {
   return cos(expr) * expr.derivative();
 }
 
-template <typename T>
-struct ExpOp : UnaryOp<T, decltype([](const T &a) -> T {
-                         using std::exp;
-                         return exp(a);
-                       }),
-                       'e'> {
+namespace detail {
+template <typename T> struct exp_impl {
+  T operator()(const T &a) const {
+    using std::exp;
+    return exp(a);
+  }
+};
+} // namespace detail
+
+template <typename T> struct ExpOp : UnaryOp<T, detail::exp_impl<T>, 'e'> {
   template <typename Expr>
   [[nodiscard]] constexpr static auto derivative(const Expr &lhs) {
     return MonoExpression<ExpOp<T>, Expr>{lhs} * lhs.derivative();

@@ -26,7 +26,7 @@ int main() {
   // f(x, y) = (x + y,  x * y)
   auto vx2 = PV(3.0, 'x');
   auto vy2 = PV(4.0, 'y');
-  auto ve = VectorEquation(vx2 + vy2, vx2 * vy2);
+  auto ve = VectorEquation(vx2 + vy2, vx2 * 3*vy2*2 + 1);
   std::cout << "\n--- VectorEquation f(x,y) = (x+y, x*y) at (3, 4) ---\n";
   std::cout << ve;
 

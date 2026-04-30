@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(DIFF_BUILD_BENCHMARKS "Build Google Benchmark benchmarks" ON)
+option(DIFF_BUILD_TIMING    "Emit per-TU compile-time traces (Clang: -ftime-trace, GCC: -ftime-report)" OFF)
 
 find_package(Boost 1.74 CONFIG QUIET)
 
@@ -54,6 +55,7 @@ add_library(diff INTERFACE
         ${CMAKE_SOURCE_DIR}/include/equation.hpp
         ${CMAKE_SOURCE_DIR}/include/dual.hpp
         ${CMAKE_SOURCE_DIR}/include/gradient.hpp
+        ${CMAKE_SOURCE_DIR}/include/expression_differentiator.hpp
 )
 target_include_directories(diff INTERFACE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(diff INTERFACE Boost::headers)
@@ -103,5 +105,26 @@ else ()
     target_compile_options(tests PRIVATE -Wall -Wpedantic -Wfatal-errors -Wextra)
     if(DIFF_BUILD_BENCHMARKS)
         target_compile_options(benchmarks PRIVATE -Wall -Wpedantic -Wfatal-errors -Wextra)
+    endif()
+
+    if(DIFF_BUILD_TIMING)
+        set(_timing_targets main tests)
+        if(DIFF_BUILD_BENCHMARKS)
+            list(APPEND _timing_targets benchmarks)
+        endif()
+
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            set(TIMING_TRACE_DIR "${CMAKE_BINARY_DIR}/ftime-traces")
+            file(MAKE_DIRECTORY "${TIMING_TRACE_DIR}")
+            foreach(_t IN LISTS _timing_targets)
+                target_compile_options(${_t} PRIVATE
+                    "-ftime-trace=${TIMING_TRACE_DIR}")
+            endforeach()
+        else()
+            foreach(_t IN LISTS _timing_targets)
+                target_compile_options(${_t} PRIVATE -ftime-report)
+            endforeach()
+        endif()
+        message(STATUS "DIFF_BUILD_TIMING ON — traces → ${TIMING_TRACE_DIR}")
     endif()
 endif ()

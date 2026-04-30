@@ -182,13 +182,11 @@ public:
   // component. Best suited to vector-valued functions with relatively few
   // outputs.
   [[nodiscard]] constexpr auto eval_jacobian_reverse() const {
-    auto rows = std::apply(
-        [](const auto &...exprs) {
-          return std::array<std::array<value_type, input_dim>, output_dim>{
-              reverse_mode_gradient(exprs)...};
-        },
-        expressions);
-    return rows;
+    std::array<std::array<value_type, input_dim>, output_dim> J{};
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+      (..., (std::get<Is>(expressions).backward(symbols{}, value_type{1}, J[Is])));
+    }(std::make_index_sequence<output_dim>{});
+    return J;
   }
 
   // Forward-mode Jacobian: one seeded pass per input variable.

@@ -25,14 +25,6 @@ template <typename O>
 concept AnOp =
     requires { typename O::value_type; } && Numeric<typename O::value_type>;
 
-/// SymbolicExpr: structural concept satisfied by any expression-tree node.
-template <typename E>
-concept SymbolicExpr = requires(const E e) {
-  typename E::value_type;
-  { static_cast<typename E::value_type>(e) };
-  { e.derivative() };
-};
-
 // ===========================================================================
 // Forward declarations (Op constrained; LHS/RHS/Exp left open so raw scalars
 // can still be passed directly to factory functions in existing tests).
