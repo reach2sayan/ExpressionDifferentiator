@@ -517,6 +517,45 @@ TEST(VectorEquationTest, ReverseJacobianAgreesWithSymbolic) {
       ASSERT_DOUBLE_EQ(J_rev[i][j], J_sym[i][j]);
 }
 
+TEST(VectorEquationTest, ParallelReverseJacobian_FourOutputs) {
+  // f: ℝ³ → ℝ⁴ — four async tasks, verifies no data race across rows
+  auto x = PV(1.0, 'x');
+  auto y = PV(2.0, 'y');
+  auto z = PV(3.0, 'z');
+  auto ve = VectorEquation(x * y, y * z, x * z, x * y * z);
+  static_assert(decltype(ve)::output_dim == 4);
+  static_assert(decltype(ve)::input_dim  == 3);
+
+  auto J_sym = ve.eval_jacobian();
+  auto J_rev = ve.eval_jacobian_reverse();
+
+  for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
+    for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
+      ASSERT_DOUBLE_EQ(J_rev[i][j], J_sym[i][j]);
+}
+
+TEST(VectorEquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
+  // f: ℝ³ → ℝ⁵ — heavier expressions across more rows
+  auto x = PV(0.5, 'x');
+  auto y = PV(1.0, 'y');
+  auto z = PV(1.5, 'z');
+  auto ve = VectorEquation(
+      sin(x) * cos(y),
+      exp(x + y),
+      x * y + y * z,
+      cos(z) * sin(x),
+      exp(x * z) + y * y);
+  static_assert(decltype(ve)::output_dim == 5);
+  static_assert(decltype(ve)::input_dim  == 3);
+
+  auto J_sym = ve.eval_jacobian();
+  auto J_rev = ve.eval_jacobian_reverse();
+
+  for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
+    for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
+      ASSERT_NEAR(J_rev[i][j], J_sym[i][j], 1e-12);
+}
+
 TEST(VectorEquationTest, ReverseJacobianSingleOutputMatchesGradient) {
   auto x = PV(2.0, 'x');
   auto y = PV(5.0, 'y');

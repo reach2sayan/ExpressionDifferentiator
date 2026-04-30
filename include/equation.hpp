@@ -178,9 +178,7 @@ public:
         std::move(rows));
   }
 
-  // Reverse-mode Jacobian: one reverse-mode gradient pass per output
-  // component. Best suited to vector-valued functions with relatively few
-  // outputs.
+  // Reverse-mode Jacobian: one reverse-mode gradient pass per output component.
   [[nodiscard]] constexpr auto eval_jacobian_reverse() const {
     std::array<std::array<value_type, input_dim>, output_dim> J{};
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {

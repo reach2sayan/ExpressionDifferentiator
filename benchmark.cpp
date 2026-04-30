@@ -211,6 +211,115 @@ static void BM_Reverse_Vector_F4(benchmark::State &state) {
 }
 BENCHMARK(BM_Reverse_Vector_F4);
 
+// ===========================================================================
+// Parallel reverse-mode Jacobian — breakeven sweep (output_dim 2 / 4 / 6)
+// Each row is  f_i(x,y,z,w) = exp(x*z) + sin(y*w) + x*y*z*w.
+// Compare BM_Symbolic_Vector_F4 (2 rows) vs these to see thread-spawn overhead
+// vs parallelism payoff as output_dim grows.
+// ===========================================================================
+
+static void BM_Reverse_Parallel_2Rows(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
+  auto ve = VectorEquation(f(), f());
+  run_reverse_jacobian(state, ve);
+}
+BENCHMARK(BM_Reverse_Parallel_2Rows);
+
+static void BM_Symbolic_Parallel_2Rows(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
+  auto ve = VectorEquation(f(), f());
+  run_symbolic_jacobian(state, ve);
+}
+BENCHMARK(BM_Symbolic_Parallel_2Rows);
+
+static void BM_Reverse_Parallel_4Rows(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
+  auto ve = VectorEquation(f(), f(), f(), f());
+  run_reverse_jacobian(state, ve);
+}
+BENCHMARK(BM_Reverse_Parallel_4Rows);
+
+static void BM_Symbolic_Parallel_4Rows(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
+  auto ve = VectorEquation(f(), f(), f(), f());
+  run_symbolic_jacobian(state, ve);
+}
+BENCHMARK(BM_Symbolic_Parallel_4Rows);
+
+static void BM_Reverse_Parallel_6Rows(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
+  auto ve = VectorEquation(f(), f(), f(), f(), f(), f());
+  run_reverse_jacobian(state, ve);
+}
+BENCHMARK(BM_Reverse_Parallel_6Rows);
+
+static void BM_Symbolic_Parallel_6Rows(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
+  auto ve = VectorEquation(f(), f(), f(), f(), f(), f());
+  run_symbolic_jacobian(state, ve);
+}
+BENCHMARK(BM_Symbolic_Parallel_6Rows);
+
+// ===========================================================================
+// Parallel reverse — large heterogeneous system  f: ℝ⁴ → ℝ⁵
+// Mix of trig, exp, and polynomial rows to stress the parallel path with
+// diverse per-row work.
+// ===========================================================================
+
+static void BM_Reverse_Parallel_Large(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto ve = VectorEquation(
+      x * y + exp(z),
+      sin(x) * cos(y) + z * w,
+      exp(x + y) + z * z,
+      x * z * w + sin(y),
+      cos(x * y) + exp(z + w));
+  run_reverse_jacobian(state, ve);
+}
+BENCHMARK(BM_Reverse_Parallel_Large);
+
+static void BM_Symbolic_Parallel_Large(benchmark::State &state) {
+  auto x = PV(1.0, 'x');
+  auto y = PV(0.5, 'y');
+  auto z = PV(1.7, 'z');
+  auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
+  auto ve = VectorEquation(
+      x * y + exp(z),
+      sin(x) * cos(y) + z * w,
+      exp(x + y) + z * z,
+      x * z * w + sin(y),
+      cos(x * y) + exp(z + w));
+  run_symbolic_jacobian(state, ve);
+}
+BENCHMARK(BM_Symbolic_Parallel_Large);
+
 static void BM_Footprint_F4(benchmark::State &state) {
   auto xs = PV(1.0, 'x');
   auto ys = PV(0.5, 'y');
