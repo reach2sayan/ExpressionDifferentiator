@@ -37,120 +37,12 @@ On Windows, the GitHub workflow builds with MSVC and vcpkg-provided Boost header
 Google Benchmark support is built by default through the `benchmarks` target.
 
 ```sh
-cmake -S . -B build
-cmake --build build --config Release --target benchmarks
-./build/Release/benchmarks --benchmark_min_time=0.05s
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target benchmarks
+./build/benchmarks
 ```
 
-You can also export machine-readable JSON with the custom CMake target:
-
-```sh
-cmake --build build --config Release --target benchmark_json
-```
-
-This writes `benchmark-results/benchmarks.json` inside the build directory.
-
-PowerShell users should quote regex filters:
-
-```powershell
-.\build-win\Release\benchmarks.exe "--benchmark_filter=F1|F2|F3|F4" --benchmark_min_time=0.05s
-```
-
-A manual GitHub Actions workflow is available at
-[.github/workflows/benchmark-manual.yml](C:/Users/sayan.samanta/source/repos/Expression_Differentiator/.github/workflows/benchmark-manual.yml).
-It builds the benchmark target on Ubuntu and Windows, exports JSON, captures console output, and uploads the results as workflow artifacts.
-
-The benchmark suite compares three ways of computing a full gradient for the same scalar function:
-
-- symbolic partials via `Equation(...).eval_derivatives()`
-- forward mode via `Dual<T>` with one seeded pass per input
-- reverse mode via `reverse_mode_gradient(expr)`
-
-The current suite uses four functions:
-
-- `F1(x) = exp(x) * sin(x) + x^3 + 2x`
-- `F2(x, y) = xy + sin(x) + y^2 + exp(x + y)`
-- `F3(x, y, z) = exp(xy) + x sin(z) + yz + x^2 z`
-- `F4(x, y, z, w) = (x + y)(z - w) + exp(xz) + sin(yw) + xyzw`
-
-Current Release snapshot on this Windows machine:
-
-| Function | Symbolic | Forward | Reverse |
-|---|---:|---:|---:|
-| `F1` | 12.6 ns | 10.3 ns | 9.63 ns |
-| `F2` | 12.6 ns | 14.6 ns | 6.00 ns |
-| `F3` | 22.0 ns | 24.0 ns | 7.50 ns |
-| `F4` | 23.0 ns | 39.2 ns | 5.44 ns |
-
-In this snapshot, reverse mode is fastest on all four benchmarked functions. Treat these numbers as machine- and compiler-dependent measurements rather than fixed library-wide conclusions.
-
-### Vector Jacobian benchmark slice
-
-There is also a vector-valued benchmark for a 2-output, 4-input function:
-
-- symbolic Jacobian via `VectorEquation::eval_jacobian()`
-- forward Jacobian via `VectorEquation::eval_jacobian_forward(...)`
-- reverse Jacobian via `VectorEquation::eval_jacobian_reverse()`
-
-```powershell
-.\build-win\Release\benchmarks.exe "--benchmark_filter=.*Vector.*" --benchmark_min_time=0.05s
-```
-
-Current Release snapshot on this Windows machine:
-
-| Benchmark | Time |
-|---|---:|
-| symbolic vector Jacobian | 27.9 ns |
-| forward vector Jacobian | 140 ns |
-| reverse vector Jacobian | 6.25 ns |
-
-### Memory-oriented benchmark slice
-
-There is also a small memory-focused benchmark slice that looks at object footprint and batched evaluation throughput for the 4-variable function `F4`.
-
-```powershell
-.\build-win\Release\benchmarks.exe "--benchmark_filter=.*(Footprint|Batched).*" --benchmark_min_time=0.05s
-```
-
-Current snapshot on this machine:
-
-- symbolic expression object: `96 B`
-- reverse expression object: `96 B`
-- forward expression object: `192 B`
-- symbolic `Equation` object: `1152 B`
-- dual value: `16 B`
-
-For a batched working set of `F4` objects, the current throughput numbers suggest:
-
-- reverse mode has the best per-item throughput
-- symbolic `Equation` objects are much larger
-- forward mode pays both a larger object cost than plain symbolic expressions and a multi-pass gradient cost
-
-Latest `F4` batched throughput snapshot:
-
-- symbolic: `169.9M/s` at `256`, `139.8M/s` at `1024`, `118.6M/s` at `4096`
-- reverse: `656.5M/s` at `256`, `317.8M/s` at `1024`, `261.0M/s` at `4096`
-- forward: `25.5M/s` at `256`, `26.1M/s` at `1024`, `25.5M/s` at `4096`
-
-This is not a direct hardware cache-miss measurement, but it is a practical proxy for locality and working-set pressure.
-
-### Hardware counter measurements
-
-If you want real cache-related counters, run the benchmark binary under `perf stat` on Linux:
-
-```sh
-perf stat -e cache-references,cache-misses,cycles,instructions \
-  ./build/benchmarks --benchmark_filter='.*(Footprint|Batched).*' --benchmark_min_time=0.1s
-```
-
-For a more memory-focused view, you can also try:
-
-```sh
-perf stat -e LLC-loads,LLC-load-misses,L1-dcache-loads,L1-dcache-load-misses \
-  ./build/benchmarks --benchmark_filter='.*Batched.*' --benchmark_min_time=0.1s
-```
-
-That gives you direct miss/load counters to compare symbolic, forward, and reverse mode under the same workload.
+See [BENCHMARKS.md](BENCHMARKS.md) for the full suite description, snapshots, and notes on what was tried.
 
 ## Main types
 
