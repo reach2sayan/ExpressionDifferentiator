@@ -5,6 +5,7 @@
 #include "operations.hpp"
 #include "traits.hpp"
 
+#include <Eigen/Dense>
 #include <boost/mp11/algorithm.hpp>
 #include <concepts>
 #include <tuple>
@@ -12,20 +13,35 @@ namespace mp = boost::mp11;
 
 namespace detail {
 struct eval_func_t {
-  template <class... Exprs>
-  constexpr auto operator()(const Exprs &...exprs) const {
+  constexpr auto operator()(const auto &...exprs) const {
     return std::array{exprs.eval()...};
-  }
-};
-template <class Syms, class Updates> struct update_func_t {
-  const Syms &syms;
-  const Updates &updates;
-  constexpr auto operator()(auto &...ds) const {
-    (ds.update(syms, updates), ...);
   }
 };
 
 inline constexpr eval_func_t eval_func{};
+
+// Recursive helpers — no fold/pack expansions, so clang's -Wnon-pod-varargs
+// false positive (triggered when non-trivial types flow through any `...`)
+// is avoided entirely.
+template <std::size_t I, std::size_t N, typename Tuple, typename Syms,
+          typename Updates>
+constexpr void update_tuple(Tuple &tup, const Syms &syms,
+                             const Updates &updates) {
+  if constexpr (I < N) {
+    std::get<I>(tup).update(syms, updates);
+    update_tuple<I + 1, N>(tup, syms, updates);
+  }
+}
+
+template <std::size_t I, std::size_t N, std::size_t M, typename Jacobian,
+          typename Syms, typename Updates>
+constexpr void update_jacobian(Jacobian &jac, const Syms &syms,
+                                const Updates &updates) {
+  if constexpr (I < N) {
+    update_tuple<0, M>(std::get<I>(jac), syms, updates);
+    update_jacobian<I + 1, N, M>(jac, syms, updates);
+  }
+}
 } // namespace detail
 
 // Pretty-print a std::tuple of expressions, one per line.
@@ -57,7 +73,11 @@ constexpr auto make_derivatives(mp::mp_list<Syms...>, const Expr &expr) {
 template <typename T>
 concept EquationConcept = ExpressionConcept<T> and std::constructible_from<T>;
 
-template <ExpressionConcept TExpression> class Equation {
+template <ExpressionConcept... Ts>
+class Equation;
+
+template <ExpressionConcept TExpression>
+class Equation<TExpression> {
   TExpression expression;
 
 public:
@@ -78,8 +98,6 @@ public:
       std::tuple_size_v<derivatives_t>;
   constexpr operator value_type() const { return expression.eval(); }
 
-  // operator[IDX(0)] returns the expression itself; IDX(k) returns the k-th
-  // partial derivative (1-based).
   template <std::size_t N>
   constexpr decltype(auto) operator[](std::integral_constant<std::size_t, N>) {
     if constexpr (N == 0) {
@@ -100,8 +118,7 @@ public:
 
   constexpr void update(const symbols &syms, const auto &updates) {
     expression.update(syms, updates);
-    auto update_func = detail::update_func_t{syms, updates};
-    std::apply(update_func, derivatives);
+    detail::update_tuple<0, number_of_derivatives>(derivatives, syms, updates);
   }
 
   [[nodiscard]] constexpr auto eval() const { return expression.eval(); }
@@ -129,16 +146,17 @@ constexpr auto make_jac_rows(const std::tuple<Exprs...> &es,
 }
 
 // ===========================================================================
-// VectorEquation — f: ℝⁿ → ℝᵐ.
+// Equation<TFirst, TRest...> — f: ℝⁿ → ℝᵐ  (sizeof...(TRest) > 0).
 // Holds one expression per output component and precomputes the full Jacobian.
 // All components must share the same value_type.
 // J[i][j] = ∂fᵢ/∂xⱼ  (row-major, output_dim × input_dim).
 // ===========================================================================
 template <ExpressionConcept TFirst, ExpressionConcept... TRest>
-  requires(
-      std::same_as<typename TFirst::value_type, typename TRest::value_type> &&
-      ...)
-class VectorEquation {
+  requires(sizeof...(TRest) > 0 &&
+           (std::same_as<typename TFirst::value_type,
+                         typename TRest::value_type> &&
+            ...))
+class Equation<TFirst, TRest...> {
 public:
   using value_type = typename TFirst::value_type;
   using symbols = sort_tuple_t<
@@ -154,7 +172,7 @@ private:
   Exprs expressions;
   jacobian_t jacobian;
 
-  friend std::ostream &operator<<(std::ostream &out, const VectorEquation &ve) {
+  friend std::ostream &operator<<(std::ostream &out, const Equation &ve) {
     static_for<output_dim>([&]<std::size_t I>() {
       out << "f" << I << ": " << std::get<I>(ve.expressions) << " grad: ";
       print_tup(out, std::get<I>(ve.jacobian));
@@ -164,7 +182,7 @@ private:
   }
 
 public:
-  constexpr VectorEquation(TFirst first, TRest... rest)
+  constexpr Equation(TFirst first, TRest... rest)
       : expressions{first, rest...},
         jacobian{make_jac_rows(expressions, symbols{})} {}
 
@@ -173,23 +191,28 @@ public:
     return std::apply(detail::eval_func, expressions);
   }
 
-  // Full Jacobian — returns std::array<std::array<value_type, input_dim>,
-  // output_dim>.
-  [[nodiscard]] constexpr auto eval_jacobian() const {
-    using row_type =
-        decltype(std::apply(detail::eval_func, std::get<0>(jacobian)));
-    std::array<row_type, output_dim> J{};
+  using jacobian_matrix_t =
+      Eigen::Matrix<value_type, output_dim, input_dim>;
+
+  // Full Jacobian — returns (output_dim × input_dim) Eigen matrix.
+  [[nodiscard]] auto eval_jacobian() const {
+    jacobian_matrix_t J;
     static_for<output_dim>([&]<std::size_t I>() {
-      J[I] = std::apply(detail::eval_func, std::get<I>(jacobian));
+      auto row = std::apply(detail::eval_func, std::get<I>(jacobian));
+      for (std::size_t j = 0; j < input_dim; ++j)
+        J(I, j) = row[j];
     });
     return J;
   }
 
   // Reverse-mode Jacobian: one reverse-mode gradient pass per output component.
-  [[nodiscard]] constexpr auto eval_jacobian_reverse() const {
-    std::array<std::array<value_type, input_dim>, output_dim> J{};
+  [[nodiscard]] auto eval_jacobian_reverse() const {
+    jacobian_matrix_t J;
     static_for<output_dim>([&]<std::size_t I>() {
-      std::get<I>(expressions).backward(symbols{}, value_type{1}, J[I]);
+      std::array<value_type, input_dim> row{};
+      std::get<I>(expressions).backward(symbols{}, value_type{1}, row);
+      for (std::size_t j = 0; j < input_dim; ++j)
+        J(I, j) = row[j];
     });
     return J;
   }
@@ -199,41 +222,35 @@ public:
   // values: evaluation point as plain scalars (one per input variable, ordered
   //         by the sorted symbol list).
   // Returns J[i][j] = ∂fᵢ/∂xⱼ  (output_dim × input_dim).
-  [[nodiscard]] constexpr auto
-  eval_jacobian_forward(std::array<dual_scalar_t<value_type>, input_dim> values)
+  [[nodiscard]] auto
+  eval_jacobian_forward(Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
     requires is_dual_v<value_type>
   {
     using S = dual_scalar_t<value_type>;
-    std::array<std::array<S, input_dim>, output_dim> J{};
-    std::array<value_type, input_dim> seeds{};
+    Eigen::Matrix<S, output_dim, input_dim> J;
+    Eigen::Vector<value_type, input_dim> seeds;
 
     for (std::size_t j = 0; j < input_dim; ++j) {
-      for (std::size_t i = 0; i < input_dim; ++i) {
+      for (std::size_t i = 0; i < input_dim; ++i)
         seeds[i] = value_type{values[i], i == j ? S{1} : S{}};
-      }
       update(symbols{}, seeds);
       auto vals = eval();
-      for (std::size_t i = 0; i < output_dim; ++i) {
-        J[i][j] = vals[i].template get<1>();
-      }
+      for (std::size_t i = 0; i < output_dim; ++i)
+        J(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)) =
+            vals[i].template get<1>();
     }
-    // Restore zero dual parts so stored state is clean.
-    for (std::size_t i = 0; i < input_dim; ++i) {
+    for (std::size_t i = 0; i < input_dim; ++i)
       seeds[i] = value_type{values[i], S{}};
-    }
     update(symbols{}, seeds);
     return J;
   }
 
   // Update live variables in all expressions and Jacobian rows.
   constexpr void update(const symbols &syms, const auto &updates) {
-    auto update_func = detail::update_func_t{syms, updates};
-    std::apply(update_func, expressions);
-    std::apply(
-        [&](auto &...jac_rows) { (std::apply(update_func, jac_rows), ...); },
-        jacobian);
+    detail::update_tuple<0, output_dim>(expressions, syms, updates);
+    detail::update_jacobian<0, output_dim, input_dim>(jacobian, syms, updates);
   }
 };
 
 template <ExpressionConcept T, ExpressionConcept... Ts>
-VectorEquation(T, Ts...) -> VectorEquation<T, Ts...>;
+Equation(T, Ts...) -> Equation<T, Ts...>;

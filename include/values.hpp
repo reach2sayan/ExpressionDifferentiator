@@ -194,7 +194,7 @@ public:
   [[nodiscard]] constexpr auto get() const { return value; }
   constexpr operator T() const { return value; }
   [[nodiscard]] constexpr auto derivative() const { return Constant{T{}}; }
-  constexpr void update(...) const {}
+  constexpr void update(const auto &, const auto &) const {}
   constexpr void backward(const auto &, T, auto &) const {}
 
   template <typename Syms, std::size_t N>

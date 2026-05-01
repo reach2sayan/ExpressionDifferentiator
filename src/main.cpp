@@ -22,12 +22,12 @@ int main() {
   std::cout << "\ng(1.0) = sin(x)*cos(x) = " << trig.eval() << "\n";
   std::cout << "g'(1.0) = " << trig.derivative().eval() << "\n";
 
-  // --- VectorEquation: f: R^2 -> R^2 ---
+  // --- Equation: f: R^2 -> R^2 ---
   // f(x, y) = (x + y,  x * y)
   auto vx2 = PV(3.0, 'x');
   auto vy2 = PV(4.0, 'y');
-  auto ve = VectorEquation(vx2 + vy2, vx2 * 3*vy2*2 + 1);
-  std::cout << "\n--- VectorEquation f(x,y) = (x+y, x*y) at (3, 4) ---\n";
+  auto ve = Equation(vx2 + vy2, vx2 * 3*vy2*2 + 1);
+  std::cout << "\n--- Equation f(x,y) = (x+y, x*y) at (3, 4) ---\n";
   std::cout << ve;
 
   auto fval = ve.eval();
@@ -35,15 +35,15 @@ int main() {
 
   auto J = ve.eval_jacobian();
   std::cout << "Jacobian:\n";
-  std::cout << "  [df0/dx, df0/dy] = [" << J[0][0] << ", " << J[0][1] << "]\n";
-  std::cout << "  [df1/dx, df1/dy] = [" << J[1][0] << ", " << J[1][1] << "]\n";
+  std::cout << "  [df0/dx, df0/dy] = [" << J.row(0) << "]\n";
+  std::cout << "  [df1/dx, df1/dy] = [" << J.row(1) << "]\n";
 
-  // --- VectorEquation: f: R^2 -> R^3 ---
+  // --- Equation: f: R^2 -> R^3 ---
   // f(x, y) = (x*x,  sin(x)*y,  x + y*y)
   auto vx3 = PV(1.0, 'x');
   auto vy3 = PV(2.0, 'y');
-  auto ve3 = VectorEquation(vx3 * vx3, sin(vx3) * vy3, vx3 + vy3 * vy3);
-  std::cout << "\n--- VectorEquation f(x,y) = (x^2, sin(x)*y, x+y^2) at (1, 2) ---\n";
+  auto ve3 = Equation(vx3 * vx3, sin(vx3) * vy3, vx3 + vy3 * vy3);
+  std::cout << "\n--- Equation f(x,y) = (x^2, sin(x)*y, x+y^2) at (1, 2) ---\n";
   std::cout << ve3;
 
   auto fval3 = ve3.eval();
@@ -51,6 +51,5 @@ int main() {
 
   auto J3 = ve3.eval_jacobian();
   std::cout << "Jacobian:\n";
-  for (std::size_t i = 0; i < 3; ++i)
-    std::cout << "  row " << i << ": [" << J3[i][0] << ", " << J3[i][1] << "]\n";
+  std::cout << J3;
 }

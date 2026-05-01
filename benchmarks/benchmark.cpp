@@ -59,7 +59,7 @@ static void run_reverse_jacobian(benchmark::State &state, const VE &ve) {
 template <typename VE, std::size_t N>
 static void run_forward_jacobian(
     benchmark::State &state, VE &ve,
-    const std::array<dual_scalar_t<typename VE::value_type>, N> &values) {
+    const Eigen::Vector<dual_scalar_t<typename VE::value_type>, N> &values) {
   for (auto _ : state) {
     auto J = ve.eval_jacobian_forward(values);
     benchmark::DoNotOptimize(J);
@@ -178,7 +178,7 @@ static void BM_Symbolic_Vector_F4(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = VectorEquation(
+  auto ve = Equation(
       (x + y) * (z - w) + exp(x * z),
       sin(y * w) + x * y * z * w);
   run_symbolic_jacobian(state, ve);
@@ -191,11 +191,12 @@ static void BM_Forward_Vector_F4(benchmark::State &state) {
   Variable<D, 'y'> y{D{0.5}};
   Variable<D, 'z'> z{D{1.7}};
   Variable<D, 'w'> w{D{std::numbers::pi_v<double> / 6.0}};
-  auto ve = VectorEquation(
+  auto ve = Equation(
       (x + y) * (z - w) + exp(x * z),
       sin(y * w) + x * y * z * w);
-  run_forward_jacobian(state, ve,
-                       std::array{1.0, 0.5, 1.7, std::numbers::pi_v<double> / 6.0});
+  run_forward_jacobian<decltype(ve), 4>(
+      state, ve,
+      Eigen::Vector<double, 4>{1.0, 0.5, 1.7, std::numbers::pi_v<double> / 6.0});
 }
 BENCHMARK(BM_Forward_Vector_F4);
 
@@ -204,7 +205,7 @@ static void BM_Reverse_Vector_F4(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = VectorEquation(
+  auto ve = Equation(
       (x + y) * (z - w) + exp(x * z),
       sin(y * w) + x * y * z * w);
   run_reverse_jacobian(state, ve);
@@ -224,7 +225,7 @@ static void BM_Reverse_Parallel_2Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = VectorEquation(f(), f());
+  auto ve = Equation(f(), f());
   run_reverse_jacobian(state, ve);
 }
 BENCHMARK(BM_Reverse_Parallel_2Rows);
@@ -235,7 +236,7 @@ static void BM_Symbolic_Parallel_2Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = VectorEquation(f(), f());
+  auto ve = Equation(f(), f());
   run_symbolic_jacobian(state, ve);
 }
 BENCHMARK(BM_Symbolic_Parallel_2Rows);
@@ -246,7 +247,7 @@ static void BM_Reverse_Parallel_4Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = VectorEquation(f(), f(), f(), f());
+  auto ve = Equation(f(), f(), f(), f());
   run_reverse_jacobian(state, ve);
 }
 BENCHMARK(BM_Reverse_Parallel_4Rows);
@@ -257,7 +258,7 @@ static void BM_Symbolic_Parallel_4Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = VectorEquation(f(), f(), f(), f());
+  auto ve = Equation(f(), f(), f(), f());
   run_symbolic_jacobian(state, ve);
 }
 BENCHMARK(BM_Symbolic_Parallel_4Rows);
@@ -268,7 +269,7 @@ static void BM_Reverse_Parallel_6Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = VectorEquation(f(), f(), f(), f(), f(), f());
+  auto ve = Equation(f(), f(), f(), f(), f(), f());
   run_reverse_jacobian(state, ve);
 }
 BENCHMARK(BM_Reverse_Parallel_6Rows);
@@ -279,7 +280,7 @@ static void BM_Symbolic_Parallel_6Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = VectorEquation(f(), f(), f(), f(), f(), f());
+  auto ve = Equation(f(), f(), f(), f(), f(), f());
   run_symbolic_jacobian(state, ve);
 }
 BENCHMARK(BM_Symbolic_Parallel_6Rows);
@@ -295,7 +296,7 @@ static void BM_Reverse_Parallel_Large(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = VectorEquation(
+  auto ve = Equation(
       x * y + exp(z),
       sin(x) * cos(y) + z * w,
       exp(x + y) + z * z,
@@ -310,7 +311,7 @@ static void BM_Symbolic_Parallel_Large(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = VectorEquation(
+  auto ve = Equation(
       x * y + exp(z),
       sin(x) * cos(y) + z * w,
       exp(x + y) + z * z,

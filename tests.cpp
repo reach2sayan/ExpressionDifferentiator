@@ -734,120 +734,117 @@ TEST(EquationTest, NumberOfDerivatives) {
 }
 
 // ===========================================================================
-// VectorEquation — f: ℝⁿ → ℝᵐ  (Jacobian tests)
+// Equation — f: ℝⁿ → ℝᵐ  (Jacobian tests)
 // ===========================================================================
 
-TEST(VectorEquationTest, Dimensions) {
+TEST(EquationTest, Dimensions) {
   auto x = PV(1, 'x');
   auto y = PV(2, 'y');
   // f: ℝ² → ℝ²
-  using VE = VectorEquation<decltype(x + y), decltype(x * y)>;
+  using VE = Equation<decltype(x + y), decltype(x * y)>;
   static_assert(VE::output_dim == 2);
   static_assert(VE::input_dim  == 2);
 }
 
-TEST(VectorEquationTest, Eval) {
+TEST(EquationTest, Eval) {
   // f(x,y) = (x + y,  x * y)  at (3, 4)  =>  (7, 12)
   auto x = PV(3, 'x');
   auto y = PV(4, 'y');
-  auto ve = VectorEquation(x + y, x * y);
+  auto ve = Equation(x + y, x * y);
   auto v = ve.eval();
   ASSERT_EQ(v[0], 7);
   ASSERT_EQ(v[1], 12);
 }
 
-TEST(VectorEquationTest, JacobianLinear) {
+TEST(EquationTest, JacobianLinear) {
   // f(x,y) = (x + y,  x * y)  at (3, 4)
   // J = [[1, 1],
   //      [y, x]] = [[1, 1], [4, 3]]
   auto x = PV(3, 'x');
   auto y = PV(4, 'y');
-  auto ve = VectorEquation(x + y, x * y);
+  auto ve = Equation(x + y, x * y);
   auto J = ve.eval_jacobian();
-  ASSERT_EQ(J[0][0], 1);  // ∂(x+y)/∂x
-  ASSERT_EQ(J[0][1], 1);  // ∂(x+y)/∂y
-  ASSERT_EQ(J[1][0], 4);  // ∂(x*y)/∂x = y = 4
-  ASSERT_EQ(J[1][1], 3);  // ∂(x*y)/∂y = x = 3
+  ASSERT_EQ(J(0, 0), 1);  // ∂(x+y)/∂x
+  ASSERT_EQ(J(0, 1), 1);  // ∂(x+y)/∂y
+  ASSERT_EQ(J(1, 0), 4);  // ∂(x*y)/∂x = y = 4
+  ASSERT_EQ(J(1, 1), 3);  // ∂(x*y)/∂y = x = 3
 }
 
-TEST(VectorEquationTest, JacobianWithTrig) {
+TEST(EquationTest, JacobianWithTrig) {
   // f(x,y) = (x*y,  sin(x) + y*y)  at (2.0, 3.0)
   // J = [[y,      x   ],
   //      [cos(x), 2y  ]]
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
-  auto ve = VectorEquation(x * y, sin(x) + y * y);
+  auto ve = Equation(x * y, sin(x) + y * y);
   auto J = ve.eval_jacobian();
-  ASSERT_DOUBLE_EQ(J[0][0], 3.0);          // ∂(x*y)/∂x = y
-  ASSERT_DOUBLE_EQ(J[0][1], 2.0);          // ∂(x*y)/∂y = x
-  ASSERT_DOUBLE_EQ(J[1][0], std::cos(2.0)); // ∂(sin(x)+y²)/∂x
-  ASSERT_DOUBLE_EQ(J[1][1], 6.0);           // ∂(sin(x)+y²)/∂y = 2y
+  ASSERT_DOUBLE_EQ(J(0, 0), 3.0);          // ∂(x*y)/∂x = y
+  ASSERT_DOUBLE_EQ(J(0, 1), 2.0);          // ∂(x*y)/∂y = x
+  ASSERT_DOUBLE_EQ(J(1, 0), std::cos(2.0)); // ∂(sin(x)+y²)/∂x
+  ASSERT_DOUBLE_EQ(J(1, 1), 6.0);           // ∂(sin(x)+y²)/∂y = 2y
 }
 
-TEST(VectorEquationTest, SingleComponentIsGradient) {
-  // VectorEquation with one component is just the gradient of a scalar.
+TEST(EquationTest, SingleComponentIsGradient) {
+  // Scalar Equation derivatives match a 2-output Jacobian row when
+  // both components are the same expression.
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
-  auto ve = VectorEquation(x * y);           // f: ℝ² → ℝ¹
   auto eq = Equation(x * y);
-  auto J  = ve.eval_jacobian();
   auto g  = eq.eval_derivatives();
-  static_assert(decltype(ve)::output_dim == 1);
-  static_assert(decltype(ve)::input_dim  == 2);
-  ASSERT_DOUBLE_EQ(J[0][0], g[0]);          // ∂(x*y)/∂x
-  ASSERT_DOUBLE_EQ(J[0][1], g[1]);          // ∂(x*y)/∂y
+  ASSERT_DOUBLE_EQ(g[0], 3.0);          // ∂(x*y)/∂x = y
+  ASSERT_DOUBLE_EQ(g[1], 2.0);          // ∂(x*y)/∂y = x
 }
 
-TEST(VectorEquationTest, SymbolUnionAcrossComponents) {
+TEST(EquationTest, SymbolUnionAcrossComponents) {
   // f0 depends only on x,  f1 depends only on y.
   // Jacobian should be 2×2 with zeros off the diagonal.
   auto x = PV(4.0, 'x');
   auto y = PV(3.0, 'y');
-  auto ve = VectorEquation(x * x, y * y);   // (x², y²)
+  auto ve = Equation(x * x, y * y);   // (x², y²)
   static_assert(decltype(ve)::input_dim == 2);
   auto J = ve.eval_jacobian();
-  ASSERT_DOUBLE_EQ(J[0][0], 8.0);   // ∂(x²)/∂x = 2x = 8
-  ASSERT_DOUBLE_EQ(J[0][1], 0.0);   // ∂(x²)/∂y = 0
-  ASSERT_DOUBLE_EQ(J[1][0], 0.0);   // ∂(y²)/∂x = 0
-  ASSERT_DOUBLE_EQ(J[1][1], 6.0);   // ∂(y²)/∂y = 2y = 6
+  ASSERT_DOUBLE_EQ(J(0, 0), 8.0);   // ∂(x²)/∂x = 2x = 8
+  ASSERT_DOUBLE_EQ(J(0, 1), 0.0);   // ∂(x²)/∂y = 0
+  ASSERT_DOUBLE_EQ(J(1, 0), 0.0);   // ∂(y²)/∂x = 0
+  ASSERT_DOUBLE_EQ(J(1, 1), 6.0);   // ∂(y²)/∂y = 2y = 6
 }
 
-TEST(VectorEquationTest, ThreeOutputs) {
+TEST(EquationTest, ThreeOutputs) {
   // f(x,y) = (x², x*y, y²)  — Jacobian is 3×2
   auto x = PV(2.0, 'x');
   auto y = PV(5.0, 'y');
-  auto ve = VectorEquation(x * x, x * y, y * y);
+  auto ve = Equation(x * x, x * y, y * y);
   static_assert(decltype(ve)::output_dim == 3);
   static_assert(decltype(ve)::input_dim  == 2);
   auto J = ve.eval_jacobian();
-  ASSERT_DOUBLE_EQ(J[0][0], 4.0);   // 2x
-  ASSERT_DOUBLE_EQ(J[0][1], 0.0);   // 0
-  ASSERT_DOUBLE_EQ(J[1][0], 5.0);   // y
-  ASSERT_DOUBLE_EQ(J[1][1], 2.0);   // x
-  ASSERT_DOUBLE_EQ(J[2][0], 0.0);   // 0
-  ASSERT_DOUBLE_EQ(J[2][1], 10.0);  // 2y
+  ASSERT_DOUBLE_EQ(J(0, 0), 4.0);   // 2x
+  ASSERT_DOUBLE_EQ(J(0, 1), 0.0);   // 0
+  ASSERT_DOUBLE_EQ(J(1, 0), 5.0);   // y
+  ASSERT_DOUBLE_EQ(J(1, 1), 2.0);   // x
+  ASSERT_DOUBLE_EQ(J(2, 0), 0.0);   // 0
+  ASSERT_DOUBLE_EQ(J(2, 1), 10.0);  // 2y
 }
 
-TEST(VectorEquationTest, ReverseJacobianAgreesWithSymbolic) {
+TEST(EquationTest, ReverseJacobianAgreesWithSymbolic) {
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
   auto z = PV(4.0, 'z');
-  auto ve = VectorEquation(x * y, sin(x) + y * z, exp(z));
+  auto ve = Equation(x * y, sin(x) + y * z, exp(z));
 
   auto J_sym = ve.eval_jacobian();
   auto J_rev = ve.eval_jacobian_reverse();
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
-      ASSERT_DOUBLE_EQ(J_rev[i][j], J_sym[i][j]);
+      ASSERT_DOUBLE_EQ(J_rev(i, j), J_sym(i, j));
 }
 
-TEST(VectorEquationTest, ParallelReverseJacobian_FourOutputs) {
+TEST(EquationTest, ParallelReverseJacobian_FourOutputs) {
   // f: ℝ³ → ℝ⁴ — four async tasks, verifies no data race across rows
   auto x = PV(1.0, 'x');
   auto y = PV(2.0, 'y');
   auto z = PV(3.0, 'z');
-  auto ve = VectorEquation(x * y, y * z, x * z, x * y * z);
+  auto ve = Equation(x * y, y * z, x * z, x * y * z);
   static_assert(decltype(ve)::output_dim == 4);
   static_assert(decltype(ve)::input_dim  == 3);
 
@@ -856,15 +853,15 @@ TEST(VectorEquationTest, ParallelReverseJacobian_FourOutputs) {
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
-      ASSERT_DOUBLE_EQ(J_rev[i][j], J_sym[i][j]);
+      ASSERT_DOUBLE_EQ(J_rev(i, j), J_sym(i, j));
 }
 
-TEST(VectorEquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
+TEST(EquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
   // f: ℝ³ → ℝ⁵ — heavier expressions across more rows
   auto x = PV(0.5, 'x');
   auto y = PV(1.0, 'y');
   auto z = PV(1.5, 'z');
-  auto ve = VectorEquation(
+  auto ve = Equation(
       sin(x) * cos(y),
       exp(x + y),
       x * y + y * z,
@@ -878,21 +875,21 @@ TEST(VectorEquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
-      ASSERT_NEAR(J_rev[i][j], J_sym[i][j], 1e-12);
+      ASSERT_NEAR(J_rev(i, j), J_sym(i, j), 1e-12);
 }
 
-TEST(VectorEquationTest, ReverseJacobianSingleOutputMatchesGradient) {
+TEST(EquationTest, ReverseJacobianSingleOutputMatchesGradient) {
   auto x = PV(2.0, 'x');
   auto y = PV(5.0, 'y');
   auto expr = exp(x) * sin(y);
-  auto ve = VectorEquation(expr);
+  // Use a 2-component Equation so the vector specialization is selected.
+  auto ve = Equation(expr, exp(x) * sin(y));
 
   auto J_rev = ve.eval_jacobian_reverse();
   auto g = reverse_mode_gradient(expr);
 
-  static_assert(decltype(ve)::output_dim == 1);
   for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
-    ASSERT_DOUBLE_EQ(J_rev[0][j], g[j]);
+    ASSERT_DOUBLE_EQ(J_rev(0, j), g[j]);
 }
 
 // ===========================================================================
@@ -1135,84 +1132,84 @@ TEST(ReverseModeAD, ThreeVariables) {
 }
 
 // ===========================================================================
-// VectorEquation — forward-mode Jacobian via dual numbers
+// Equation — forward-mode Jacobian via dual numbers
 // ===========================================================================
 
-TEST(VectorEquationForward, TwoVariables) {
+TEST(EquationForward, TwoVariables) {
   // f(x,y) = (x*y, x+y)  at (3,4)
   // J = [[y, x], [1, 1]] = [[4, 3], [1, 1]]
   using D = Dual<double>;
   Variable<D, 'x'> x{D{3.0}};
   Variable<D, 'y'> y{D{4.0}};
-  auto ve = VectorEquation(x * y, x + y);
+  auto ve = Equation(x * y, x + y);
   auto J = ve.eval_jacobian_forward({3.0, 4.0});
-  EXPECT_DOUBLE_EQ(J[0][0], 4.0);  // ∂(x*y)/∂x = y = 4
-  EXPECT_DOUBLE_EQ(J[0][1], 3.0);  // ∂(x*y)/∂y = x = 3
-  EXPECT_DOUBLE_EQ(J[1][0], 1.0);  // ∂(x+y)/∂x
-  EXPECT_DOUBLE_EQ(J[1][1], 1.0);  // ∂(x+y)/∂y
+  EXPECT_DOUBLE_EQ(J(0, 0), 4.0);  // ∂(x*y)/∂x = y = 4
+  EXPECT_DOUBLE_EQ(J(0, 1), 3.0);  // ∂(x*y)/∂y = x = 3
+  EXPECT_DOUBLE_EQ(J(1, 0), 1.0);  // ∂(x+y)/∂x
+  EXPECT_DOUBLE_EQ(J(1, 1), 1.0);  // ∂(x+y)/∂y
 }
 
-TEST(VectorEquationForward, AgreesWithSymbolic) {
-  // Build the same VectorEquation two ways and compare Jacobians.
+TEST(EquationForward, AgreesWithSymbolic) {
+  // Build the same Equation two ways and compare Jacobians.
   double xv = 2.0, yv = 3.0;
 
   // Symbolic path
   auto xs = PV(xv, 'x');
   auto ys = PV(yv, 'y');
-  auto ve_sym = VectorEquation(xs * xs, xs * ys, ys * ys);
+  auto ve_sym = Equation(xs * xs, xs * ys, ys * ys);
   auto J_sym = ve_sym.eval_jacobian();
 
   // Forward-mode path
   using D = Dual<double>;
   Variable<D, 'x'> xd{D{xv}};
   Variable<D, 'y'> yd{D{yv}};
-  auto ve_fwd = VectorEquation(xd * xd, xd * yd, yd * yd);
+  auto ve_fwd = Equation(xd * xd, xd * yd, yd * yd);
   auto J_fwd = ve_fwd.eval_jacobian_forward({xv, yv});
 
   for (std::size_t i = 0; i < 3; ++i)
     for (std::size_t j = 0; j < 2; ++j)
-      EXPECT_DOUBLE_EQ(J_fwd[i][j], J_sym[i][j]);
+      EXPECT_DOUBLE_EQ(J_fwd(i, j), J_sym(i, j));
 }
 
-TEST(VectorEquationForward, TrigJacobian) {
-  // f(x,y) = (x*y, sin(x) + y*y)  at (2, 3) — same as VectorEquationTest
+TEST(EquationForward, TrigJacobian) {
+  // f(x,y) = (x*y, sin(x) + y*y)  at (2, 3) — same as EquationTest
   // J = [[y, x], [cos(x), 2y]] = [[3, 2], [cos(2), 6]]
   using D = Dual<double>;
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
-  auto ve = VectorEquation(x * y, sin(x) + y * y);
+  auto ve = Equation(x * y, sin(x) + y * y);
   auto J = ve.eval_jacobian_forward({2.0, 3.0});
-  EXPECT_DOUBLE_EQ(J[0][0], 3.0);
-  EXPECT_DOUBLE_EQ(J[0][1], 2.0);
-  EXPECT_DOUBLE_EQ(J[1][0], std::cos(2.0));
-  EXPECT_DOUBLE_EQ(J[1][1], 6.0);
+  EXPECT_DOUBLE_EQ(J(0, 0), 3.0);
+  EXPECT_DOUBLE_EQ(J(0, 1), 2.0);
+  EXPECT_DOUBLE_EQ(J(1, 0), std::cos(2.0));
+  EXPECT_DOUBLE_EQ(J(1, 1), 6.0);
 }
 
-TEST(VectorEquationForward, ReverseAgreesWithForward) {
+TEST(EquationForward, ReverseAgreesWithForward) {
   using D = Dual<double>;
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
-  auto ve_fwd = VectorEquation(x * y, sin(x) + y * y);
+  auto ve_fwd = Equation(x * y, sin(x) + y * y);
   auto J_fwd = ve_fwd.eval_jacobian_forward({2.0, 3.0});
 
   auto xs = PV(2.0, 'x');
   auto ys = PV(3.0, 'y');
-  auto ve_rev = VectorEquation(xs * ys, sin(xs) + ys * ys);
+  auto ve_rev = Equation(xs * ys, sin(xs) + ys * ys);
   auto J_rev = ve_rev.eval_jacobian_reverse();
 
   for (std::size_t i = 0; i < 2; ++i)
     for (std::size_t j = 0; j < 2; ++j)
-      EXPECT_DOUBLE_EQ(J_rev[i][j], J_fwd[i][j]);
+      EXPECT_DOUBLE_EQ(J_rev(i, j), J_fwd(i, j));
 }
 
-TEST(VectorEquationForward, StateRestoredAfterCall) {
+TEST(EquationForward, StateRestoredAfterCall) {
   // After eval_jacobian_forward the expressions should evaluate at the
   // original point (dual parts zeroed out).
   auto x = PDV(3.0,'x');
   auto y = PDV(4.0,'y');
   auto k = PDV(4.0,'y');
   k = 7.0;
-  auto ve = VectorEquation(x * y, x + y);
+  auto ve = Equation(x * y, x + y);
   auto [v0, v1] = ve.eval();
   EXPECT_DOUBLE_EQ(v0.template get<0>(), 12.0);  // x*y = 12
   EXPECT_DOUBLE_EQ(v0.template get<1>(),  0.0);  // dual part zeroed
