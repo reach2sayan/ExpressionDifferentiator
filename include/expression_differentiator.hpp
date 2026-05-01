@@ -6,8 +6,8 @@
 #define EXPRESSIONDIFFERENTOR_EXPRESSION_DIFFERENTIATOR_HPP
 
 #include "dual.hpp"
-#include "equation.hpp"
 #include "gradient.hpp"
 #include "values.hpp"
+#include "vector_equation.hpp"
 
 #endif // EXPRESSIONDIFFERENTOR_EXPRESSION_DIFFERENTIATOR_HPP

@@ -1,9 +1,9 @@
 #include "dual.hpp"
-#include "equation.hpp"
 #include "gradient.hpp"
 #include "operations.hpp"
 #include "traits.hpp"
 #include "values.hpp"
+#include "vector_equation.hpp"
 #include <gtest/gtest.h>
 #include <numbers>
 #include <ranges>

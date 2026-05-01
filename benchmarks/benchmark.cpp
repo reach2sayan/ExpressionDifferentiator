@@ -1,7 +1,7 @@
 #include "dual.hpp"
-#include "equation.hpp"
 #include "gradient.hpp"
 #include "values.hpp"
+#include "vector_equation.hpp"
 
 #include <benchmark/benchmark.h>
 

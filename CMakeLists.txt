@@ -92,13 +92,17 @@ add_library(diff INTERFACE
         ${CMAKE_SOURCE_DIR}/include/expression_differentiator.hpp
 )
 target_include_directories(diff INTERFACE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(diff INTERFACE Boost::headers Eigen3::Eigen)
+target_link_libraries(diff INTERFACE Boost::headers)
+
+add_library(diff_vector INTERFACE ${CMAKE_SOURCE_DIR}/include/vector_equation.hpp)
+target_include_directories(diff_vector INTERFACE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(diff_vector INTERFACE diff Eigen3::Eigen)
 
 add_executable(main src/main.cpp)
-target_link_libraries(main PUBLIC diff)
+target_link_libraries(main PUBLIC diff_vector)
 
 add_executable(tests tests.cpp)
-target_link_libraries(tests gtest_main diff)
+target_link_libraries(tests gtest_main diff_vector)
 
 add_test(NAME tests COMMAND tests)
 enable_testing()
@@ -113,8 +117,7 @@ endif ()
 
 if (DIFF_BUILD_BENCHMARKS)
     add_executable(benchmarks benchmarks/benchmark.cpp)
-    target_link_libraries(benchmarks PRIVATE benchmark::benchmark diff)
-
+    target_link_libraries(benchmarks PRIVATE benchmark::benchmark diff_vector)
     set(BENCHMARK_RESULTS_DIR "${CMAKE_BINARY_DIR}/benchmark-results")
     add_custom_target(benchmark_json
             COMMAND ${CMAKE_COMMAND} -E make_directory "${BENCHMARK_RESULTS_DIR}"
