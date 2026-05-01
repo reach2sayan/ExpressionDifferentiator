@@ -17,31 +17,15 @@ struct eval_func_t {
     return std::array{exprs.eval()...};
   }
 };
+template <class Syms, class Updates> struct update_func_t {
+  const Syms &syms;
+  const Updates &updates;
+  constexpr auto operator()(auto &...ds) const {
+    (ds.update(syms, updates), ...);
+  }
+};
 
 inline constexpr eval_func_t eval_func{};
-
-// Recursive helpers — no fold/pack expansions, so clang's -Wnon-pod-varargs
-// false positive (triggered when non-trivial types flow through any `...`)
-// is avoided entirely.
-template <std::size_t I, std::size_t N, typename Tuple, typename Syms,
-          typename Updates>
-constexpr void update_tuple(Tuple &tup, const Syms &syms,
-                             const Updates &updates) {
-  if constexpr (I < N) {
-    std::get<I>(tup).update(syms, updates);
-    update_tuple<I + 1, N>(tup, syms, updates);
-  }
-}
-
-template <std::size_t I, std::size_t N, std::size_t M, typename Jacobian,
-          typename Syms, typename Updates>
-constexpr void update_jacobian(Jacobian &jac, const Syms &syms,
-                                const Updates &updates) {
-  if constexpr (I < N) {
-    update_tuple<0, M>(std::get<I>(jac), syms, updates);
-    update_jacobian<I + 1, N, M>(jac, syms, updates);
-  }
-}
 } // namespace detail
 
 // Pretty-print a std::tuple of expressions, one per line.
@@ -118,7 +102,8 @@ public:
 
   constexpr void update(const symbols &syms, const auto &updates) {
     expression.update(syms, updates);
-    detail::update_tuple<0, number_of_derivatives>(derivatives, syms, updates);
+    auto update_func = detail::update_func_t{syms, updates};
+    std::apply(update_func, derivatives);
   }
 
   [[nodiscard]] constexpr auto eval() const { return expression.eval(); }
@@ -247,8 +232,12 @@ public:
 
   // Update live variables in all expressions and Jacobian rows.
   constexpr void update(const symbols &syms, const auto &updates) {
-    detail::update_tuple<0, output_dim>(expressions, syms, updates);
-    detail::update_jacobian<0, output_dim, input_dim>(jacobian, syms, updates);
+    auto update_func = detail::update_func_t{syms, updates};
+    auto apply_to_tuple_func = [&](auto &...jac_rows) {
+      (std::apply(update_func, jac_rows), ...);
+    };
+    std::apply(update_func, expressions);
+    std::apply(apply_to_tuple_func, jacobian);
   }
 };
 

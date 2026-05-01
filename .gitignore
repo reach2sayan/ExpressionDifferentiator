@@ -496,3 +496,4 @@ build/
 /cmake-build-release/
 /build-win
 /cmake-build-clang/*
+/cmake-build-gcc/*
