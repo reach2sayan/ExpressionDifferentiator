@@ -18,8 +18,21 @@ else ()
     add_compile_options(-march=x86-64-v3)
 endif ()
 find_package(Boost 1.74 CONFIG)
+find_package(Eigen3 3.4 CONFIG QUIET)
 
 include(FetchContent)
+if (NOT TARGET Eigen3::Eigen)
+    FetchContent_Declare(
+            eigen
+            GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+            GIT_TAG 3.4.0
+            GIT_SHALLOW TRUE
+    )
+    set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(eigen)
+endif ()
+
 if (NOT TARGET Boost::headers)
     FetchContent_Declare(
             boost_mp11
@@ -79,7 +92,7 @@ add_library(diff INTERFACE
         ${CMAKE_SOURCE_DIR}/include/expression_differentiator.hpp
 )
 target_include_directories(diff INTERFACE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(diff INTERFACE Boost::headers)
+target_link_libraries(diff INTERFACE Boost::headers Eigen3::Eigen)
 
 add_executable(main src/main.cpp)
 target_link_libraries(main PUBLIC diff)
