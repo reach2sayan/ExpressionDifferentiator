@@ -26,7 +26,7 @@ int main() {
   // f(x, y) = (x + y,  x * y)
   auto vx2 = PV(3.0, 'x');
   auto vy2 = PV(4.0, 'y');
-  auto ve = Equation(vx2 + vy2, vx2 * 3*vy2*2 + 1);
+  auto ve = Equation(vx2 + vy2, vx2 * 3 * vy2 * 2 + 1);
   std::cout << "\n--- Equation f(x,y) = (x+y, x*y) at (3, 4) ---\n";
   std::cout << ve;
 
@@ -47,7 +47,8 @@ int main() {
   std::cout << ve3;
 
   auto fval3 = ve3.eval();
-  std::cout << "f(1,2) = (" << fval3[0] << ", " << fval3[1] << ", " << fval3[2] << ")\n";
+  std::cout << "f(1,2) = (" << fval3[0] << ", " << fval3[1] << ", " << fval3[2]
+            << ")\n";
 
   auto J3 = ve3.eval_jacobian();
   std::cout << "Jacobian:\n";

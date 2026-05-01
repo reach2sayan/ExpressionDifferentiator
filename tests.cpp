@@ -40,8 +40,7 @@ TEST(MathFunctionTest, AsinDerivative) {
   double x0 = 0.5;
   auto x = PV(x0, 'x');
   ASSERT_DOUBLE_EQ(asin(x).eval(), std::asin(x0));
-  ASSERT_DOUBLE_EQ(asin(x).derivative().eval(),
-                   1.0 / std::sqrt(1.0 - x0 * x0));
+  ASSERT_DOUBLE_EQ(asin(x).derivative().eval(), 1.0 / std::sqrt(1.0 - x0 * x0));
 }
 
 TEST(MathFunctionTest, AcosDerivative) {
@@ -183,7 +182,7 @@ TEST(ReverseModeAD, LogDerivative) {
 TEST(ReverseModeAD, SqrtDerivative) {
   auto x = PV(4.0, 'x');
   auto g = reverse_mode_gradient(sqrt(x));
-  ASSERT_DOUBLE_EQ(g[0], 0.25);  // 0.5/sqrt(4) = 0.25
+  ASSERT_DOUBLE_EQ(g[0], 0.25); // 0.5/sqrt(4) = 0.25
 }
 
 TEST(ReverseModeAD, AsinDerivative) {
@@ -435,7 +434,7 @@ TEST(ExpressionTest, StaticTests) {
 
 TEST(ExpressionTest, SumTest) {
   double a = 1, b = 2, c = 3;
-  auto sum_exp = a +  b + c;
+  auto sum_exp = a + b + c;
   ASSERT_EQ(sum_exp, 6);
 }
 
@@ -485,7 +484,7 @@ TEST(ExpressionTest, ExpDerivative) {
 }
 
 TEST(ExpressionTest, Combination) {
-  double target = exp(1_cd + 2_cd + 3_cd) +  1_cd;
+  double target = exp(1_cd + 2_cd + 3_cd) + 1_cd;
   ASSERT_EQ(target, std::exp(6.0) + 1.0);
 }
 
@@ -515,7 +514,7 @@ TEST(ExpressionTest, DerivativeTest) {
 
 TEST(DerivativeRuleTest, SumRule) {
   // d/dx [f + g] = f' + g'  =>  d/dx [3x + 5] = 3
-  auto x = PV(7,'x');
+  auto x = PV(7, 'x');
   auto expr = 3_ci * x + 5_ci;
   ASSERT_EQ(expr.derivative(), 3);
 }
@@ -743,7 +742,7 @@ TEST(EquationTest, Dimensions) {
   // f: ℝ² → ℝ²
   using VE = Equation<decltype(x + y), decltype(x * y)>;
   static_assert(VE::output_dim == 2);
-  static_assert(VE::input_dim  == 2);
+  static_assert(VE::input_dim == 2);
 }
 
 TEST(EquationTest, Eval) {
@@ -764,10 +763,10 @@ TEST(EquationTest, JacobianLinear) {
   auto y = PV(4, 'y');
   auto ve = Equation(x + y, x * y);
   auto J = ve.eval_jacobian();
-  ASSERT_EQ(J(0, 0), 1);  // ∂(x+y)/∂x
-  ASSERT_EQ(J(0, 1), 1);  // ∂(x+y)/∂y
-  ASSERT_EQ(J(1, 0), 4);  // ∂(x*y)/∂x = y = 4
-  ASSERT_EQ(J(1, 1), 3);  // ∂(x*y)/∂y = x = 3
+  ASSERT_EQ(J(0, 0), 1); // ∂(x+y)/∂x
+  ASSERT_EQ(J(0, 1), 1); // ∂(x+y)/∂y
+  ASSERT_EQ(J(1, 0), 4); // ∂(x*y)/∂x = y = 4
+  ASSERT_EQ(J(1, 1), 3); // ∂(x*y)/∂y = x = 3
 }
 
 TEST(EquationTest, JacobianWithTrig) {
@@ -778,8 +777,8 @@ TEST(EquationTest, JacobianWithTrig) {
   auto y = PV(3.0, 'y');
   auto ve = Equation(x * y, sin(x) + y * y);
   auto J = ve.eval_jacobian();
-  ASSERT_DOUBLE_EQ(J(0, 0), 3.0);          // ∂(x*y)/∂x = y
-  ASSERT_DOUBLE_EQ(J(0, 1), 2.0);          // ∂(x*y)/∂y = x
+  ASSERT_DOUBLE_EQ(J(0, 0), 3.0);           // ∂(x*y)/∂x = y
+  ASSERT_DOUBLE_EQ(J(0, 1), 2.0);           // ∂(x*y)/∂y = x
   ASSERT_DOUBLE_EQ(J(1, 0), std::cos(2.0)); // ∂(sin(x)+y²)/∂x
   ASSERT_DOUBLE_EQ(J(1, 1), 6.0);           // ∂(sin(x)+y²)/∂y = 2y
 }
@@ -790,9 +789,9 @@ TEST(EquationTest, SingleComponentIsGradient) {
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
   auto eq = Equation(x * y);
-  auto g  = eq.eval_derivatives();
-  ASSERT_DOUBLE_EQ(g[0], 3.0);          // ∂(x*y)/∂x = y
-  ASSERT_DOUBLE_EQ(g[1], 2.0);          // ∂(x*y)/∂y = x
+  auto g = eq.eval_derivatives();
+  ASSERT_DOUBLE_EQ(g[0], 3.0); // ∂(x*y)/∂x = y
+  ASSERT_DOUBLE_EQ(g[1], 2.0); // ∂(x*y)/∂y = x
 }
 
 TEST(EquationTest, SymbolUnionAcrossComponents) {
@@ -800,13 +799,13 @@ TEST(EquationTest, SymbolUnionAcrossComponents) {
   // Jacobian should be 2×2 with zeros off the diagonal.
   auto x = PV(4.0, 'x');
   auto y = PV(3.0, 'y');
-  auto ve = Equation(x * x, y * y);   // (x², y²)
+  auto ve = Equation(x * x, y * y); // (x², y²)
   static_assert(decltype(ve)::input_dim == 2);
   auto J = ve.eval_jacobian();
-  ASSERT_DOUBLE_EQ(J(0, 0), 8.0);   // ∂(x²)/∂x = 2x = 8
-  ASSERT_DOUBLE_EQ(J(0, 1), 0.0);   // ∂(x²)/∂y = 0
-  ASSERT_DOUBLE_EQ(J(1, 0), 0.0);   // ∂(y²)/∂x = 0
-  ASSERT_DOUBLE_EQ(J(1, 1), 6.0);   // ∂(y²)/∂y = 2y = 6
+  ASSERT_DOUBLE_EQ(J(0, 0), 8.0); // ∂(x²)/∂x = 2x = 8
+  ASSERT_DOUBLE_EQ(J(0, 1), 0.0); // ∂(x²)/∂y = 0
+  ASSERT_DOUBLE_EQ(J(1, 0), 0.0); // ∂(y²)/∂x = 0
+  ASSERT_DOUBLE_EQ(J(1, 1), 6.0); // ∂(y²)/∂y = 2y = 6
 }
 
 TEST(EquationTest, ThreeOutputs) {
@@ -815,14 +814,14 @@ TEST(EquationTest, ThreeOutputs) {
   auto y = PV(5.0, 'y');
   auto ve = Equation(x * x, x * y, y * y);
   static_assert(decltype(ve)::output_dim == 3);
-  static_assert(decltype(ve)::input_dim  == 2);
+  static_assert(decltype(ve)::input_dim == 2);
   auto J = ve.eval_jacobian();
-  ASSERT_DOUBLE_EQ(J(0, 0), 4.0);   // 2x
-  ASSERT_DOUBLE_EQ(J(0, 1), 0.0);   // 0
-  ASSERT_DOUBLE_EQ(J(1, 0), 5.0);   // y
-  ASSERT_DOUBLE_EQ(J(1, 1), 2.0);   // x
-  ASSERT_DOUBLE_EQ(J(2, 0), 0.0);   // 0
-  ASSERT_DOUBLE_EQ(J(2, 1), 10.0);  // 2y
+  ASSERT_DOUBLE_EQ(J(0, 0), 4.0);  // 2x
+  ASSERT_DOUBLE_EQ(J(0, 1), 0.0);  // 0
+  ASSERT_DOUBLE_EQ(J(1, 0), 5.0);  // y
+  ASSERT_DOUBLE_EQ(J(1, 1), 2.0);  // x
+  ASSERT_DOUBLE_EQ(J(2, 0), 0.0);  // 0
+  ASSERT_DOUBLE_EQ(J(2, 1), 10.0); // 2y
 }
 
 TEST(EquationTest, ReverseJacobianAgreesWithSymbolic) {
@@ -846,7 +845,7 @@ TEST(EquationTest, ParallelReverseJacobian_FourOutputs) {
   auto z = PV(3.0, 'z');
   auto ve = Equation(x * y, y * z, x * z, x * y * z);
   static_assert(decltype(ve)::output_dim == 4);
-  static_assert(decltype(ve)::input_dim  == 3);
+  static_assert(decltype(ve)::input_dim == 3);
 
   auto J_sym = ve.eval_jacobian();
   auto J_rev = ve.eval_jacobian_reverse();
@@ -861,14 +860,10 @@ TEST(EquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
   auto x = PV(0.5, 'x');
   auto y = PV(1.0, 'y');
   auto z = PV(1.5, 'z');
-  auto ve = Equation(
-      sin(x) * cos(y),
-      exp(x + y),
-      x * y + y * z,
-      cos(z) * sin(x),
-      exp(x * z) + y * y);
+  auto ve = Equation(sin(x) * cos(y), exp(x + y), x * y + y * z,
+                     cos(z) * sin(x), exp(x * z) + y * y);
   static_assert(decltype(ve)::output_dim == 5);
-  static_assert(decltype(ve)::input_dim  == 3);
+  static_assert(decltype(ve)::input_dim == 3);
 
   auto J_sym = ve.eval_jacobian();
   auto J_rev = ve.eval_jacobian_reverse();
@@ -899,12 +894,12 @@ TEST(EquationTest, ReverseJacobianSingleOutputMatchesGradient) {
 TEST(ForwardModeAD, ExpressionStructuredBinding) {
   // Non-Dual: auto [f, df] = expr gives {eval(), derivative().eval()}
   auto x = PV(3.0, 'x');
-  auto [f, df] = x * x;                 // f=9, df=2*3=6
-  EXPECT_DOUBLE_EQ(f,  9.0);
+  auto [f, df] = x * x; // f=9, df=2*3=6
+  EXPECT_DOUBLE_EQ(f, 9.0);
   EXPECT_DOUBLE_EQ(df, 6.0);
 
-  auto [g, dg] = sin(PV(0.0, 'x'));     // g=sin(0)=0, dg=cos(0)*1=1
-  EXPECT_DOUBLE_EQ(g,  0.0);
+  auto [g, dg] = sin(PV(0.0, 'x')); // g=sin(0)=0, dg=cos(0)*1=1
+  EXPECT_DOUBLE_EQ(g, 0.0);
   EXPECT_DOUBLE_EQ(dg, 1.0);
 }
 
@@ -916,7 +911,7 @@ TEST(ForwardModeAD, DualNumericConcept) {
 TEST(ForwardModeAD, StructuredBinding) {
   Dual<double> d{3.0, 7.0};
   auto [v, dv] = d;
-  EXPECT_DOUBLE_EQ(v,  3.0);
+  EXPECT_DOUBLE_EQ(v, 3.0);
   EXPECT_DOUBLE_EQ(dv, 7.0);
   static_assert(std::tuple_size_v<Dual<double>> == 2);
   static_assert(std::is_same_v<std::tuple_element_t<0, Dual<double>>, double>);
@@ -928,14 +923,14 @@ TEST(ForwardModeAD, BasicArithmetic) {
   constexpr Dual<double> a{3.0, 1.0};
   constexpr Dual<double> b{2.0, 0.0};
   auto [sum_val, sum_deriv] = a + b;
-  EXPECT_DOUBLE_EQ(sum_val,   5.0);
+  EXPECT_DOUBLE_EQ(sum_val, 5.0);
   EXPECT_DOUBLE_EQ(sum_deriv, 1.0);
   auto [prod_val, prod_deriv] = a * b;
-  EXPECT_DOUBLE_EQ(prod_val,   6.0);
-  EXPECT_DOUBLE_EQ(prod_deriv, 2.0);  // 1*2 + 3*0 = 2
+  EXPECT_DOUBLE_EQ(prod_val, 6.0);
+  EXPECT_DOUBLE_EQ(prod_deriv, 2.0); // 1*2 + 3*0 = 2
   auto [quot_val, quot_deriv] = a / b;
-  EXPECT_DOUBLE_EQ(quot_val,   1.5);
-  EXPECT_DOUBLE_EQ(quot_deriv, 0.5);  // (1*2 - 3*0)/4 = 0.5
+  EXPECT_DOUBLE_EQ(quot_val, 1.5);
+  EXPECT_DOUBLE_EQ(quot_deriv, 0.5); // (1*2 - 3*0)/4 = 0.5
 }
 
 TEST(ForwardModeAD, PolynomialDerivative) {
@@ -943,8 +938,8 @@ TEST(ForwardModeAD, PolynomialDerivative) {
   // At x=3: f=12, f'=7
   Variable<Dual<double>, 'x'> x{Dual<double>{3.0, 1.0}};
   auto [f, df] = (x * x + x).eval();
-  EXPECT_DOUBLE_EQ(f,  12.0);
-  EXPECT_DOUBLE_EQ(df,  7.0);
+  EXPECT_DOUBLE_EQ(f, 12.0);
+  EXPECT_DOUBLE_EQ(df, 7.0);
 }
 
 TEST(ForwardModeAD, PartialDerivativeX) {
@@ -953,8 +948,8 @@ TEST(ForwardModeAD, PartialDerivativeX) {
   Variable<Dual<double>, 'x'> x{Dual<double>{3.0, 1.0}};
   Variable<Dual<double>, 'y'> y{Dual<double>{4.0, 0.0}};
   auto [f, df] = (x * y).eval();
-  EXPECT_DOUBLE_EQ(f,  12.0);
-  EXPECT_DOUBLE_EQ(df,  4.0);
+  EXPECT_DOUBLE_EQ(f, 12.0);
+  EXPECT_DOUBLE_EQ(df, 4.0);
 }
 
 TEST(ForwardModeAD, PartialDerivativeY) {
@@ -963,8 +958,8 @@ TEST(ForwardModeAD, PartialDerivativeY) {
   Variable<Dual<double>, 'x'> x{Dual<double>{3.0, 0.0}};
   Variable<Dual<double>, 'y'> y{Dual<double>{4.0, 1.0}};
   auto [f, df] = (x * y).eval();
-  EXPECT_DOUBLE_EQ(f,  12.0);
-  EXPECT_DOUBLE_EQ(df,  3.0);
+  EXPECT_DOUBLE_EQ(f, 12.0);
+  EXPECT_DOUBLE_EQ(df, 3.0);
 }
 
 TEST(ForwardModeAD, SinDerivative) {
@@ -972,7 +967,7 @@ TEST(ForwardModeAD, SinDerivative) {
   double x0 = std::numbers::pi / 4.0;
   Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
   auto [f, df] = sin(x).eval();
-  EXPECT_DOUBLE_EQ(f,  std::sin(x0));
+  EXPECT_DOUBLE_EQ(f, std::sin(x0));
   EXPECT_DOUBLE_EQ(df, std::cos(x0));
 }
 
@@ -981,7 +976,7 @@ TEST(ForwardModeAD, CosDerivative) {
   double x0 = std::numbers::pi / 3.0;
   Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
   auto [f, df] = cos(x).eval();
-  EXPECT_DOUBLE_EQ(f,   std::cos(x0));
+  EXPECT_DOUBLE_EQ(f, std::cos(x0));
   EXPECT_DOUBLE_EQ(df, -std::sin(x0));
 }
 
@@ -991,9 +986,9 @@ TEST(ForwardModeAD, ExpDerivative) {
   Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
   auto [f, df] = exp(x).eval();
   auto [f2, df2] = exp(x);
-  EXPECT_DOUBLE_EQ(f,  std::exp(x0));
+  EXPECT_DOUBLE_EQ(f, std::exp(x0));
   EXPECT_DOUBLE_EQ(df, std::exp(x0));
-  EXPECT_DOUBLE_EQ(f,  f2);
+  EXPECT_DOUBLE_EQ(f, f2);
   EXPECT_DOUBLE_EQ(df, df2);
 }
 
@@ -1002,7 +997,7 @@ TEST(ForwardModeAD, ChainRule) {
   double x0 = 1.0;
   Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
   auto [f, df] = sin(x * x);
-  EXPECT_DOUBLE_EQ(f,  std::sin(x0 * x0));
+  EXPECT_DOUBLE_EQ(f, std::sin(x0 * x0));
   EXPECT_DOUBLE_EQ(df, 2.0 * x0 * std::cos(x0 * x0));
 }
 
@@ -1011,18 +1006,19 @@ TEST(ForwardModeAD, Equivalence) {
   double x0 = 1.0;
   Variable<Dual<double>, 'x'> x{Dual<double>{x0, 1.0}};
   auto xv = PV(x0, 'x');
-  auto l = sin(xv*xv);
+  auto l = sin(xv * xv);
   auto [f, df] = sin(x * x);
   auto f2 = l.eval();
   auto df2 = l.derivative().eval();
-  EXPECT_DOUBLE_EQ(f,  std::sin(x0 * x0));
+  EXPECT_DOUBLE_EQ(f, std::sin(x0 * x0));
   EXPECT_DOUBLE_EQ(df, 2.0 * x0 * std::cos(x0 * x0));
   EXPECT_DOUBLE_EQ(df, df2);
   EXPECT_DOUBLE_EQ(f, f2);
 }
 
 // ===========================================================================
-// Reverse-mode automatic differentiation via backward() / reverse_mode_gradient()
+// Reverse-mode automatic differentiation via backward() /
+// reverse_mode_gradient()
 // ===========================================================================
 
 TEST(ReverseModeAD, SingleVariableLinear) {
@@ -1048,8 +1044,8 @@ TEST(ReverseModeAD, TwoVariables) {
   auto expr = x * y;
   auto g = reverse_mode_gradient(expr);
   static_assert(g.size() == 2);
-  EXPECT_DOUBLE_EQ(g[0], 4.0);  // df/dx = y
-  EXPECT_DOUBLE_EQ(g[1], 3.0);  // df/dy = x
+  EXPECT_DOUBLE_EQ(g[0], 4.0); // df/dx = y
+  EXPECT_DOUBLE_EQ(g[1], 3.0); // df/dy = x
 }
 
 TEST(ReverseModeAD, Sum) {
@@ -1083,7 +1079,7 @@ TEST(ReverseModeAD, NegateViaSubtract) {
   auto x = PV(5.0, 'x');
   auto y = PV(2.0, 'y');
   auto g = reverse_mode_gradient(x - y);
-  EXPECT_DOUBLE_EQ(g[0],  1.0);
+  EXPECT_DOUBLE_EQ(g[0], 1.0);
   EXPECT_DOUBLE_EQ(g[1], -1.0);
 }
 
@@ -1143,10 +1139,10 @@ TEST(EquationForward, TwoVariables) {
   Variable<D, 'y'> y{D{4.0}};
   auto ve = Equation(x * y, x + y);
   auto J = ve.eval_jacobian_forward({3.0, 4.0});
-  EXPECT_DOUBLE_EQ(J(0, 0), 4.0);  // ∂(x*y)/∂x = y = 4
-  EXPECT_DOUBLE_EQ(J(0, 1), 3.0);  // ∂(x*y)/∂y = x = 3
-  EXPECT_DOUBLE_EQ(J(1, 0), 1.0);  // ∂(x+y)/∂x
-  EXPECT_DOUBLE_EQ(J(1, 1), 1.0);  // ∂(x+y)/∂y
+  EXPECT_DOUBLE_EQ(J(0, 0), 4.0); // ∂(x*y)/∂x = y = 4
+  EXPECT_DOUBLE_EQ(J(0, 1), 3.0); // ∂(x*y)/∂y = x = 3
+  EXPECT_DOUBLE_EQ(J(1, 0), 1.0); // ∂(x+y)/∂x
+  EXPECT_DOUBLE_EQ(J(1, 1), 1.0); // ∂(x+y)/∂y
 }
 
 TEST(EquationForward, AgreesWithSymbolic) {
@@ -1205,15 +1201,15 @@ TEST(EquationForward, ReverseAgreesWithForward) {
 TEST(EquationForward, StateRestoredAfterCall) {
   // After eval_jacobian_forward the expressions should evaluate at the
   // original point (dual parts zeroed out).
-  auto x = PDV(3.0,'x');
-  auto y = PDV(4.0,'y');
-  auto k = PDV(4.0,'y');
+  auto x = PDV(3.0, 'x');
+  auto y = PDV(4.0, 'y');
+  auto k = PDV(4.0, 'y');
   k = 7.0;
   auto ve = Equation(x * y, x + y);
   auto [v0, v1] = ve.eval();
-  EXPECT_DOUBLE_EQ(v0.template get<0>(), 12.0);  // x*y = 12
-  EXPECT_DOUBLE_EQ(v0.template get<1>(),  0.0);  // dual part zeroed
-  EXPECT_DOUBLE_EQ(v1.template get<0>(),  7.0);  // x+y = 7
+  EXPECT_DOUBLE_EQ(v0.template get<0>(), 12.0); // x*y = 12
+  EXPECT_DOUBLE_EQ(v0.template get<1>(), 0.0);  // dual part zeroed
+  EXPECT_DOUBLE_EQ(v1.template get<0>(), 7.0);  // x+y = 7
 }
 
 TEST(ReverseModeAD, ScalarLiteralCoercion) {
@@ -1223,16 +1219,16 @@ TEST(ReverseModeAD, ScalarLiteralCoercion) {
   auto z = PDV(4.0, 'z');
   auto expe = 3.0 * x * y + y * z;
   auto g = reverse_mode_gradient(expe);
-  EXPECT_DOUBLE_EQ(g[0], 9.0);   // df/dx = 3*y = 9
-  EXPECT_DOUBLE_EQ(g[1], 10.0);  // df/dy = 3*x + z = 10
-  EXPECT_DOUBLE_EQ(g[2], 3.0);   // df/dz = y = 3
+  EXPECT_DOUBLE_EQ(g[0], 9.0);  // df/dx = 3*y = 9
+  EXPECT_DOUBLE_EQ(g[1], 10.0); // df/dy = 3*x + z = 10
+  EXPECT_DOUBLE_EQ(g[2], 3.0);  // df/dz = y = 3
 }
 
 TEST(ReverseModeAD, ScalarOnRight) {
   // expr * scalar and expr + scalar
   auto x = PV(5.0, 'x');
   auto g = reverse_mode_gradient(x * 4.0 + 1.0);
-  EXPECT_DOUBLE_EQ(g[0], 4.0);   // df/dx = 4
+  EXPECT_DOUBLE_EQ(g[0], 4.0); // df/dx = 4
 }
 
 TEST(ReverseModeAD, AgreesWithForwardMode) {
@@ -1332,10 +1328,146 @@ TEST(ReverseModeAD_Dual, TrigExp) {
 TEST(ReverseModeAD_Dual, AgreesWithPVResult) {
   // PDV and PV reverse mode must give identical scalar gradients
   double xv = 1.3, yv = 0.7;
-  auto xp = PV(xv, 'x');   auto yp = PV(yv, 'y');
-  auto xd = PDV(xv, 'x');  auto yd = PDV(yv, 'y');
+  auto xp = PV(xv, 'x');
+  auto yp = PV(yv, 'y');
+  auto xd = PDV(xv, 'x');
+  auto yd = PDV(yv, 'y');
   auto gp = reverse_mode_gradient(xp * yp + sin(xp) + yp * yp + exp(xp + yp));
   auto gd = reverse_mode_gradient(xd * yd + sin(xd) + yd * yd + exp(xd + yd));
   EXPECT_DOUBLE_EQ(gd[0], gp[0]);
   EXPECT_DOUBLE_EQ(gd[1], gp[1]);
+}
+
+// ===========================================================================
+// RuntimeEquation (Equation with RuntimeVariable nodes, input_dim == 0)
+// ===========================================================================
+
+TEST(RuntimeEquationTest, InputDimIsZero) {
+  auto x = RV(2.0, 0);
+  auto y = RV(3.0, 1);
+  auto eq = Equation(2, x * y, x + y);
+  static_assert(decltype(eq)::input_dim == 0);
+  static_assert(decltype(eq)::output_dim == 2);
+}
+
+TEST(RuntimeEquationTest, Eval) {
+  auto x = RV(2.0, 0);
+  auto y = RV(3.0, 1);
+  auto eq = Equation(2, x * y, x + y);
+  auto out = eq.eval();
+  EXPECT_DOUBLE_EQ(out[0], 6.0); // x * y = 2 * 3
+  EXPECT_DOUBLE_EQ(out[1], 5.0); // x + y = 2 + 3
+}
+
+TEST(RuntimeEquationTest, UpdateAndReevaluate) {
+  auto x = RV(1.0, 0);
+  auto y = RV(1.0, 1);
+  auto eq = Equation(2, x * y, x + y);
+
+  Eigen::Vector2d vals{4.0, 5.0};
+  eq.update(vals);
+  auto out = eq.eval();
+  EXPECT_DOUBLE_EQ(out[0], 20.0); // 4 * 5
+  EXPECT_DOUBLE_EQ(out[1], 9.0);  // 4 + 5
+}
+
+TEST(RuntimeEquationTest, JacobianLinear) {
+  // f(x, y) = (2*x + 3*y,  x - y)
+  // J = [[2, 3], [1, -1]]
+  auto x = RV(0.0, 0);
+  auto y = RV(0.0, 1);
+  auto c2 = Constant<double>{2.0};
+  auto c3 = Constant<double>{3.0};
+  auto eq = Equation(2, c2 * x + c3 * y, x - y);
+
+  auto J = eq.eval_jacobian_reverse();
+  ASSERT_EQ(J.rows(), 2);
+  ASSERT_EQ(J.cols(), 2);
+  EXPECT_DOUBLE_EQ(J(0, 0), 2.0);
+  EXPECT_DOUBLE_EQ(J(0, 1), 3.0);
+  EXPECT_DOUBLE_EQ(J(1, 0), 1.0);
+  EXPECT_DOUBLE_EQ(J(1, 1), -1.0);
+}
+
+TEST(RuntimeEquationTest, JacobianProduct) {
+  // f(x, y) = (x*y,  x*x)   at (3, 4)
+  // J = [[y, x], [2*x, 0]] = [[4, 3], [6, 0]]
+  auto x = RV(3.0, 0);
+  auto y = RV(4.0, 1);
+  auto eq = Equation(2, x * y, x * x);
+
+  auto J = eq.eval_jacobian_reverse();
+  EXPECT_DOUBLE_EQ(J(0, 0), 4.0);
+  EXPECT_DOUBLE_EQ(J(0, 1), 3.0);
+  EXPECT_DOUBLE_EQ(J(1, 0), 6.0);
+  EXPECT_DOUBLE_EQ(J(1, 1), 0.0);
+}
+
+TEST(RuntimeEquationTest, JacobianThreeInputs) {
+  // f(x, y, z) = (x*y*z,  x + y + z)   at (1, 2, 3)
+  // J = [[y*z, x*z, x*y], [1, 1, 1]] = [[6, 3, 2], [1, 1, 1]]
+  auto x = RV(1.0, 0);
+  auto y = RV(2.0, 1);
+  auto z = RV(3.0, 2);
+  auto eq = Equation(3, x * y * z, x + y + z);
+
+  auto J = eq.eval_jacobian_reverse();
+  ASSERT_EQ(J.rows(), 2);
+  ASSERT_EQ(J.cols(), 3);
+  EXPECT_DOUBLE_EQ(J(0, 0), 6.0);
+  EXPECT_DOUBLE_EQ(J(0, 1), 3.0);
+  EXPECT_DOUBLE_EQ(J(0, 2), 2.0);
+  EXPECT_DOUBLE_EQ(J(1, 0), 1.0);
+  EXPECT_DOUBLE_EQ(J(1, 1), 1.0);
+  EXPECT_DOUBLE_EQ(J(1, 2), 1.0);
+}
+
+TEST(RuntimeEquationTest, JacobianTrig) {
+  // f(x, y) = (sin(x), cos(y))   at (pi/6, pi/3)
+  // J = [[cos(x), 0], [0, -sin(y)]]
+  const double xv = std::numbers::pi / 6.0;
+  const double yv = std::numbers::pi / 3.0;
+  auto x = RV(xv, 0);
+  auto y = RV(yv, 1);
+  auto eq = Equation(2, sin(x), cos(y));
+
+  auto J = eq.eval_jacobian_reverse();
+  EXPECT_NEAR(J(0, 0), std::cos(xv), 1e-12);
+  EXPECT_NEAR(J(0, 1), 0.0, 1e-12);
+  EXPECT_NEAR(J(1, 0), 0.0, 1e-12);
+  EXPECT_NEAR(J(1, 1), -std::sin(yv), 1e-12);
+}
+
+TEST(RuntimeEquationTest, JacobianAfterUpdate) {
+  // f(x, y) = (x*y, x + y) — Jacobian must reflect updated values
+  auto x = RV(0.0, 0);
+  auto y = RV(0.0, 1);
+  auto eq = Equation(2, x * y, x + y);
+
+  Eigen::Vector2d vals{2.0, 5.0};
+  eq.update(vals);
+
+  // J = [[y, x], [1, 1]] = [[5, 2], [1, 1]]
+  auto J = eq.eval_jacobian_reverse();
+  EXPECT_DOUBLE_EQ(J(0, 0), 5.0);
+  EXPECT_DOUBLE_EQ(J(0, 1), 2.0);
+  EXPECT_DOUBLE_EQ(J(1, 0), 1.0);
+  EXPECT_DOUBLE_EQ(J(1, 1), 1.0);
+}
+
+TEST(RuntimeEquationTest, SingleInputTwoOutputs) {
+  // f(x) = (x*x, x*x*x)  at x=2 — both outputs depend on the same variable
+  auto x0 = RV(2.0, 0);
+  auto x1 = RV(2.0, 0); // same index — two independent nodes, same slot
+  auto eq = Equation(1, x0 * x0, x1 * x1 * x1);
+
+  auto out = eq.eval();
+  EXPECT_DOUBLE_EQ(out[0], 4.0); // 2^2
+  EXPECT_DOUBLE_EQ(out[1], 8.0); // 2^3
+
+  auto J = eq.eval_jacobian_reverse();
+  ASSERT_EQ(J.rows(), 2);
+  ASSERT_EQ(J.cols(), 1);
+  EXPECT_DOUBLE_EQ(J(0, 0), 4.0);  // d/dx(x^2) = 2x = 4
+  EXPECT_DOUBLE_EQ(J(1, 0), 12.0); // d/dx(x^3) = 3x^2 = 12
 }

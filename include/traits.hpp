@@ -95,6 +95,10 @@ template <typename T, std::size_t N>
 constexpr void make_labels_array(const Constant<T> &, std::array<char, N> &,
                                  std::size_t &) {}
 
+template <typename T, std::size_t N>
+constexpr void make_labels_array(const RuntimeVariable<T> &,
+                                 std::array<char, N> &, std::size_t &) {}
+
 template <typename Op, typename LHS, typename RHS, std::size_t N>
 constexpr void make_labels_array(const Expression<Op, LHS, RHS> &expr,
                                  std::array<char, N> &out, std::size_t &index) {
@@ -116,6 +120,10 @@ struct constify_unmatched_var<symbol, Variable<T, othersymbol>> {
 template <char symbol, typename T>
 struct constify_unmatched_var<symbol, Constant<T>> {
   using type = Constant<T>;
+};
+template <char symbol, typename T>
+struct constify_unmatched_var<symbol, RuntimeVariable<T>> {
+  using type = RuntimeVariable<T>;
 };
 template <char symbol, typename Op, typename LHS, typename RHS>
 struct constify_unmatched_var<symbol, Expression<Op, LHS, RHS>> {
@@ -143,6 +151,11 @@ template <char symbol, typename T, char othersymbol>
 constexpr auto make_all_constant_except(const Variable<T, othersymbol> &var)
     -> Constant<T> {
   return Constant<T>{var};
+}
+
+template <char symbol, typename T>
+constexpr auto make_all_constant_except(const RuntimeVariable<T> &v) {
+  return v;
 }
 
 template <char Symbol, typename T>

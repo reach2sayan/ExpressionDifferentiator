@@ -9,7 +9,7 @@
 namespace mp = boost::mp11;
 
 template <ExpressionConcept Expr, typename T = typename Expr::value_type>
-  requires (!is_dual_v<T>)
+  requires(!is_dual_v<T>)
 [[nodiscard]] constexpr auto reverse_mode_gradient(const Expr &expr) {
   using Syms =
       typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
@@ -40,12 +40,11 @@ template <ExpressionConcept Expr, typename T = typename Expr::value_type>
 // Each of the N passes does one eval_seeded() traversal instead of the old
 // update()+eval() double-traversal, plus a final restore traversal.
 // Cost: N traversals (was 2N+1).
-template <
-    ExpressionConcept Expr,
-    typename TArr =
-        dual_scalar_t<typename std::remove_cvref_t<Expr>::value_type>,
-    std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
-        std::remove_cvref_t<Expr>>::type>::value>
+template <ExpressionConcept Expr,
+          typename TArr =
+              dual_scalar_t<typename std::remove_cvref_t<Expr>::value_type>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
 [[nodiscard]] constexpr auto forward_mode_gradient(const Expr &expr,
                                                    std::array<TArr, N> values)
   requires is_dual_v<typename std::remove_cvref_t<Expr>::value_type>
