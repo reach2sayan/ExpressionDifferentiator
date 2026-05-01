@@ -69,7 +69,8 @@ public:
         jacobian{make_jac_rows(expressions, symbols{})},
         runtime_input_dim_{input_dim} {}
 
-  // Runtime constructor: no compile-time symbols; n_inputs given at construction.
+  // Runtime constructor: no compile-time symbols; n_inputs given at
+  // construction.
   Equation(std::size_t n_inputs, TFirst first, TRest... rest)
     requires(input_dim == 0)
       : expressions{first, rest...}, jacobian{}, runtime_input_dim_{n_inputs} {}
@@ -92,7 +93,8 @@ public:
     return J;
   }
 
-  // Reverse-mode Jacobian — compile-time path (fixed-size output_dim × input_dim).
+  // Reverse-mode Jacobian — compile-time path (fixed-size output_dim ×
+  // input_dim).
   [[nodiscard]] auto eval_jacobian_reverse() const
     requires(input_dim > 0)
   {
@@ -100,8 +102,9 @@ public:
     static_for<output_dim>([&]<std::size_t I>() {
       std::array<value_type, input_dim> row{};
       std::get<I>(expressions).backward(symbols{}, value_type{1}, row);
-      for (std::size_t j = 0; j < input_dim; ++j)
+      for (std::size_t j = 0; j < input_dim; ++j) {
         J(I, j) = row[j];
+      }
     });
     return J;
   }
@@ -124,10 +127,10 @@ public:
 
   // Forward-mode Jacobian: one seeded pass per input variable.
   // Only available when value_type = Dual<S> and input_dim > 0.
-  // values: evaluation point as plain scalars (ordered by the sorted symbol list).
-  // Returns J[i][j] = ∂fᵢ/∂xⱼ  (output_dim × input_dim).
-  [[nodiscard]] auto
-  eval_jacobian_forward(Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
+  // values: evaluation point as plain scalars (ordered by the sorted symbol
+  // list). Returns J[i][j] = ∂fᵢ/∂xⱼ  (output_dim × input_dim).
+  [[nodiscard]] auto eval_jacobian_forward(
+      Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
     requires is_dual_v<value_type> && (input_dim > 0)
   {
     using S = dual_scalar_t<value_type>;

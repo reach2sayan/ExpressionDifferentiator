@@ -495,5 +495,7 @@ build/
 /cmake-build-debug/
 /cmake-build-release/
 /build-win
-/cmake-build-clang/*
-/cmake-build-gcc/*
+/cmake-build-clang-debug/
+/cmake-build-clang-release/
+/cmake-build-gcc-debug/
+/cmake-build-gcc-release/

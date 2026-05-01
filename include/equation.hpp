@@ -52,7 +52,6 @@ constexpr auto make_derivatives(mp::mp_list<Syms...>, const Expr &expr) {
 
 template <typename T>
 concept EquationConcept = ExpressionConcept<T> and std::constructible_from<T>;
-
 template <ExpressionConcept... Ts> class Equation;
 
 template <ExpressionConcept TExpression> class Equation<TExpression> {
