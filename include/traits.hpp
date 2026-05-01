@@ -7,7 +7,7 @@
 namespace mp = boost::mp11;
 template <std::size_t N, class F> constexpr void static_for(F &&f) {
   mp::mp_for_each<mp::mp_iota_c<N>>(
-      [&]<class I>(I) { f.template operator()<I::value>(); });
+      [&]<class I>(I) { std::forward<F>(f).template operator()<I::value>(); });
 }
 
 // --- compile-time "is this a Constant?" ---
@@ -74,8 +74,7 @@ template <char symbol, typename Op, typename LHS, typename RHS>
 constexpr auto make_const_variable(const Expression<Op, LHS, RHS> &expr)
     -> Expression<Op, replace_matching_variable_as_const_t<symbol, LHS>,
                   replace_matching_variable_as_const_t<symbol, RHS>> {
-  auto lexpr = expr.expressions().first;
-  auto rexpr = expr.expressions().second;
+  auto [lexpr, rexpr] = expr.expressions();
   return {make_const_variable<symbol>(std::move(lexpr)),
           make_const_variable<symbol>(std::move(rexpr))};
 }

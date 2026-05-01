@@ -200,16 +200,19 @@ public:
 //   - When value_type is tuple-like (e.g. Dual<T>): delegate to it.
 //   - Otherwise: both elements are value_type (eval / derivative.eval).
 // ===========================================================================
+namespace detail {
 template <typename V, std::size_t I, typename = void>
 struct expression_element {
   using type = V;
 };
 
 template <typename V, std::size_t I>
-struct expression_element<
-    V, I, std::void_t<typename std::tuple_element<I, V>::type>> {
+struct expression_element<V, I,
+                          std::void_t<typename std::tuple_element_t<I, V>>> {
   using type = std::tuple_element_t<I, V>;
 };
+}
+
 
 namespace std {
 template <AnOp Op, typename LHS, typename RHS>
@@ -218,7 +221,7 @@ struct tuple_size<Expression<Op, LHS, RHS>> : integral_constant<size_t, 2> {};
 template <size_t I, AnOp Op, typename LHS, typename RHS>
 struct tuple_element<I, Expression<Op, LHS, RHS>> {
   using type =
-      typename expression_element<typename Expression<Op, LHS, RHS>::value_type,
+      typename detail::expression_element<typename Expression<Op, LHS, RHS>::value_type,
                                   I>::type;
 };
 
@@ -228,7 +231,7 @@ struct tuple_size<MonoExpression<Op, Exp>> : integral_constant<size_t, 2> {};
 template <size_t I, AnOp Op, typename Exp>
 struct tuple_element<I, MonoExpression<Op, Exp>> {
   using type =
-      typename expression_element<typename MonoExpression<Op, Exp>::value_type,
+      typename detail::expression_element<typename MonoExpression<Op, Exp>::value_type,
                                   I>::type;
 };
 } // namespace std

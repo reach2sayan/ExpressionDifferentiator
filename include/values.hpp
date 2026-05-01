@@ -198,7 +198,9 @@ public:
   constexpr void backward(const auto &, T, auto &) const {}
 
   template <typename Syms, std::size_t N>
-  [[nodiscard]] constexpr T eval_seeded(const std::array<T, N> &) const { return value; }
+  [[nodiscard]] constexpr T eval_seeded(const std::array<T, N> &) const {
+    return value;
+  }
 
   template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);
@@ -319,17 +321,15 @@ template <Numeric T>
 struct std::tuple_size<Constant<T>> : std::integral_constant<std::size_t, 2> {};
 
 template <std::size_t I, Numeric T> struct std::tuple_element<I, Constant<T>> {
-  using type = typename expression_element<T, I>::type;
+  using type = typename detail::expression_element<T, I>::type;
 };
 
 namespace std {
 template <Numeric T, char C>
-struct tuple_size<Variable<T, C>>
-    : std::integral_constant<std::size_t, 2> {};
+struct tuple_size<Variable<T, C>> : std::integral_constant<std::size_t, 2> {};
 
 template <std::size_t I, Numeric T, char C>
 struct tuple_element<I, Variable<T, C>> {
-  using type = typename expression_element<T, I>::type;
+  using type = typename detail::expression_element<T, I>::type;
 };
-}
-
+} // namespace std

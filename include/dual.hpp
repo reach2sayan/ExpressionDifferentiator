@@ -129,8 +129,11 @@ inline constexpr bool is_dual_v = is_dual_impl(std::type_identity<T>{});
 template <typename T>
 using dual_scalar_t = decltype(dual_scalar_impl(std::declval<T>()));
 
+namespace std {
 template <typename T>
-struct std::tuple_size<Dual<T>> : std::integral_constant<std::size_t, 2> {};
-template <typename T, std::size_t N> struct std::tuple_element<N, Dual<T>> {
+struct tuple_size<Dual<T>> : integral_constant<std::size_t, 2> {};
+template <typename T, std::size_t N> struct tuple_element<N, Dual<T>> {
   using type = T;
 };
+}
+
