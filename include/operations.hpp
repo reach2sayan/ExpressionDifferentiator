@@ -5,6 +5,8 @@
 #include <functional>
 #include <utility>
 
+namespace diff {
+
 enum class OpType : short {
   Unary = 0,
   Binary = 1,
@@ -57,7 +59,6 @@ template <typename T> struct SumOp : BinaryOp<T, std::plus<T>, '+'> {
              const ExpressionConcept auto &rhs) {
     return lhs.derivative() + rhs.derivative();
   }
-  // ā += w̄,  b̄ += w̄
   constexpr static void backward(const ExpressionConcept auto &lhs,
                                  const ExpressionConcept auto &rhs, T adj,
                                  const auto &syms, auto &grads) {
@@ -70,11 +71,10 @@ template <Numeric T> struct MultiplyOp : BinaryOp<T, std::multiplies<T>, '*'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs,
              const ExpressionConcept auto &rhs) {
-    auto lmul = lhs.derivative() * rhs; // f'(x)g(x)
-    auto rmul = lhs * rhs.derivative(); // f(x)g'(x)
+    auto lmul = lhs.derivative() * rhs;
+    auto rmul = lhs * rhs.derivative();
     return std::move(lmul) + std::move(rmul);
   }
-  // ā += w̄·b,  b̄ += w̄·a
   constexpr static void backward(const ExpressionConcept auto &lhs,
                                  const ExpressionConcept auto &rhs, T adj,
                                  const auto &syms, auto &grads) {
@@ -89,7 +89,6 @@ template <Numeric T> struct NegateOp : UnaryOp<T, std::negate<T>, '-'> {
     auto d = lhs.derivative();
     return MonoExpression<NegateOp<T>, decltype(d)>{std::move(d)};
   }
-  // ā += -w̄
   constexpr static void backward(const ExpressionConcept auto &expr, T adj,
                                  const auto &syms, auto &grads) {
     expr.backward(syms, -adj, grads);
@@ -100,13 +99,12 @@ template <Numeric T> struct DivideOp : BinaryOp<T, std::divides<T>, '/'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs,
              const ExpressionConcept auto &rhs) {
-    auto num_l = lhs.derivative() * rhs;                  // f'(x)g(x)
-    auto num_r = lhs * rhs.derivative();                  // f(x)g'(x)
-    auto numerator = std::move(num_l) - std::move(num_r); // f'g - fg'
-    auto denominator = rhs * rhs;                         // g(x)^2
+    auto num_l = lhs.derivative() * rhs;
+    auto num_r = lhs * rhs.derivative();
+    auto numerator = std::move(num_l) - std::move(num_r);
+    auto denominator = rhs * rhs;
     return std::move(numerator) / std::move(denominator);
   }
-  // ā += w̄/b,  b̄ += -w̄·a/b²
   constexpr static void backward(const ExpressionConcept auto &lhs,
                                  const ExpressionConcept auto &rhs, T adj,
                                  const auto &syms, auto &grads) {
@@ -118,83 +116,49 @@ template <Numeric T> struct DivideOp : BinaryOp<T, std::divides<T>, '/'> {
 
 namespace detail {
 template <Numeric T> struct sine_impl {
-  T operator()(const T &a) const {
-    using std::sin;
-    return sin(a);
-  }
+  T operator()(const T &a) const { using std::sin; return sin(a); }
 };
 template <Numeric T> struct cosine_impl {
-  T operator()(const T &a) const {
-    using std::cos;
-    return cos(a);
-  }
+  T operator()(const T &a) const { using std::cos; return cos(a); }
 };
 template <Numeric T> struct tan_impl {
-  T operator()(const T &a) const {
-    using std::tan;
-    return tan(a);
-  }
+  T operator()(const T &a) const { using std::tan; return tan(a); }
 };
 template <Numeric T> struct log_impl {
-  T operator()(const T &a) const {
-    using std::log;
-    return log(a);
-  }
+  T operator()(const T &a) const { using std::log; return log(a); }
 };
 template <Numeric T> struct sqrt_impl {
-  T operator()(const T &a) const {
-    using std::sqrt;
-    return sqrt(a);
-  }
+  T operator()(const T &a) const { using std::sqrt; return sqrt(a); }
 };
 template <Numeric T> struct abs_impl {
-  T operator()(const T &a) const {
-    using std::abs;
-    return abs(a);
-  }
+  T operator()(const T &a) const { using std::abs; return abs(a); }
 };
 template <Numeric T> struct asin_impl {
-  T operator()(const T &a) const {
-    using std::asin;
-    return asin(a);
-  }
+  T operator()(const T &a) const { using std::asin; return asin(a); }
 };
 template <Numeric T> struct acos_impl {
-  T operator()(const T &a) const {
-    using std::acos;
-    return acos(a);
-  }
+  T operator()(const T &a) const { using std::acos; return acos(a); }
 };
 template <Numeric T> struct atan_impl {
-  T operator()(const T &a) const {
-    using std::atan;
-    return atan(a);
-  }
+  T operator()(const T &a) const { using std::atan; return atan(a); }
 };
 template <Numeric T> struct sinh_impl {
-  T operator()(const T &a) const {
-    using std::sinh;
-    return sinh(a);
-  }
+  T operator()(const T &a) const { using std::sinh; return sinh(a); }
 };
 template <Numeric T> struct cosh_impl {
-  T operator()(const T &a) const {
-    using std::cosh;
-    return cosh(a);
-  }
+  T operator()(const T &a) const { using std::cosh; return cosh(a); }
 };
 template <Numeric T> struct tanh_impl {
-  T operator()(const T &a) const {
-    using std::tanh;
-    return tanh(a);
-  }
+  T operator()(const T &a) const { using std::tanh; return tanh(a); }
+};
+template <Numeric T> struct exp_impl {
+  T operator()(const T &a) const { using std::exp; return exp(a); }
 };
 } // namespace detail
 
 template <Numeric T> struct SineOp : UnaryOp<T, detail::sine_impl<T>, '$'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
-  // ā += w̄·cos(a)
   constexpr static void backward(const ExpressionConcept auto &expr, T adj,
                                  const auto &syms, auto &grads) {
     using std::cos;
@@ -205,7 +169,6 @@ template <Numeric T> struct SineOp : UnaryOp<T, detail::sine_impl<T>, '$'> {
 template <Numeric T> struct CosineOp : UnaryOp<T, detail::cosine_impl<T>, '['> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
-  // ā += -w̄·sin(a)
   constexpr static void backward(const ExpressionConcept auto &expr, T adj,
                                  const auto &syms, auto &grads) {
     using std::sin;
@@ -223,22 +186,12 @@ constexpr auto SineOp<T>::derivative(const ExpressionConcept auto &expr) {
   return cos(expr) * expr.derivative();
 }
 
-namespace detail {
-template <Numeric T> struct exp_impl {
-  T operator()(const T &a) const {
-    using std::exp;
-    return exp(a);
-  }
-};
-} // namespace detail
-
 template <Numeric T> struct ExpOp : UnaryOp<T, detail::exp_impl<T>, 'e'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs) {
     return MonoExpression<ExpOp<T>, std::decay_t<decltype(lhs)>>{lhs} *
            lhs.derivative();
   }
-  // ā += w̄·exp(a)
   constexpr static void backward(const ExpressionConcept auto &expr, T adj,
                                  const auto &syms, auto &grads) {
     using std::exp;
@@ -246,9 +199,6 @@ template <Numeric T> struct ExpOp : UnaryOp<T, detail::exp_impl<T>, 'e'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// tan   d/dx tan(f) = f' / cos²(f)
-// ---------------------------------------------------------------------------
 template <Numeric T> struct TanOp : UnaryOp<T, detail::tan_impl<T>, 't'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -260,9 +210,6 @@ template <Numeric T> struct TanOp : UnaryOp<T, detail::tan_impl<T>, 't'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// log   d/dx log(f) = f' / f
-// ---------------------------------------------------------------------------
 template <Numeric T> struct LogOp : UnaryOp<T, detail::log_impl<T>, 'l'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -272,9 +219,6 @@ template <Numeric T> struct LogOp : UnaryOp<T, detail::log_impl<T>, 'l'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// sqrt  d/dx sqrt(f) = f' / (2·sqrt(f))
-// ---------------------------------------------------------------------------
 template <Numeric T> struct SqrtOp : UnaryOp<T, detail::sqrt_impl<T>, 'q'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -285,9 +229,6 @@ template <Numeric T> struct SqrtOp : UnaryOp<T, detail::sqrt_impl<T>, 'q'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// abs   d/dx |f| = sign(f)·f'  (0 at f=0 by convention)
-// ---------------------------------------------------------------------------
 template <Numeric T> struct AbsOp : UnaryOp<T, detail::abs_impl<T>, '|'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -299,9 +240,6 @@ template <Numeric T> struct AbsOp : UnaryOp<T, detail::abs_impl<T>, '|'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// asin  d/dx asin(f) = f' / sqrt(1 - f²)
-// ---------------------------------------------------------------------------
 template <Numeric T> struct AsinOp : UnaryOp<T, detail::asin_impl<T>, 'S'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -313,9 +251,6 @@ template <Numeric T> struct AsinOp : UnaryOp<T, detail::asin_impl<T>, 'S'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// acos  d/dx acos(f) = -f' / sqrt(1 - f²)
-// ---------------------------------------------------------------------------
 template <Numeric T> struct AcosOp : UnaryOp<T, detail::acos_impl<T>, 'K'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -327,9 +262,6 @@ template <Numeric T> struct AcosOp : UnaryOp<T, detail::acos_impl<T>, 'K'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// atan  d/dx atan(f) = f' / (1 + f²)
-// ---------------------------------------------------------------------------
 template <Numeric T> struct AtanOp : UnaryOp<T, detail::atan_impl<T>, 'N'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -340,9 +272,6 @@ template <Numeric T> struct AtanOp : UnaryOp<T, detail::atan_impl<T>, 'N'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// sinh  d/dx sinh(f) = cosh(f)·f'
-// ---------------------------------------------------------------------------
 template <Numeric T> struct SinhOp : UnaryOp<T, detail::sinh_impl<T>, 'H'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -353,9 +282,6 @@ template <Numeric T> struct SinhOp : UnaryOp<T, detail::sinh_impl<T>, 'H'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// cosh  d/dx cosh(f) = sinh(f)·f'
-// ---------------------------------------------------------------------------
 template <Numeric T> struct CoshOp : UnaryOp<T, detail::cosh_impl<T>, 'G'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -366,9 +292,6 @@ template <Numeric T> struct CoshOp : UnaryOp<T, detail::cosh_impl<T>, 'G'> {
   }
 };
 
-// ---------------------------------------------------------------------------
-// tanh  d/dx tanh(f) = f' / cosh²(f)
-// ---------------------------------------------------------------------------
 template <Numeric T> struct TanhOp : UnaryOp<T, detail::tanh_impl<T>, 'Y'> {
   [[nodiscard]] constexpr static auto
   derivative(const ExpressionConcept auto &lhs);
@@ -380,8 +303,7 @@ template <Numeric T> struct TanhOp : UnaryOp<T, detail::tanh_impl<T>, 'Y'> {
   }
 };
 
-// --- out-of-line derivative definitions (require ADL for sin/cos/sqrt/etc.)
-// ---
+// --- out-of-line derivative definitions ---
 
 template <Numeric T>
 constexpr auto TanOp<T>::derivative(const ExpressionConcept auto &lhs) {
@@ -401,7 +323,6 @@ constexpr auto SqrtOp<T>::derivative(const ExpressionConcept auto &lhs) {
 
 template <Numeric T>
 constexpr auto AbsOp<T>::derivative(const ExpressionConcept auto &lhs) {
-  // sign(f) = f/|f|; undefined at f=0 (forward mode not meaningful there)
   auto abs_lhs = MonoExpression<AbsOp<T>, std::decay_t<decltype(lhs)>>{lhs};
   return (lhs / abs_lhs) * lhs.derivative();
 }
@@ -442,3 +363,5 @@ template <Numeric T>
 [[nodiscard]] constexpr inline auto Negate(ExpressionConcept auto expr) {
   return MonoExpression<NegateOp<T>, decltype(expr)>{std::move(expr)};
 }
+
+} // namespace diff

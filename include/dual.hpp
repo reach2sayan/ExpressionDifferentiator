@@ -6,6 +6,8 @@
 #include <tuple>
 #include <utility>
 
+namespace diff {
+
 template <typename T> class Dual {
 private:
   T val{};
@@ -63,7 +65,6 @@ public:
       return deriv;
   }
 
-  // Hidden friends — found by ADL, have access to private members.
   [[nodiscard]] friend constexpr Dual sin(const Dual &d) {
     using std::sin, std::cos;
     return Dual{sin(d.val), cos(d.val) * d.deriv};
@@ -135,7 +136,7 @@ template <typename T> consteval bool is_dual_impl(std::type_identity<T>) {
 template <typename T> consteval bool is_dual_impl(std::type_identity<Dual<T>>) {
   return true;
 }
-} // namespace
+} // anonymous namespace
 
 template <typename T>
 inline constexpr bool is_dual_v = is_dual_impl(std::type_identity<T>{});
@@ -143,10 +144,12 @@ inline constexpr bool is_dual_v = is_dual_impl(std::type_identity<T>{});
 template <typename T>
 using dual_scalar_t = decltype(dual_scalar_impl(std::declval<T>()));
 
+} // namespace diff
+
 namespace std {
 template <typename T>
-struct tuple_size<Dual<T>> : integral_constant<std::size_t, 2> {};
-template <typename T, std::size_t N> struct tuple_element<N, Dual<T>> {
+struct tuple_size<diff::Dual<T>> : integral_constant<std::size_t, 2> {};
+template <typename T, std::size_t N> struct tuple_element<N, diff::Dual<T>> {
   using type = T;
 };
 } // namespace std

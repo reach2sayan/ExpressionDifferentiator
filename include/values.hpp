@@ -6,13 +6,13 @@
 #include <format>
 #include <string_view>
 
+namespace diff {
+
 constexpr bool PRINT_VARIABLE_VALUE = false;
 constexpr bool PRINT_VARIABLE_LABEL = true;
 constexpr bool PRINT_CONSTANT_VALUE = true;
 constexpr bool PRINT_CONSTANT_LABEL = false;
 
-// Concept replacing the VALUE_TYPE_MISMATCH_ASSERT macro: participates in
-// overload resolution rather than firing inside the body.
 template <typename LHS, typename RHS>
 concept CompatibleValueTypes =
     std::is_same_v<typename LHS::value_type, typename RHS::value_type> ||
@@ -30,7 +30,6 @@ public:
 };
 constexpr static character_generator cgenerator{};
 
-// Find the 0-based index of integral_constant<char,C> in an mp_list.
 template <char C, typename SymList> consteval std::size_t find_index_of_char() {
   return boost::mp11::mp_find<SymList, std::integral_constant<char, C>>::value;
 }
@@ -124,7 +123,6 @@ struct IOperators {
     return MonoExpression<TanhOp<value_type>, Expr>{std::move(a)};
   }
 
-  // Scalar-on-left overloads: wrap the scalar as Constant<VT> and delegate.
   template <typename S, ExpressionConcept RHS>
     requires std::is_arithmetic_v<S>
   friend constexpr auto operator+(S s, const RHS &b) {
@@ -150,7 +148,6 @@ struct IOperators {
     return Constant<VT>{static_cast<VT>(s)} / b;
   }
 
-  // Scalar-on-right overloads.
   template <ExpressionConcept LHS, typename S>
     requires std::is_arithmetic_v<S>
   friend constexpr auto operator+(const LHS &a, S s) {
@@ -302,9 +299,7 @@ constexpr void Variable<T, symbol>::backward(const auto &syms, T adj,
 }
 
 // ===========================================================================
-// RuntimeVariable<T> — variable identified by a runtime integer index.
-// Symbol identity is not encoded in the type; update/backward use the stored
-// index directly and ignore the compile-time symbols argument.
+// RuntimeVariable<T>
 // ===========================================================================
 template <Numeric T> class RuntimeVariable : public IOperators {
   T value_{};
@@ -355,45 +350,50 @@ template <typename T> auto RV(T value, std::size_t index) {
   return RuntimeVariable<T>(value, index);
 }
 
-#define PDV(x, label)                                                          \
-  Variable<Dual<decltype(x)>, label>(Dual<decltype(x)>{x, 0})
-#define PV(x, label) Variable<decltype(x), label>(x)
-#define PC(x) Constant(x)
-
 #define DEFINE_CONST_UDL(type, suffix)                                         \
-  consteval Constant<type> operator"" _##suffix(unsigned long long val) {      \
-    return Constant<type>{static_cast<type>(val)};                             \
-  }                                                                            \
-  consteval Constant<type> operator"" _##suffix(long double val) {             \
-    return Constant<type>{static_cast<type>(val)};                             \
+  consteval diff::Constant<type> operator"" _##suffix(                         \
+      unsigned long long val) {                                                 \
+    return diff::Constant<type>{static_cast<type>(val)};                       \
+  }                                                                             \
+  consteval diff::Constant<type> operator"" _##suffix(long double val) {       \
+    return diff::Constant<type>{static_cast<type>(val)};                       \
   }
 
 #define DEFINE_VAR_UDL(type, suffix, label)                                    \
   consteval auto operator"" _##suffix(unsigned long long val) {                \
-    return Variable<type, label>{static_cast<type>(val)};                      \
-  }                                                                            \
+    return diff::Variable<type, label>{static_cast<type>(val)};                \
+  }                                                                             \
   consteval auto operator"" _##suffix(long double val) {                       \
-    return Variable<type, label>{static_cast<type>(val)};                      \
+    return diff::Variable<type, label>{static_cast<type>(val)};                \
   }
+
+} // namespace diff
 
 DEFINE_CONST_UDL(int, ci)
 DEFINE_CONST_UDL(double, cd)
 DEFINE_VAR_UDL(int, vi, 'c')
 DEFINE_VAR_UDL(double, vd, 'v')
 
-template <Numeric T>
-struct std::tuple_size<Constant<T>> : std::integral_constant<std::size_t, 2> {};
+namespace std {
+template <diff::Numeric T>
+struct tuple_size<diff::Constant<T>> : integral_constant<std::size_t, 2> {};
 
-template <std::size_t I, Numeric T> struct std::tuple_element<I, Constant<T>> {
-  using type = typename detail::expression_element<T, I>::type;
+template <std::size_t I, diff::Numeric T>
+struct tuple_element<I, diff::Constant<T>> {
+  using type = typename diff::detail::expression_element<T, I>::type;
 };
 
-namespace std {
-template <Numeric T, char C>
-struct tuple_size<Variable<T, C>> : std::integral_constant<std::size_t, 2> {};
+template <diff::Numeric T, char C>
+struct tuple_size<diff::Variable<T, C>> : integral_constant<std::size_t, 2> {};
 
-template <std::size_t I, Numeric T, char C>
-struct tuple_element<I, Variable<T, C>> {
-  using type = typename detail::expression_element<T, I>::type;
+template <std::size_t I, diff::Numeric T, char C>
+struct tuple_element<I, diff::Variable<T, C>> {
+  using type = typename diff::detail::expression_element<T, I>::type;
 };
 } // namespace std
+
+#define PDV(x, label)                                                          \
+  diff::Variable<diff::Dual<decltype(x)>, label>(                             \
+      diff::Dual<decltype(x)>{x, 0})
+#define PV(x, label) diff::Variable<decltype(x), label>(x)
+#define PC(x) diff::Constant(x)

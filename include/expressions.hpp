@@ -5,9 +5,7 @@
 #include <tuple>
 #include <type_traits>
 
-// ===========================================================================
-// Concepts
-// ===========================================================================
+namespace diff {
 
 /// Numeric: any scalar type that supports arithmetic operations.
 template <typename T>
@@ -26,8 +24,7 @@ concept AnOp =
     requires { typename O::value_type; } && Numeric<typename O::value_type>;
 
 // ===========================================================================
-// Forward declarations (Op constrained; LHS/RHS/Exp left open so raw scalars
-// can still be passed directly to factory functions in existing tests).
+// Forward declarations
 // ===========================================================================
 template <AnOp Op, typename LHS, typename RHS> class Expression;
 template <AnOp Op, typename Exp> class MonoExpression;
@@ -53,15 +50,11 @@ struct is_expression_type<Expression<Op, LHS, RHS>> : std::true_type {};
 template <AnOp Op, typename Exp>
 struct is_expression_type<MonoExpression<Op, Exp>> : std::true_type {};
 
-/// Tag-based concept — complements the structural SymbolicExpr above.
 template <typename T>
 concept ExpressionConcept = is_expression_type<std::remove_cvref_t<T>>::value;
 
 // ===========================================================================
-// EvalResult<T> — a pre-computed value that satisfies ExpressionConcept so
-// it can be passed to Op::eval without those impls needing modification.
-// eval_seeded uses this to inject seeded values into one recursive pass
-// without calling update() + eval() separately.
+// EvalResult<T>
 // ===========================================================================
 template <Numeric T> struct EvalResult {
   using value_type = T;
@@ -74,7 +67,7 @@ template <Numeric T>
 struct is_expression_type<EvalResult<T>> : std::true_type {};
 
 // ===========================================================================
-// BaseExpression: injects value_type from the Op into derived classes.
+// BaseExpression
 // ===========================================================================
 template <AnOp Op> struct BaseExpression {
   using value_type = typename Op::value_type;
@@ -100,11 +93,11 @@ public:
   template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);
     if constexpr (requires { std::tuple_size<value_type>::value; })
-      return eval().template get<I>(); // Dual path
+      return eval().template get<I>();
     else if constexpr (I == 0)
-      return eval(); // value
+      return eval();
     else
-      return static_cast<value_type>(derivative()); // derivative
+      return static_cast<value_type>(derivative());
   }
 
   [[nodiscard]] constexpr auto derivative() const {
@@ -159,11 +152,11 @@ public:
   template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);
     if constexpr (requires { std::tuple_size<value_type>::value; })
-      return eval().template get<I>(); // Dual path
+      return eval().template get<I>();
     else if constexpr (I == 0)
-      return eval(); // value
+      return eval();
     else
-      return static_cast<value_type>(derivative()); // derivative
+      return static_cast<value_type>(derivative());
   }
 
   [[nodiscard]] constexpr auto eval() const {
@@ -200,17 +193,6 @@ public:
   }
 };
 
-// ===========================================================================
-// Structured-binding support: size=2 for all expression types.
-// Element type delegates to value_type when it's tuple-like (e.g. Dual<T>),
-// otherwise both elements are value_type ({eval, derivative}).
-// ===========================================================================
-
-// ===========================================================================
-// Helper: selects the structured-binding element type for an expression.
-//   - When value_type is tuple-like (e.g. Dual<T>): delegate to it.
-//   - Otherwise: both elements are value_type (eval / derivative.eval).
-// ===========================================================================
 namespace detail {
 template <typename V, std::size_t I, typename = void>
 struct expression_element {
@@ -222,27 +204,28 @@ struct expression_element<V, I,
                           std::void_t<typename std::tuple_element_t<I, V>>> {
   using type = std::tuple_element_t<I, V>;
 };
-}
+} // namespace detail
 
+} // namespace diff
 
 namespace std {
-template <AnOp Op, typename LHS, typename RHS>
-struct tuple_size<Expression<Op, LHS, RHS>> : integral_constant<size_t, 2> {};
+template <diff::AnOp Op, typename LHS, typename RHS>
+struct tuple_size<diff::Expression<Op, LHS, RHS>>
+    : integral_constant<size_t, 2> {};
 
-template <size_t I, AnOp Op, typename LHS, typename RHS>
-struct tuple_element<I, Expression<Op, LHS, RHS>> {
-  using type =
-      typename detail::expression_element<typename Expression<Op, LHS, RHS>::value_type,
-                                  I>::type;
+template <size_t I, diff::AnOp Op, typename LHS, typename RHS>
+struct tuple_element<I, diff::Expression<Op, LHS, RHS>> {
+  using type = typename diff::detail::expression_element<
+      typename diff::Expression<Op, LHS, RHS>::value_type, I>::type;
 };
 
-template <AnOp Op, typename Exp>
-struct tuple_size<MonoExpression<Op, Exp>> : integral_constant<size_t, 2> {};
+template <diff::AnOp Op, typename Exp>
+struct tuple_size<diff::MonoExpression<Op, Exp>>
+    : integral_constant<size_t, 2> {};
 
-template <size_t I, AnOp Op, typename Exp>
-struct tuple_element<I, MonoExpression<Op, Exp>> {
-  using type =
-      typename detail::expression_element<typename MonoExpression<Op, Exp>::value_type,
-                                  I>::type;
+template <size_t I, diff::AnOp Op, typename Exp>
+struct tuple_element<I, diff::MonoExpression<Op, Exp>> {
+  using type = typename diff::detail::expression_element<
+      typename diff::MonoExpression<Op, Exp>::value_type, I>::type;
 };
 } // namespace std
