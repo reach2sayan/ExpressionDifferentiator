@@ -70,3 +70,106 @@ template <ExpressionConcept Expr,
 
   return gradients;
 }
+
+// Forward-over-reverse Hessian for a scalar expression.
+// Requires value_type = Dual<S>. Takes the base scalar values explicitly.
+// Mutates expr (seeds dual tangents) and restores on exit.
+// Cost: N backward passes.  H[i][j] = ∂²f/∂xᵢ∂xⱼ.
+template <ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename S = dual_scalar_t<T>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires is_dual_v<T>
+[[nodiscard]] auto reverse_mode_hessian(Expr &expr, std::array<S, N> values) {
+  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+
+  std::array<std::array<S, N>, N> H{};
+  std::array<T, N> seeds{};
+
+  for (auto j : std::views::iota(0u, N)) {
+    for (auto i : std::views::iota(0u, N)) {
+      seeds[i] = T{values[i], i == j ? S{1} : S{}};
+    }
+    expr.update(symbols{}, seeds);
+    std::array<T, N> grads{};
+    expr.backward(symbols{}, T{1}, grads);
+    for (auto i: std::views::iota(0u, N)) {
+      H[i][j] = grads[i].template get<1>();
+    }
+  }
+
+  for (auto i: std::views::iota(0u, N)) {
+    seeds[i] = T{values[i], S{}};
+  }
+  expr.update(symbols{}, seeds);
+
+  return H;
+}
+
+// No-values overload: reads current variable values via collect().
+template <ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename S = dual_scalar_t<T>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires is_dual_v<T>
+[[nodiscard]] auto reverse_mode_hessian(Expr &expr) {
+  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+  std::array<T, N> current{};
+  expr.collect(symbols{}, current);
+  std::array<S, N> values{};
+  for (auto i : std::views::iota(0u, N)) {
+    values[i] = current[i].template get<0>();
+  }
+  return reverse_mode_hessian(expr, values);
+}
+
+// Stateless forward-over-forward Hessian for a scalar expression.
+// Requires value_type = Dual<Dual<S>>. N² eval_seeded passes, no mutation.
+// Cost: N² traversals.  H[i][j] = ∂²f/∂xᵢ∂xⱼ.
+template <ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename D = dual_scalar_t<T>,
+          typename S = dual_scalar_t<D>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires is_dual_v<T> && is_dual_v<D>
+[[nodiscard]] constexpr auto forward_mode_hessian(const Expr &expr,
+                                                  std::array<S, N> values) {
+  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+
+  std::array<std::array<S, N>, N> H{};
+  static_for<N>([&]<std::size_t I>() {
+    static_for<N>([&]<std::size_t J>() {
+      std::array<T, N> seeds{};
+      static_for<N>([&]<std::size_t K>() {
+        seeds[K] = T{D{values[K], K == J ? S{1} : S{}},
+                     D{K == I ? S{1} : S{}, S{}}};
+      });
+      H[I][J] =
+          expr.template eval_seeded<symbols>(seeds).template get<1>().template get<1>();
+    });
+  });
+
+  return H;
+}
+
+// No-values overload: reads current variable values via collect().
+template <ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename D = dual_scalar_t<T>,
+          typename S = dual_scalar_t<D>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires is_dual_v<T> && is_dual_v<D>
+[[nodiscard]] constexpr auto forward_mode_hessian(const Expr &expr) {
+  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+  std::array<T, N> current{};
+  expr.collect(symbols{}, current);
+  std::array<S, N> values{};
+  for (auto i : std::views::iota(0u, N)) {
+    values[i] = current[i].template get<0>().template get<0>();
+  }
+  return forward_mode_hessian(expr, values);
+}

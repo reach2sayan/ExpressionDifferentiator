@@ -1634,3 +1634,118 @@ TEST(HessianForwardTest, NestedDual_WithValues) {
   EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0);
   EXPECT_DOUBLE_EQ(H[1](0, 0), 2.0);
 }
+
+// ===========================================================================
+// Scalar Hessian free functions (gradient.hpp)
+// ===========================================================================
+
+TEST(ScalarHessianTest, ReverseMode_XY) {
+  // f(x,y) = x*y  =>  H = [[0, 1], [1, 0]]
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{2.0}};
+  Variable<D, 'y'> y{D{3.0}};
+  auto expr = x * y;
+  auto H = reverse_mode_hessian(expr, std::array{2.0, 3.0});
+  EXPECT_DOUBLE_EQ(H[0][0], 0.0);
+  EXPECT_DOUBLE_EQ(H[0][1], 1.0);
+  EXPECT_DOUBLE_EQ(H[1][0], 1.0);
+  EXPECT_DOUBLE_EQ(H[1][1], 0.0);
+}
+
+TEST(ScalarHessianTest, ReverseMode_QuadraticForm) {
+  // f(x,y) = x*x + 2*y*y  =>  H = [[2, 0], [0, 4]]
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{1.0}};
+  Variable<D, 'y'> y{D{1.0}};
+  auto expr = x * x + PC(D{2.0}) * y * y;
+  auto H = reverse_mode_hessian(expr, std::array{1.0, 1.0});
+  EXPECT_DOUBLE_EQ(H[0][0], 2.0);
+  EXPECT_DOUBLE_EQ(H[0][1], 0.0);
+  EXPECT_DOUBLE_EQ(H[1][0], 0.0);
+  EXPECT_DOUBLE_EQ(H[1][1], 4.0);
+}
+
+TEST(ScalarHessianTest, ReverseMode_Symmetric) {
+  // H must be symmetric for smooth f.
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{0.5}};
+  Variable<D, 'y'> y{D{1.5}};
+  auto expr = exp(x * y);
+  auto H = reverse_mode_hessian(expr, std::array{0.5, 1.5});
+  EXPECT_NEAR(H[0][1], H[1][0], 1e-12);
+}
+
+TEST(ScalarHessianTest, ForwardMode_XY) {
+  // f(x,y) = x*y  =>  H = [[0, 1], [1, 0]]
+  using DD = Dual<Dual<double>>;
+  using D = Dual<double>;
+  Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
+  Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
+  auto expr = x * y;
+  auto H = forward_mode_hessian(expr, std::array{2.0, 3.0});
+  EXPECT_DOUBLE_EQ(H[0][0], 0.0);
+  EXPECT_DOUBLE_EQ(H[0][1], 1.0);
+  EXPECT_DOUBLE_EQ(H[1][0], 1.0);
+  EXPECT_DOUBLE_EQ(H[1][1], 0.0);
+}
+
+TEST(ScalarHessianTest, ForwardMode_QuadraticForm) {
+  // f(x,y) = x*x + 2*y*y  =>  H = [[2, 0], [0, 4]]
+  using DD = Dual<Dual<double>>;
+  using D = Dual<double>;
+  Variable<DD, 'x'> x{DD{D{1.0}, D{}}};
+  Variable<DD, 'y'> y{DD{D{1.0}, D{}}};
+  auto expr = x * x + PC(DD{D{2.0}}) * y * y;
+  auto H = forward_mode_hessian(expr, std::array{1.0, 1.0});
+  EXPECT_DOUBLE_EQ(H[0][0], 2.0);
+  EXPECT_DOUBLE_EQ(H[0][1], 0.0);
+  EXPECT_DOUBLE_EQ(H[1][0], 0.0);
+  EXPECT_DOUBLE_EQ(H[1][1], 4.0);
+}
+
+TEST(ScalarHessianTest, ReverseMode_NoValues) {
+  // No-values overload reads current variable state via collect().
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{2.0}};
+  Variable<D, 'y'> y{D{3.0}};
+  auto expr = x * y;
+  auto H = reverse_mode_hessian(expr);
+  EXPECT_DOUBLE_EQ(H[0][1], 1.0);
+  EXPECT_DOUBLE_EQ(H[1][0], 1.0);
+  EXPECT_DOUBLE_EQ(H[0][0], 0.0);
+  EXPECT_DOUBLE_EQ(H[1][1], 0.0);
+}
+
+TEST(ScalarHessianTest, ForwardMode_NoValues) {
+  using DD = Dual<Dual<double>>;
+  using D = Dual<double>;
+  Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
+  Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
+  auto expr = x * y;
+  auto H = forward_mode_hessian(expr);
+  EXPECT_DOUBLE_EQ(H[0][1], 1.0);
+  EXPECT_DOUBLE_EQ(H[1][0], 1.0);
+  EXPECT_DOUBLE_EQ(H[0][0], 0.0);
+  EXPECT_DOUBLE_EQ(H[1][1], 0.0);
+}
+
+TEST(ScalarHessianTest, ForwardAgreesWithReverse) {
+  // Both methods must agree on f(x,y) = exp(x*y) at (0.5, 1.5).
+  double xv = 0.5, yv = 1.5;
+
+  using D = Dual<double>;
+  Variable<D, 'x'> xr{D{xv}};
+  Variable<D, 'y'> yr{D{yv}};
+  auto expr_r = exp(xr * yr);
+  auto H_rev = reverse_mode_hessian(expr_r, std::array{xv, yv});
+
+  using DD = Dual<Dual<double>>;
+  Variable<DD, 'x'> xf{DD{D{xv}, D{}}};
+  Variable<DD, 'y'> yf{DD{D{yv}, D{}}};
+  auto expr_f = exp(xf * yf);
+  auto H_fwd = forward_mode_hessian(expr_f, std::array{xv, yv});
+
+  for (std::size_t i = 0; i < 2; ++i)
+    for (std::size_t j = 0; j < 2; ++j)
+      EXPECT_NEAR(H_fwd[i][j], H_rev[i][j], 1e-12);
+}

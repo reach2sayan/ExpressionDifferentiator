@@ -27,10 +27,24 @@ public:
   constexpr Dual operator/(const Dual &o) const {
     return Dual{val / o.val, (deriv * o.val - val * o.deriv) / (o.val * o.val)};
   }
-  constexpr Dual &operator+=(const Dual &o) { val += o.val; deriv += o.deriv; return *this; }
-  constexpr Dual &operator-=(const Dual &o) { val -= o.val; deriv -= o.deriv; return *this; }
-  constexpr Dual &operator*=(const Dual &o) { *this = *this * o; return *this; }
-  constexpr Dual &operator/=(const Dual &o) { *this = *this / o; return *this; }
+  constexpr Dual &operator+=(const Dual &o) {
+    val += o.val;
+    deriv += o.deriv;
+    return *this;
+  }
+  constexpr Dual &operator-=(const Dual &o) {
+    val -= o.val;
+    deriv -= o.deriv;
+    return *this;
+  }
+  constexpr Dual &operator*=(const Dual &o) {
+    *this = *this * o;
+    return *this;
+  }
+  constexpr Dual &operator/=(const Dual &o) {
+    *this = *this / o;
+    return *this;
+  }
   constexpr Dual operator-() const { return Dual{-val, -deriv}; }
   constexpr Dual &operator++() {
     ++val;
@@ -135,5 +149,4 @@ struct tuple_size<Dual<T>> : integral_constant<std::size_t, 2> {};
 template <typename T, std::size_t N> struct tuple_element<N, Dual<T>> {
   using type = T;
 };
-}
-
+} // namespace std
