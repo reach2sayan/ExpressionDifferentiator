@@ -244,3 +244,5 @@ template <DiffMode Mode, ExpressionConcept Expr,
 [[nodiscard]] constexpr auto hessian(const Expr &expr) {
   return detail::forward_mode_hessian(expr);
 }
+
+#define reverse_mode_grad gradient<DiffMode::Reverse>

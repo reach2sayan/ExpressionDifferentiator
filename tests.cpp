@@ -169,78 +169,78 @@ TEST(MathFunctionTest, TanEqualsRatio) {
 
 TEST(ReverseModeAD, TanDerivative) {
   auto x = PV(0.5, 'x');
-  auto g = gradient<DiffMode::Reverse>(tan(x));
+  auto g = reverse_mode_grad(tan(x));
   ASSERT_DOUBLE_EQ(g[0], 1.0 / (std::cos(0.5) * std::cos(0.5)));
 }
 
 TEST(ReverseModeAD, LogDerivative) {
   auto x = PV(0.5, 'x');
-  auto g = gradient<DiffMode::Reverse>(log(x));
+  auto g = reverse_mode_grad(log(x));
   ASSERT_DOUBLE_EQ(g[0], 2.0);
 }
 
 TEST(ReverseModeAD, SqrtDerivative) {
   auto x = PV(4.0, 'x');
-  auto g = gradient<DiffMode::Reverse>(sqrt(x));
+  auto g = reverse_mode_grad(sqrt(x));
   ASSERT_DOUBLE_EQ(g[0], 0.25); // 0.5/sqrt(4) = 0.25
 }
 
 TEST(ReverseModeAD, AsinDerivative) {
   double x0 = 0.5;
   auto x = PV(x0, 'x');
-  auto g = gradient<DiffMode::Reverse>(asin(x));
+  auto g = reverse_mode_grad(asin(x));
   ASSERT_DOUBLE_EQ(g[0], 1.0 / std::sqrt(1.0 - x0 * x0));
 }
 
 TEST(ReverseModeAD, AcosDerivative) {
   double x0 = 0.5;
   auto x = PV(x0, 'x');
-  auto g = gradient<DiffMode::Reverse>(acos(x));
+  auto g = reverse_mode_grad(acos(x));
   ASSERT_DOUBLE_EQ(g[0], -1.0 / std::sqrt(1.0 - x0 * x0));
 }
 
 TEST(ReverseModeAD, AtanDerivative) {
   double x0 = 0.5;
   auto x = PV(x0, 'x');
-  auto g = gradient<DiffMode::Reverse>(atan(x));
+  auto g = reverse_mode_grad(atan(x));
   ASSERT_DOUBLE_EQ(g[0], 1.0 / (1.0 + x0 * x0));
 }
 
 TEST(ReverseModeAD, SinhDerivative) {
   double x0 = 0.5;
   auto x = PV(x0, 'x');
-  auto g = gradient<DiffMode::Reverse>(sinh(x));
+  auto g = reverse_mode_grad(sinh(x));
   ASSERT_DOUBLE_EQ(g[0], std::cosh(x0));
 }
 
 TEST(ReverseModeAD, CoshDerivative) {
   double x0 = 0.5;
   auto x = PV(x0, 'x');
-  auto g = gradient<DiffMode::Reverse>(cosh(x));
+  auto g = reverse_mode_grad(cosh(x));
   ASSERT_DOUBLE_EQ(g[0], std::sinh(x0));
 }
 
 TEST(ReverseModeAD, TanhDerivative) {
   double x0 = 0.5;
   auto x = PV(x0, 'x');
-  auto g = gradient<DiffMode::Reverse>(tanh(x));
+  auto g = reverse_mode_grad(tanh(x));
   double c = std::cosh(x0);
   ASSERT_DOUBLE_EQ(g[0], 1.0 / (c * c));
 }
 
 TEST(ReverseModeAD, AbsDerivativePositive) {
   auto x = PV(1.0, 'x');
-  ASSERT_DOUBLE_EQ(gradient<DiffMode::Reverse>(abs(x))[0], 1.0);
+  ASSERT_DOUBLE_EQ(reverse_mode_grad(abs(x))[0], 1.0);
 }
 
 TEST(ReverseModeAD, AbsDerivativeNegative) {
   auto x = PV(-1.0, 'x');
-  ASSERT_DOUBLE_EQ(gradient<DiffMode::Reverse>(abs(x))[0], -1.0);
+  ASSERT_DOUBLE_EQ(reverse_mode_grad(abs(x))[0], -1.0);
 }
 
 TEST(ReverseModeAD, AbsDerivativeAtZero) {
   auto x = PV(0.0, 'x');
-  ASSERT_DOUBLE_EQ(gradient<DiffMode::Reverse>(abs(x))[0], 0.0);
+  ASSERT_DOUBLE_EQ(reverse_mode_grad(abs(x))[0], 0.0);
 }
 
 // ===========================================================================
@@ -762,7 +762,7 @@ TEST(EquationTest, JacobianLinear) {
   auto x = PV(3, 'x');
   auto y = PV(4, 'y');
   auto ve = Equation(x + y, x * y);
-  auto J = ve.jacobian<DiffMode::Symbolic>();
+  auto J = ve.symbolic_mode_jac();
   ASSERT_EQ(J(0, 0), 1); // ∂(x+y)/∂x
   ASSERT_EQ(J(0, 1), 1); // ∂(x+y)/∂y
   ASSERT_EQ(J(1, 0), 4); // ∂(x*y)/∂x = y = 4
@@ -776,7 +776,7 @@ TEST(EquationTest, JacobianWithTrig) {
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
   auto ve = Equation(x * y, sin(x) + y * y);
-  auto J = ve.jacobian<DiffMode::Symbolic>();
+  auto J = ve.symbolic_mode_jac();
   ASSERT_DOUBLE_EQ(J(0, 0), 3.0);           // ∂(x*y)/∂x = y
   ASSERT_DOUBLE_EQ(J(0, 1), 2.0);           // ∂(x*y)/∂y = x
   ASSERT_DOUBLE_EQ(J(1, 0), std::cos(2.0)); // ∂(sin(x)+y²)/∂x
@@ -801,7 +801,7 @@ TEST(EquationTest, SymbolUnionAcrossComponents) {
   auto y = PV(3.0, 'y');
   auto ve = Equation(x * x, y * y); // (x², y²)
   static_assert(decltype(ve)::input_dim == 2);
-  auto J = ve.jacobian<DiffMode::Symbolic>();
+  auto J = ve.symbolic_mode_jac();
   ASSERT_DOUBLE_EQ(J(0, 0), 8.0); // ∂(x²)/∂x = 2x = 8
   ASSERT_DOUBLE_EQ(J(0, 1), 0.0); // ∂(x²)/∂y = 0
   ASSERT_DOUBLE_EQ(J(1, 0), 0.0); // ∂(y²)/∂x = 0
@@ -815,7 +815,7 @@ TEST(EquationTest, ThreeOutputs) {
   auto ve = Equation(x * x, x * y, y * y);
   static_assert(decltype(ve)::output_dim == 3);
   static_assert(decltype(ve)::input_dim == 2);
-  auto J = ve.jacobian<DiffMode::Symbolic>();
+  auto J = ve.symbolic_mode_jac();
   ASSERT_DOUBLE_EQ(J(0, 0), 4.0);  // 2x
   ASSERT_DOUBLE_EQ(J(0, 1), 0.0);  // 0
   ASSERT_DOUBLE_EQ(J(1, 0), 5.0);  // y
@@ -830,8 +830,8 @@ TEST(EquationTest, ReverseJacobianAgreesWithSymbolic) {
   auto z = PV(4.0, 'z');
   auto ve = Equation(x * y, sin(x) + y * z, exp(z));
 
-  auto J_sym = ve.jacobian<DiffMode::Symbolic>();
-  auto J_rev = ve.jacobian<DiffMode::Reverse>();
+  auto J_sym = ve.symbolic_mode_jac();
+  auto J_rev = ve.reverse_mode_jac();
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
@@ -847,8 +847,8 @@ TEST(EquationTest, ParallelReverseJacobian_FourOutputs) {
   static_assert(decltype(ve)::output_dim == 4);
   static_assert(decltype(ve)::input_dim == 3);
 
-  auto J_sym = ve.jacobian<DiffMode::Symbolic>();
-  auto J_rev = ve.jacobian<DiffMode::Reverse>();
+  auto J_sym = ve.symbolic_mode_jac();
+  auto J_rev = ve.reverse_mode_jac();
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
@@ -865,8 +865,8 @@ TEST(EquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
   static_assert(decltype(ve)::output_dim == 5);
   static_assert(decltype(ve)::input_dim == 3);
 
-  auto J_sym = ve.jacobian<DiffMode::Symbolic>();
-  auto J_rev = ve.jacobian<DiffMode::Reverse>();
+  auto J_sym = ve.symbolic_mode_jac();
+  auto J_rev = ve.reverse_mode_jac();
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
@@ -880,8 +880,8 @@ TEST(EquationTest, ReverseJacobianSingleOutputMatchesGradient) {
   // Use a 2-component Equation so the vector specialization is selected.
   auto ve = Equation(expr, exp(x) * sin(y));
 
-  auto J_rev = ve.jacobian<DiffMode::Reverse>();
-  auto g = gradient<DiffMode::Reverse>(expr);
+  auto J_rev = ve.reverse_mode_jac();
+  auto g = reverse_mode_grad(expr);
 
   for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
     ASSERT_DOUBLE_EQ(J_rev(0, j), g[j]);
@@ -1018,14 +1018,14 @@ TEST(ForwardModeAD, Equivalence) {
 
 // ===========================================================================
 // Reverse-mode automatic differentiation via backward() /
-// gradient<DiffMode::Reverse>()
+// reverse_mode_grad()
 // ===========================================================================
 
 TEST(ReverseModeAD, SingleVariableLinear) {
   // f(x) = 3*x  at x=5,  df/dx = 3
   auto x = PV(5.0, 'x');
   auto expr = PC(3.0) * x;
-  auto g = gradient<DiffMode::Reverse>(expr);
+  auto g = reverse_mode_grad(expr);
   EXPECT_DOUBLE_EQ(g[0], 3.0);
 }
 
@@ -1033,7 +1033,7 @@ TEST(ReverseModeAD, ProductRule) {
   // f(x) = x*x  at x=4,  df/dx = 2x = 8
   auto x = Variable<double, 'x'>{4.0};
   auto expr = x * x;
-  auto g = gradient<DiffMode::Reverse>(expr);
+  auto g = reverse_mode_grad(expr);
   EXPECT_DOUBLE_EQ(g[0], 8.0);
 }
 
@@ -1042,7 +1042,7 @@ TEST(ReverseModeAD, TwoVariables) {
   auto x = PV(3.0, 'x');
   auto y = PV(4.0, 'y');
   auto expr = x * y;
-  auto g = gradient<DiffMode::Reverse>(expr);
+  auto g = reverse_mode_grad(expr);
   static_assert(g.size() == 2);
   EXPECT_DOUBLE_EQ(g[0], 4.0); // df/dx = y
   EXPECT_DOUBLE_EQ(g[1], 3.0); // df/dy = x
@@ -1052,7 +1052,7 @@ TEST(ReverseModeAD, Sum) {
   // f(x,y) = x + y,  df/dx=1, df/dy=1
   auto x = PV(2.0, 'x');
   auto y = PV(5.0, 'y');
-  auto g = gradient<DiffMode::Reverse>(x + y);
+  auto g = reverse_mode_grad(x + y);
   EXPECT_DOUBLE_EQ(g[0], 1.0);
   EXPECT_DOUBLE_EQ(g[1], 1.0);
 }
@@ -1061,7 +1061,7 @@ TEST(ReverseModeAD, LinearCombination) {
   // f(x,y) = 2*x + 3*y,  df/dx=2, df/dy=3
   auto x = PV(1.0, 'x');
   auto y = PV(1.0, 'y');
-  auto g = gradient<DiffMode::Reverse>(PC(2.0) * x + PC(3.0) * y);
+  auto g = reverse_mode_grad(PC(2.0) * x + PC(3.0) * y);
   EXPECT_DOUBLE_EQ(g[0], 2.0);
   EXPECT_DOUBLE_EQ(g[1], 3.0);
 }
@@ -1070,7 +1070,7 @@ TEST(ReverseModeAD, Divide) {
   // f(x) = x/c at x=6, c=3,  df/dx = 1/c = 1/3
   auto x = PV(6.0, 'x');
   auto c = PC(3.0);
-  auto g = gradient<DiffMode::Reverse>(x / c);
+  auto g = reverse_mode_grad(x / c);
   EXPECT_DOUBLE_EQ(g[0], 1.0 / 3.0);
 }
 
@@ -1078,7 +1078,7 @@ TEST(ReverseModeAD, NegateViaSubtract) {
   // f(x,y) = x - y,  df/dx=1, df/dy=-1
   auto x = PV(5.0, 'x');
   auto y = PV(2.0, 'y');
-  auto g = gradient<DiffMode::Reverse>(x - y);
+  auto g = reverse_mode_grad(x - y);
   EXPECT_DOUBLE_EQ(g[0], 1.0);
   EXPECT_DOUBLE_EQ(g[1], -1.0);
 }
@@ -1086,21 +1086,21 @@ TEST(ReverseModeAD, NegateViaSubtract) {
 TEST(ReverseModeAD, SinDerivative) {
   // f(x) = sin(x),  df/dx = cos(x)  at x=1
   auto x = PV(1.0, 'x');
-  auto g = gradient<DiffMode::Reverse>(sin(x));
+  auto g = reverse_mode_grad(sin(x));
   EXPECT_DOUBLE_EQ(g[0], std::cos(1.0));
 }
 
 TEST(ReverseModeAD, CosDerivative) {
   // f(x) = cos(x),  df/dx = -sin(x)  at x=1
   auto x = PV(1.0, 'x');
-  auto g = gradient<DiffMode::Reverse>(cos(x));
+  auto g = reverse_mode_grad(cos(x));
   EXPECT_DOUBLE_EQ(g[0], -std::sin(1.0));
 }
 
 TEST(ReverseModeAD, ExpDerivative) {
   // f(x) = exp(x),  df/dx = exp(x)  at x=2
   auto x = PV(2.0, 'x');
-  auto g = gradient<DiffMode::Reverse>(exp(x));
+  auto g = reverse_mode_grad(exp(x));
   EXPECT_DOUBLE_EQ(g[0], std::exp(2.0));
 }
 
@@ -1110,7 +1110,7 @@ TEST(ReverseModeAD, ChainRuleSinOfProduct) {
   // df/dy = cos(x*y)*x = cos(6)*2
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
-  auto g = gradient<DiffMode::Reverse>(sin(x * y));
+  auto g = reverse_mode_grad(sin(x * y));
   EXPECT_DOUBLE_EQ(g[0], std::cos(6.0) * 3.0);
   EXPECT_DOUBLE_EQ(g[1], std::cos(6.0) * 2.0);
 }
@@ -1121,7 +1121,7 @@ TEST(ReverseModeAD, ThreeVariables) {
   auto x = PV(2.0, 'x');
   auto y = PV(3.0, 'y');
   auto z = PV(4.0, 'z');
-  auto g = gradient<DiffMode::Reverse>(x * y + y * z);
+  auto g = reverse_mode_grad(x * y + y * z);
   EXPECT_DOUBLE_EQ(g[0], 3.0);
   EXPECT_DOUBLE_EQ(g[1], 6.0);
   EXPECT_DOUBLE_EQ(g[2], 3.0);
@@ -1138,7 +1138,7 @@ TEST(EquationForward, TwoVariables) {
   Variable<D, 'x'> x{D{3.0}};
   Variable<D, 'y'> y{D{4.0}};
   auto ve = Equation(x * y, x + y);
-  auto J = ve.jacobian<DiffMode::Forward>();
+  auto J = ve.forward_mode_jac();
   EXPECT_DOUBLE_EQ(J(0, 0), 4.0); // ∂(x*y)/∂x = y = 4
   EXPECT_DOUBLE_EQ(J(0, 1), 3.0); // ∂(x*y)/∂y = x = 3
   EXPECT_DOUBLE_EQ(J(1, 0), 1.0); // ∂(x+y)/∂x
@@ -1153,14 +1153,14 @@ TEST(EquationForward, AgreesWithSymbolic) {
   auto xs = PV(xv, 'x');
   auto ys = PV(yv, 'y');
   auto ve_sym = Equation(xs * xs, xs * ys, ys * ys);
-  auto J_sym = ve_sym.jacobian<DiffMode::Symbolic>();
+  auto J_sym = ve_sym.symbolic_mode_jac();
 
   // Forward-mode path
   using D = Dual<double>;
   Variable<D, 'x'> xd{D{xv}};
   Variable<D, 'y'> yd{D{yv}};
   auto ve_fwd = Equation(xd * xd, xd * yd, yd * yd);
-  auto J_fwd = ve_fwd.jacobian<DiffMode::Forward>();
+  auto J_fwd = ve_fwd.forward_mode_jac();
 
   for (std::size_t i = 0; i < 3; ++i)
     for (std::size_t j = 0; j < 2; ++j)
@@ -1174,7 +1174,7 @@ TEST(EquationForward, TrigJacobian) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto ve = Equation(x * y, sin(x) + y * y);
-  auto J = ve.jacobian<DiffMode::Forward>();
+  auto J = ve.forward_mode_jac();
   EXPECT_DOUBLE_EQ(J(0, 0), 3.0);
   EXPECT_DOUBLE_EQ(J(0, 1), 2.0);
   EXPECT_DOUBLE_EQ(J(1, 0), std::cos(2.0));
@@ -1186,12 +1186,12 @@ TEST(EquationForward, ReverseAgreesWithForward) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto ve_fwd = Equation(x * y, sin(x) + y * y);
-  auto J_fwd = ve_fwd.jacobian<DiffMode::Forward>();
+  auto J_fwd = ve_fwd.forward_mode_jac();
 
   auto xs = PV(2.0, 'x');
   auto ys = PV(3.0, 'y');
   auto ve_rev = Equation(xs * ys, sin(xs) + ys * ys);
-  auto J_rev = ve_rev.jacobian<DiffMode::Reverse>();
+  auto J_rev = ve_rev.reverse_mode_jac();
 
   for (std::size_t i = 0; i < 2; ++i)
     for (std::size_t j = 0; j < 2; ++j)
@@ -1207,18 +1207,19 @@ TEST(EquationForward, StateRestoredAfterCall) {
   k = 7.0;
   auto ve = Equation(x * y, x + y);
   auto [v0, v1] = ve.evaluate();
-  EXPECT_DOUBLE_EQ(v0.template get<0>(), 12.0); // x*y = 12
-  EXPECT_DOUBLE_EQ(v0.template get<1>(), 0.0);  // dual part zeroed
+  auto [v01, v02] = v0;
+  EXPECT_DOUBLE_EQ(v01, 12.0); // x*y = 12
+  EXPECT_DOUBLE_EQ(v02, 0.0);  // dual part zeroed
   EXPECT_DOUBLE_EQ(v1.template get<0>(), 7.0);  // x+y = 7
 }
 
 TEST(ReverseModeAD, ScalarLiteralCoercion) {
-  // gradient<DiffMode::Reverse>(3*x*y + y*z) with plain integer/double literals
+  // reverse_mode_grad(3*x*y + y*z) with plain integer/double literals
   auto x = PDV(2.0, 'x');
   auto y = PDV(3.0, 'y');
   auto z = PDV(4.0, 'z');
   auto expe = 3.0 * x * y + y * z;
-  auto g = gradient<DiffMode::Reverse>(expe);
+  auto g = reverse_mode_grad(expe);
   EXPECT_DOUBLE_EQ(g[0], 9.0);  // df/dx = 3*y = 9
   EXPECT_DOUBLE_EQ(g[1], 10.0); // df/dy = 3*x + z = 10
   EXPECT_DOUBLE_EQ(g[2], 3.0);  // df/dz = y = 3
@@ -1227,7 +1228,7 @@ TEST(ReverseModeAD, ScalarLiteralCoercion) {
 TEST(ReverseModeAD, ScalarOnRight) {
   // expr * scalar and expr + scalar
   auto x = PV(5.0, 'x');
-  auto g = gradient<DiffMode::Reverse>(x * 4.0 + 1.0);
+  auto g = reverse_mode_grad(x * 4.0 + 1.0);
   EXPECT_DOUBLE_EQ(g[0], 4.0); // df/dx = 4
 }
 
@@ -1237,7 +1238,7 @@ TEST(ReverseModeAD, AgreesWithForwardMode) {
   double xv = 1.0, yv = std::numbers::pi / 4.0;
   auto x = PV(xv, 'x');
   auto y = PV(yv, 'y');
-  auto g = gradient<DiffMode::Reverse>(exp(x) * sin(y));
+  auto g = reverse_mode_grad(exp(x) * sin(y));
   EXPECT_DOUBLE_EQ(g[0], std::exp(xv) * std::sin(yv));
   EXPECT_DOUBLE_EQ(g[1], std::exp(xv) * std::cos(yv));
 }
@@ -1290,7 +1291,7 @@ TEST(DualCompoundAssign, ScalarAssign) {
 TEST(ReverseModeAD_Dual, SingleVariable) {
   // f(x) = 3*x  at x=5,  df/dx = 3
   auto x = PDV(5.0, 'x');
-  auto g = gradient<DiffMode::Reverse>(3.0 * x);
+  auto g = reverse_mode_grad(3.0 * x);
   EXPECT_DOUBLE_EQ(g[0], 3.0);
 }
 
@@ -1298,7 +1299,7 @@ TEST(ReverseModeAD_Dual, TwoVariables) {
   // f(x,y) = x*y  at (3,4),  df/dx=4, df/dy=3
   auto x = PDV(3.0, 'x');
   auto y = PDV(4.0, 'y');
-  auto g = gradient<DiffMode::Reverse>(x * y);
+  auto g = reverse_mode_grad(x * y);
   EXPECT_DOUBLE_EQ(g[0], 4.0);
   EXPECT_DOUBLE_EQ(g[1], 3.0);
 }
@@ -1309,7 +1310,7 @@ TEST(ReverseModeAD_Dual, ThreeVariables) {
   auto x = PDV(2.0, 'x');
   auto y = PDV(3.0, 'y');
   auto z = PDV(4.0, 'z');
-  auto g = gradient<DiffMode::Reverse>(3.0 * x * y + y * z);
+  auto g = reverse_mode_grad(3.0 * x * y + y * z);
   EXPECT_DOUBLE_EQ(g[0], 9.0);
   EXPECT_DOUBLE_EQ(g[1], 10.0);
   EXPECT_DOUBLE_EQ(g[2], 3.0);
@@ -1320,7 +1321,7 @@ TEST(ReverseModeAD_Dual, TrigExp) {
   double xv = 1.0, yv = std::numbers::pi / 4.0;
   auto x = PDV(xv, 'x');
   auto y = PDV(yv, 'y');
-  auto g = gradient<DiffMode::Reverse>(exp(x) * sin(y));
+  auto g = reverse_mode_grad(exp(x) * sin(y));
   EXPECT_DOUBLE_EQ(g[0], std::exp(xv) * std::sin(yv));
   EXPECT_DOUBLE_EQ(g[1], std::exp(xv) * std::cos(yv));
 }
@@ -1332,8 +1333,8 @@ TEST(ReverseModeAD_Dual, AgreesWithPVResult) {
   auto yp = PV(yv, 'y');
   auto xd = PDV(xv, 'x');
   auto yd = PDV(yv, 'y');
-  auto gp = gradient<DiffMode::Reverse>(xp * yp + sin(xp) + yp * yp + exp(xp + yp));
-  auto gd = gradient<DiffMode::Reverse>(xd * yd + sin(xd) + yd * yd + exp(xd + yd));
+  auto gp = reverse_mode_grad(xp * yp + sin(xp) + yp * yp + exp(xp + yp));
+  auto gd = reverse_mode_grad(xd * yd + sin(xd) + yd * yd + exp(xd + yd));
   EXPECT_DOUBLE_EQ(gd[0], gp[0]);
   EXPECT_DOUBLE_EQ(gd[1], gp[1]);
 }
@@ -1380,7 +1381,7 @@ TEST(RuntimeEquationTest, JacobianLinear) {
   auto c3 = Constant<double>{3.0};
   auto eq = Equation(2, c2 * x + c3 * y, x - y);
 
-  auto J = eq.jacobian<DiffMode::Reverse>();
+  auto J = eq.reverse_mode_jac();
   ASSERT_EQ(J.rows(), 2);
   ASSERT_EQ(J.cols(), 2);
   EXPECT_DOUBLE_EQ(J(0, 0), 2.0);
@@ -1396,7 +1397,7 @@ TEST(RuntimeEquationTest, JacobianProduct) {
   auto y = RV(4.0, 1);
   auto eq = Equation(2, x * y, x * x);
 
-  auto J = eq.jacobian<DiffMode::Reverse>();
+  auto J = eq.reverse_mode_jac();
   EXPECT_DOUBLE_EQ(J(0, 0), 4.0);
   EXPECT_DOUBLE_EQ(J(0, 1), 3.0);
   EXPECT_DOUBLE_EQ(J(1, 0), 6.0);
@@ -1411,7 +1412,7 @@ TEST(RuntimeEquationTest, JacobianThreeInputs) {
   auto z = RV(3.0, 2);
   auto eq = Equation(3, x * y * z, x + y + z);
 
-  auto J = eq.jacobian<DiffMode::Reverse>();
+  auto J = eq.reverse_mode_jac();
   ASSERT_EQ(J.rows(), 2);
   ASSERT_EQ(J.cols(), 3);
   EXPECT_DOUBLE_EQ(J(0, 0), 6.0);
@@ -1431,7 +1432,7 @@ TEST(RuntimeEquationTest, JacobianTrig) {
   auto y = RV(yv, 1);
   auto eq = Equation(2, sin(x), cos(y));
 
-  auto J = eq.jacobian<DiffMode::Reverse>();
+  auto J = eq.reverse_mode_jac();
   EXPECT_NEAR(J(0, 0), std::cos(xv), 1e-12);
   EXPECT_NEAR(J(0, 1), 0.0, 1e-12);
   EXPECT_NEAR(J(1, 0), 0.0, 1e-12);
@@ -1448,7 +1449,7 @@ TEST(RuntimeEquationTest, JacobianAfterUpdate) {
   eq.update(vals);
 
   // J = [[y, x], [1, 1]] = [[5, 2], [1, 1]]
-  auto J = eq.jacobian<DiffMode::Reverse>();
+  auto J = eq.reverse_mode_jac();
   EXPECT_DOUBLE_EQ(J(0, 0), 5.0);
   EXPECT_DOUBLE_EQ(J(0, 1), 2.0);
   EXPECT_DOUBLE_EQ(J(1, 0), 1.0);
@@ -1465,7 +1466,7 @@ TEST(RuntimeEquationTest, SingleInputTwoOutputs) {
   EXPECT_DOUBLE_EQ(out[0], 4.0); // 2^2
   EXPECT_DOUBLE_EQ(out[1], 8.0); // 2^3
 
-  auto J = eq.jacobian<DiffMode::Reverse>();
+  auto J = eq.reverse_mode_jac();
   ASSERT_EQ(J.rows(), 2);
   ASSERT_EQ(J.cols(), 1);
   EXPECT_DOUBLE_EQ(J(0, 0), 4.0);  // d/dx(x^2) = 2x = 4
@@ -1482,7 +1483,7 @@ TEST(HessianTest, ForwardOverReverse_FunctionValues) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto ve = Equation(x * y, x * x);
-  (void)ve.hessian<DiffMode::Reverse>();
+  (void)ve.reverse_mode_hess();
   auto f = ve.evaluate();
   EXPECT_DOUBLE_EQ(f[0].template get<0>(), 6.0);
   EXPECT_DOUBLE_EQ(f[1].template get<0>(), 4.0);
@@ -1495,7 +1496,7 @@ TEST(HessianTest, ForwardOverReverse_XY) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto ve = Equation(x * y, x * x);
-  auto H = ve.hessian<DiffMode::Reverse>();
+  auto H = ve.reverse_mode_hess();
   EXPECT_DOUBLE_EQ(H[0](0, 0), 0.0); // ∂²(x*y)/∂x²
   EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0); // ∂²(x*y)/∂x∂y
   EXPECT_DOUBLE_EQ(H[0](1, 0), 1.0); // ∂²(x*y)/∂y∂x
@@ -1509,7 +1510,7 @@ TEST(HessianTest, ForwardOverReverse_Quadratic) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto ve = Equation(x * y, x * x);
-  auto H = ve.hessian<DiffMode::Reverse>();
+  auto H = ve.reverse_mode_hess();
   EXPECT_DOUBLE_EQ(H[1](0, 0), 2.0);
   EXPECT_DOUBLE_EQ(H[1](0, 1), 0.0);
   EXPECT_DOUBLE_EQ(H[1](1, 0), 0.0);
@@ -1523,7 +1524,7 @@ TEST(HessianTest, ForwardOverReverse_WithValues) {
   Variable<D, 'y'> y{D{0.0}};
   auto ve = Equation(x * y, x * x);
   Eigen::Vector2d pt{2.0, 3.0};
-  auto H = ve.hessian<DiffMode::Reverse>(pt);
+  auto H = ve.reverse_mode_hess(pt);
   auto f = ve.evaluate();
   EXPECT_DOUBLE_EQ(f[0].template get<0>(), 6.0);
   EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0);
@@ -1538,7 +1539,7 @@ TEST(HessianTest, ForwardOverReverse_TrigFunction) {
   Variable<D, 'x'> x{D{xv}};
   Variable<D, 'y'> y{D{yv}};
   auto ve = Equation(sin(x) * y, x + y);
-  auto H = ve.hessian<DiffMode::Reverse>();
+  auto H = ve.reverse_mode_hess();
   EXPECT_NEAR(H[0](0, 0), -yv * std::sin(xv), 1e-12); // -y*sin(x)
   EXPECT_NEAR(H[0](0, 1), std::cos(xv), 1e-12);        // cos(x)
   EXPECT_NEAR(H[0](1, 0), std::cos(xv), 1e-12);        // symmetric
@@ -1553,7 +1554,7 @@ TEST(HessianTest, ForwardOverReverse_Symmetric) {
   Variable<D, 'x'> x{D{xv}};
   Variable<D, 'y'> y{D{yv}};
   auto ve = Equation(exp(x * y), x + y);
-  auto H = ve.hessian<DiffMode::Reverse>();
+  auto H = ve.reverse_mode_hess();
   EXPECT_NEAR(H[0](0, 1), H[0](1, 0), 1e-12);
 }
 
@@ -1568,7 +1569,7 @@ TEST(HessianForwardTest, NestedDual_FunctionValues) {
   Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
   Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
   auto ve = Equation(x * y, x * x);
-  (void)ve.hessian<DiffMode::Forward>();
+  (void)ve.forward_mode_hess();
   auto f = ve.evaluate();
   EXPECT_DOUBLE_EQ(f[0].template get<0>().template get<0>(), 6.0);
   EXPECT_DOUBLE_EQ(f[1].template get<0>().template get<0>(), 4.0);
@@ -1581,7 +1582,7 @@ TEST(HessianForwardTest, NestedDual_XY) {
   Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
   Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
   auto ve = Equation(x * y, x * x);
-  auto H = ve.hessian<DiffMode::Forward>();
+  auto H = ve.forward_mode_hess();
   EXPECT_DOUBLE_EQ(H[0](0, 0), 0.0);
   EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0);
   EXPECT_DOUBLE_EQ(H[0](1, 0), 1.0);
@@ -1595,7 +1596,7 @@ TEST(HessianForwardTest, NestedDual_Quadratic) {
   Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
   Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
   auto ve = Equation(x * y, x * x);
-  auto H = ve.hessian<DiffMode::Forward>();
+  auto H = ve.forward_mode_hess();
   EXPECT_DOUBLE_EQ(H[1](0, 0), 2.0);
   EXPECT_DOUBLE_EQ(H[1](0, 1), 0.0);
   EXPECT_DOUBLE_EQ(H[1](1, 0), 0.0);
@@ -1610,13 +1611,13 @@ TEST(HessianForwardTest, AgreesWithForwardOverReverse) {
   Variable<D, 'x'> xr{D{xv}};
   Variable<D, 'y'> yr{D{yv}};
   auto ve_rev = Equation(xr * yr, xr * xr);
-  auto H_rev = ve_rev.hessian<DiffMode::Reverse>();
+  auto H_rev = ve_rev.reverse_mode_hess();
 
   using DD = Dual<Dual<double>>;
   Variable<DD, 'x'> xf{DD{D{xv}, D{}}};
   Variable<DD, 'y'> yf{DD{D{yv}, D{}}};
   auto ve_fwd = Equation(xf * yf, xf * xf);
-  auto H_fwd = ve_fwd.hessian<DiffMode::Forward>();
+  auto H_fwd = ve_fwd.forward_mode_hess();
 
   for (std::size_t k = 0; k < 2; ++k)
     for (std::size_t i = 0; i < 2; ++i)
@@ -1632,7 +1633,7 @@ TEST(HessianForwardTest, NestedDual_WithValues) {
   Variable<DD, 'y'> y{DD{D{0.0}, D{}}};
   auto ve = Equation(x * y, x * x);
   Eigen::Vector2d pt{2.0, 3.0};
-  auto H = ve.hessian<DiffMode::Forward>(pt);
+  auto H = ve.forward_mode_hess(pt);
   auto f = ve.evaluate();
   EXPECT_DOUBLE_EQ(f[0].template get<0>().template get<0>(), 6.0);
   EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0);
@@ -1649,7 +1650,7 @@ TEST(ScalarHessianTest, ReverseMode_XY) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto expr = x * y;
-  auto H = hessian<DiffMode::Reverse>(expr, std::array{2.0, 3.0});
+  auto H = reverse_mode_hess(expr, std::array{2.0, 3.0});
   EXPECT_DOUBLE_EQ(H[0][0], 0.0);
   EXPECT_DOUBLE_EQ(H[0][1], 1.0);
   EXPECT_DOUBLE_EQ(H[1][0], 1.0);
@@ -1662,7 +1663,7 @@ TEST(ScalarHessianTest, ReverseMode_QuadraticForm) {
   Variable<D, 'x'> x{D{1.0}};
   Variable<D, 'y'> y{D{1.0}};
   auto expr = x * x + PC(D{2.0}) * y * y;
-  auto H = hessian<DiffMode::Reverse>(expr, std::array{1.0, 1.0});
+  auto H = reverse_mode_hess(expr, std::array{1.0, 1.0});
   EXPECT_DOUBLE_EQ(H[0][0], 2.0);
   EXPECT_DOUBLE_EQ(H[0][1], 0.0);
   EXPECT_DOUBLE_EQ(H[1][0], 0.0);
@@ -1675,7 +1676,7 @@ TEST(ScalarHessianTest, ReverseMode_Symmetric) {
   Variable<D, 'x'> x{D{0.5}};
   Variable<D, 'y'> y{D{1.5}};
   auto expr = exp(x * y);
-  auto H = hessian<DiffMode::Reverse>(expr, std::array{0.5, 1.5});
+  auto H = reverse_mode_hess(expr, std::array{0.5, 1.5});
   EXPECT_NEAR(H[0][1], H[1][0], 1e-12);
 }
 
@@ -1686,7 +1687,7 @@ TEST(ScalarHessianTest, ForwardMode_XY) {
   Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
   Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
   auto expr = x * y;
-  auto H = hessian<DiffMode::Forward>(expr, std::array{2.0, 3.0});
+  auto H = forward_mode_hess(expr, std::array{2.0, 3.0});
   EXPECT_DOUBLE_EQ(H[0][0], 0.0);
   EXPECT_DOUBLE_EQ(H[0][1], 1.0);
   EXPECT_DOUBLE_EQ(H[1][0], 1.0);
@@ -1700,7 +1701,7 @@ TEST(ScalarHessianTest, ForwardMode_QuadraticForm) {
   Variable<DD, 'x'> x{DD{D{1.0}, D{}}};
   Variable<DD, 'y'> y{DD{D{1.0}, D{}}};
   auto expr = x * x + PC(DD{D{2.0}}) * y * y;
-  auto H = hessian<DiffMode::Forward>(expr, std::array{1.0, 1.0});
+  auto H = forward_mode_hess(expr, std::array{1.0, 1.0});
   EXPECT_DOUBLE_EQ(H[0][0], 2.0);
   EXPECT_DOUBLE_EQ(H[0][1], 0.0);
   EXPECT_DOUBLE_EQ(H[1][0], 0.0);
@@ -1713,7 +1714,7 @@ TEST(ScalarHessianTest, ReverseMode_NoValues) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto expr = x * y;
-  auto H = hessian<DiffMode::Reverse>(expr);
+  auto H = reverse_mode_hess(expr);
   EXPECT_DOUBLE_EQ(H[0][1], 1.0);
   EXPECT_DOUBLE_EQ(H[1][0], 1.0);
   EXPECT_DOUBLE_EQ(H[0][0], 0.0);
@@ -1726,7 +1727,7 @@ TEST(ScalarHessianTest, ForwardMode_NoValues) {
   Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
   Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
   auto expr = x * y;
-  auto H = hessian<DiffMode::Forward>(expr);
+  auto H = forward_mode_hess(expr);
   EXPECT_DOUBLE_EQ(H[0][1], 1.0);
   EXPECT_DOUBLE_EQ(H[1][0], 1.0);
   EXPECT_DOUBLE_EQ(H[0][0], 0.0);
@@ -1741,13 +1742,13 @@ TEST(ScalarHessianTest, ForwardAgreesWithReverse) {
   Variable<D, 'x'> xr{D{xv}};
   Variable<D, 'y'> yr{D{yv}};
   auto expr_r = exp(xr * yr);
-  auto H_rev = hessian<DiffMode::Reverse>(expr_r, std::array{xv, yv});
+  auto H_rev = reverse_mode_hess(expr_r, std::array{xv, yv});
 
   using DD = Dual<Dual<double>>;
   Variable<DD, 'x'> xf{DD{D{xv}, D{}}};
   Variable<DD, 'y'> yf{DD{D{yv}, D{}}};
   auto expr_f = exp(xf * yf);
-  auto H_fwd = hessian<DiffMode::Forward>(expr_f, std::array{xv, yv});
+  auto H_fwd = forward_mode_hess(expr_f, std::array{xv, yv});
 
   for (std::size_t i = 0; i < 2; ++i)
     for (std::size_t j = 0; j < 2; ++j)

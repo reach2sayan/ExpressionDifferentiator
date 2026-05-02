@@ -392,3 +392,9 @@ Equation(T, Ts...) -> Equation<T, Ts...>;
 
 template <ExpressionConcept T, ExpressionConcept... Ts>
 Equation(std::size_t, T, Ts...) -> Equation<T, Ts...>;
+
+#define forward_mode_hess hessian<DiffMode::Forward>
+#define reverse_mode_hess hessian<DiffMode::Reverse>
+#define forward_mode_jac jacobian<DiffMode::Forward>
+#define reverse_mode_jac jacobian<DiffMode::Reverse>
+#define symbolic_mode_jac jacobian<DiffMode::Symbolic>
