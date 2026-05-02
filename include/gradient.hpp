@@ -237,3 +237,4 @@ template <DiffMode Mode, ExpressionConcept Expr,
 } // namespace diff
 
 #define reverse_mode_grad gradient<diff::DiffMode::Reverse>
+#define forward_mode_grad gradient<diff::DiffMode::Forward>

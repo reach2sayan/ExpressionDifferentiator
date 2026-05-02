@@ -140,7 +140,6 @@ template <typename T> consteval bool is_dual_impl(std::type_identity<Dual<T>>) {
 
 template <typename T>
 inline constexpr bool is_dual_v = is_dual_impl(std::type_identity<T>{});
-
 template <typename T>
 using dual_scalar_t = decltype(dual_scalar_impl(std::declval<T>()));
 

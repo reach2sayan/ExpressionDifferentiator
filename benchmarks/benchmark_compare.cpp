@@ -18,12 +18,13 @@
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/reverse/var.hpp>
 
+#include "../include/gradient.hpp"
 #include "dual.hpp"
 #include "gradient.hpp"
 #include "values.hpp"
 
-#include <benchmark/benchmark.h>
 #include <array>
+#include <benchmark/benchmark.h>
 #include <numbers>
 
 using namespace diff;
@@ -36,7 +37,7 @@ template <ExpressionConcept Expr, std::size_t N>
 static void run_our_forward(benchmark::State &state, Expr &expr,
                              const std::array<dual_scalar_t<typename Expr::value_type>, N> &vals) {
     for (auto _ : state) {
-        auto g = gradient<DiffMode::Forward>(expr, vals);
+        auto g = forward_mode_grad(expr, vals);
         benchmark::DoNotOptimize(g);
         benchmark::ClobberMemory();
     }
@@ -45,7 +46,7 @@ static void run_our_forward(benchmark::State &state, Expr &expr,
 template <ExpressionConcept Expr>
 static void run_our_reverse(benchmark::State &state, const Expr &expr) {
     for (auto _ : state) {
-        auto g = gradient<DiffMode::Reverse>(expr);
+        auto g = reverse_mode_grad(expr);
         benchmark::DoNotOptimize(g);
         benchmark::ClobberMemory();
     }
