@@ -6,6 +6,7 @@
 #include <concepts>
 #include <tuple>
 namespace mp = boost::mp11;
+using diff::ExpressionConcept;
 
 namespace detail {
 struct eval_func_t {

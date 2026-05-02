@@ -365,3 +365,21 @@ template <Numeric T>
 }
 
 } // namespace diff
+
+using diff::AbsOp;
+using diff::AcosOp;
+using diff::AsinOp;
+using diff::AtanOp;
+using diff::CosineOp;
+using diff::CoshOp;
+using diff::DivideOp;
+using diff::ExpOp;
+using diff::LogOp;
+using diff::MultiplyOp;
+using diff::NegateOp;
+using diff::SineOp;
+using diff::SinhOp;
+using diff::SqrtOp;
+using diff::SumOp;
+using diff::TanOp;
+using diff::TanhOp;

@@ -1,4 +1,5 @@
 #pragma once
+#include "dual.hpp"
 #include "expressions.hpp"
 #include "operations.hpp"
 #include <boost/mp11/algorithm.hpp>
@@ -368,6 +369,13 @@ template <typename T> auto RV(T value, std::size_t index) {
   }
 
 } // namespace diff
+
+using diff::Constant;
+using diff::Dual;
+using diff::Numeric;
+using diff::RuntimeVariable;
+using diff::Variable;
+using diff::RV;
 
 DEFINE_CONST_UDL(int, ci)
 DEFINE_CONST_UDL(double, cd)

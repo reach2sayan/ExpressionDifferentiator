@@ -5,6 +5,10 @@
 #include <Eigen/Dense>
 #include <boost/mp11/algorithm.hpp>
 #include <ranges>
+using diff::Dual;
+using diff::ExpressionConcept;
+using diff::dual_scalar_t;
+using diff::is_dual_v;
 
 // Build a std::tuple of Jacobian rows — one row (std::tuple of derivatives)
 // per expression in the std::tuple es.

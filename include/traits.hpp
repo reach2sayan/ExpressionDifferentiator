@@ -5,6 +5,11 @@
 #include <type_traits>
 
 namespace mp = boost::mp11;
+using diff::Constant;
+using diff::Expression;
+using diff::MonoExpression;
+using diff::RuntimeVariable;
+using diff::Variable;
 template <std::size_t N, class F> constexpr void static_for(F &&f) {
   mp::mp_for_each<mp::mp_iota_c<N>>(
       [&]<class I>(I) { std::forward<F>(f).template operator()<I::value>(); });
@@ -163,6 +168,10 @@ constexpr auto make_all_constant_except(const Constant<T> &c) {
   return c;
 }
 
+template <char symbol, typename Op, typename Expr>
+constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
+    -> constify_unmatched_var_t<symbol, MonoExpression<Op, Expr>>;
+
 template <char symbol, typename Op, typename LHS, typename RHS>
 constexpr auto make_all_constant_except(const Expression<Op, LHS, RHS> &expr)
     -> constify_unmatched_var_t<symbol, Expression<Op, LHS, RHS>> {
@@ -174,7 +183,7 @@ constexpr auto make_all_constant_except(const Expression<Op, LHS, RHS> &expr)
 template <char symbol, typename Op, typename Expr>
 constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
     -> constify_unmatched_var_t<symbol, MonoExpression<Op, Expr>> {
-  return make_all_constant_except<symbol>(expr.expressions());
+  return {make_all_constant_except<symbol>(expr.expressions())};
 }
 
 // ===========================================================================

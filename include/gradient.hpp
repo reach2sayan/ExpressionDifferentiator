@@ -8,6 +8,10 @@
 #include <ranges>
 
 namespace mp = boost::mp11;
+using diff::Dual;
+using diff::ExpressionConcept;
+using diff::dual_scalar_t;
+using diff::is_dual_v;
 
 enum class DiffMode { Symbolic, Forward, Reverse };
 
