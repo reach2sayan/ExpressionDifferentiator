@@ -99,7 +99,7 @@ public:
     std::apply(update_func, derivatives);
   }
 
-  [[nodiscard]] constexpr auto eval() const { return expression.eval(); }
+  [[nodiscard]] constexpr auto evaluate() const { return expression.eval(); }
   [[nodiscard]] constexpr auto eval_derivatives() const {
     return std::apply(detail::eval_func, derivatives);
   }

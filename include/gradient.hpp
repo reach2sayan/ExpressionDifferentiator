@@ -9,6 +9,13 @@
 
 namespace mp = boost::mp11;
 
+enum class DiffMode { Symbolic, Forward, Reverse };
+
+// ===========================================================================
+// detail — implementation functions; use the public wrappers below.
+// ===========================================================================
+namespace detail {
+
 template <ExpressionConcept Expr, typename T = typename Expr::value_type>
   requires(!is_dual_v<T>)
 [[nodiscard]] constexpr auto reverse_mode_gradient(const Expr &expr) {
@@ -33,14 +40,10 @@ template <ExpressionConcept Expr, typename T = typename Expr::value_type>
   for (auto i : std::views::iota(decltype(N){0}, N)) {
     result[i] = grads[i].template get<0>();
   }
-
   return result;
 }
 
-// Stateless forward-mode gradient: no update() calls, no mutation of expr.
-// Each of the N passes does one eval_seeded() traversal instead of the old
-// update()+eval() double-traversal, plus a final restore traversal.
-// Cost: N traversals (was 2N+1).
+// Stateless forward-mode gradient: N eval_seeded passes.
 template <ExpressionConcept Expr,
           typename TArr =
               dual_scalar_t<typename std::remove_cvref_t<Expr>::value_type>,
@@ -56,9 +59,6 @@ template <ExpressionConcept Expr,
   using symbols = typename extract_symbols_from_expr<expr_type>::type;
   constexpr std::size_t n = mp::mp_size<symbols>::value;
 
-  // For each pass J, build a fresh independent seed array with only variable J
-  // seeded to 1. Independent arrays have no aliasing between passes so the
-  // compiler can pipeline or constant-fold all N evaluations in parallel.
   std::array<scalar_type, n> gradients{};
   static_for<n>([&]<std::size_t J>() {
     std::array<value_type, n> s{};
@@ -71,10 +71,8 @@ template <ExpressionConcept Expr,
   return gradients;
 }
 
-// Forward-over-reverse Hessian for a scalar expression.
-// Requires value_type = Dual<S>. Takes the base scalar values explicitly.
+// Forward-over-reverse Hessian. Requires value_type = Dual<S>.
 // Mutates expr (seeds dual tangents) and restores on exit.
-// Cost: N backward passes.  H[i][j] = ∂²f/∂xᵢ∂xⱼ.
 template <ExpressionConcept Expr,
           typename T = typename std::remove_cvref_t<Expr>::value_type,
           typename S = dual_scalar_t<T>,
@@ -125,9 +123,7 @@ template <ExpressionConcept Expr,
   return reverse_mode_hessian(expr, values);
 }
 
-// Stateless forward-over-forward Hessian for a scalar expression.
-// Requires value_type = Dual<Dual<S>>. N² eval_seeded passes, no mutation.
-// Cost: N² traversals.  H[i][j] = ∂²f/∂xᵢ∂xⱼ.
+// Stateless forward-over-forward Hessian. Requires value_type = Dual<Dual<S>>.
 template <ExpressionConcept Expr,
           typename T = typename std::remove_cvref_t<Expr>::value_type,
           typename D = dual_scalar_t<T>,
@@ -172,4 +168,79 @@ template <ExpressionConcept Expr,
     values[i] = current[i].template get<0>().template get<0>();
   }
   return forward_mode_hessian(expr, values);
+}
+
+} // namespace detail
+
+// ===========================================================================
+// Public API — select mode with DiffMode::Forward or DiffMode::Reverse.
+// ===========================================================================
+
+// gradient<DiffMode::Reverse>(expr) — one backward pass, no mutation.
+template <DiffMode Mode, ExpressionConcept Expr>
+  requires(Mode == DiffMode::Reverse)
+[[nodiscard]] constexpr auto gradient(const Expr &expr) {
+  return detail::reverse_mode_gradient(expr);
+}
+
+// gradient<DiffMode::Forward>(expr, values) — N seeded forward passes.
+// Requires Dual<T> variables; values holds the base scalar evaluation point.
+template <DiffMode Mode, ExpressionConcept Expr,
+          typename TArr =
+              dual_scalar_t<typename std::remove_cvref_t<Expr>::value_type>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires(Mode == DiffMode::Forward &&
+           is_dual_v<typename std::remove_cvref_t<Expr>::value_type>)
+[[nodiscard]] constexpr auto gradient(const Expr &expr,
+                                      std::array<TArr, N> values) {
+  return detail::forward_mode_gradient(expr, values);
+}
+
+// hessian<DiffMode::Reverse>(expr, values) — forward-over-reverse,
+// N backward passes. Requires Dual<S> variables; mutates and restores expr.
+template <DiffMode Mode, ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename S = dual_scalar_t<T>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires(Mode == DiffMode::Reverse && is_dual_v<T>)
+[[nodiscard]] auto hessian(Expr &expr, std::array<S, N> values) {
+  return detail::reverse_mode_hessian(expr, values);
+}
+
+// hessian<DiffMode::Reverse>(expr) — reads current variable values.
+template <DiffMode Mode, ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename S = dual_scalar_t<T>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires(Mode == DiffMode::Reverse && is_dual_v<T>)
+[[nodiscard]] auto hessian(Expr &expr) {
+  return detail::reverse_mode_hessian(expr);
+}
+
+// hessian<DiffMode::Forward>(expr, values) — forward-over-forward,
+// N² seeded passes. Requires Dual<Dual<S>> variables; fully stateless.
+template <DiffMode Mode, ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename D = dual_scalar_t<T>,
+          typename S = dual_scalar_t<D>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires(Mode == DiffMode::Forward && is_dual_v<T> && is_dual_v<D>)
+[[nodiscard]] constexpr auto hessian(const Expr &expr, std::array<S, N> values) {
+  return detail::forward_mode_hessian(expr, values);
+}
+
+// hessian<DiffMode::Forward>(expr) — reads current variable values.
+template <DiffMode Mode, ExpressionConcept Expr,
+          typename T = typename std::remove_cvref_t<Expr>::value_type,
+          typename D = dual_scalar_t<T>,
+          typename S = dual_scalar_t<D>,
+          std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
+              std::remove_cvref_t<Expr>>::type>::value>
+  requires(Mode == DiffMode::Forward && is_dual_v<T> && is_dual_v<D>)
+[[nodiscard]] constexpr auto hessian(const Expr &expr) {
+  return detail::forward_mode_hessian(expr);
 }

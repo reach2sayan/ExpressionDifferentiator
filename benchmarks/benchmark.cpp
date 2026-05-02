@@ -22,7 +22,7 @@ static void run_symbolic(benchmark::State &state, Eq &eq) {
 template <ExpressionConcept Expr>
 static void run_reverse(benchmark::State &state, const Expr &expr) {
   for (auto _ : state) {
-    auto gradients = reverse_mode_gradient(expr);
+    auto gradients = gradient<DiffMode::Reverse>(expr);
     benchmark::DoNotOptimize(gradients);
     benchmark::ClobberMemory();
   }
@@ -32,7 +32,7 @@ template <ExpressionConcept Expr, std::size_t N>
 static void run_forward(benchmark::State &state, Expr &expr,
                         const std::array<dual_scalar_t<typename Expr::value_type>, N> &values) {
   for (auto _ : state) {
-    auto gradients = forward_mode_gradient(expr, values);
+    auto gradients = gradient<DiffMode::Forward>(expr, values);
     benchmark::DoNotOptimize(gradients);
     benchmark::ClobberMemory();
   }
@@ -41,7 +41,7 @@ static void run_forward(benchmark::State &state, Expr &expr,
 template <typename VE>
 static void run_symbolic_jacobian(benchmark::State &state, VE &ve) {
   for (auto _ : state) {
-    auto J = ve.eval_jacobian();
+    auto J = ve.template jacobian<DiffMode::Symbolic>();
     benchmark::DoNotOptimize(J);
     benchmark::ClobberMemory();
   }
@@ -50,7 +50,7 @@ static void run_symbolic_jacobian(benchmark::State &state, VE &ve) {
 template <typename VE>
 static void run_reverse_jacobian(benchmark::State &state, const VE &ve) {
   for (auto _ : state) {
-    auto [f, J] = ve.eval_jacobian_reverse();
+    auto J = ve.template jacobian<DiffMode::Reverse>();
     benchmark::DoNotOptimize(J);
     benchmark::ClobberMemory();
   }
@@ -59,7 +59,7 @@ static void run_reverse_jacobian(benchmark::State &state, const VE &ve) {
 template <typename VE>
 static void run_forward_jacobian(benchmark::State &state, VE &ve) {
   for (auto _ : state) {
-    auto [f, J] = ve.eval_jacobian_forward();
+    auto J = ve.template jacobian<DiffMode::Forward>();
     benchmark::DoNotOptimize(J);
     benchmark::ClobberMemory();
   }
@@ -406,7 +406,7 @@ static void BM_Reverse_Batched_F4(benchmark::State &state) {
   for (auto _ : state) {
     double sink = 0.0;
     for (const auto &expr : expressions) {
-      auto grads = reverse_mode_gradient(expr);
+      auto grads = gradient<DiffMode::Reverse>(expr);
       sink += grads[0];
     }
     benchmark::DoNotOptimize(sink);
@@ -450,7 +450,7 @@ static void BM_Forward_Batched_F4(benchmark::State &state) {
   for (auto _ : state) {
     double sink = 0.0;
     for (std::size_t i = 0; i < count; ++i) {
-      auto grads = forward_mode_gradient(expressions[i], points[i]);
+      auto grads = gradient<DiffMode::Forward>(expressions[i], points[i]);
       sink += grads[0];
     }
     benchmark::DoNotOptimize(sink);
@@ -516,7 +516,7 @@ static void BM_Reverse_Dual_Batched_F4(benchmark::State &state) {
   for (auto _ : state) {
     double sink = 0.0;
     for (const auto &expr : expressions) {
-      auto grads = reverse_mode_gradient(expr);
+      auto grads = gradient<DiffMode::Reverse>(expr);
       sink += grads[0];
     }
     benchmark::DoNotOptimize(sink);

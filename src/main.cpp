@@ -30,10 +30,10 @@ int main() {
   std::cout << "\n--- Equation f(x,y) = (x+y, x*y) at (3, 4) ---\n";
   std::cout << ve;
 
-  auto fval = ve.eval();
+  auto fval = ve.evaluate();
   std::cout << "f(3,4) = (" << fval[0] << ", " << fval[1] << ")\n";
 
-  auto J = ve.eval_jacobian();
+  auto J = ve.jacobian<DiffMode::Symbolic>();
   std::cout << "Jacobian:\n";
   std::cout << "  [df0/dx, df0/dy] = [" << J.row(0) << "]\n";
   std::cout << "  [df1/dx, df1/dy] = [" << J.row(1) << "]\n";
@@ -46,11 +46,11 @@ int main() {
   std::cout << "\n--- Equation f(x,y) = (x^2, sin(x)*y, x+y^2) at (1, 2) ---\n";
   std::cout << ve3;
 
-  auto fval3 = ve3.eval();
+  auto fval3 = ve3.evaluate();
   std::cout << "f(1,2) = (" << fval3[0] << ", " << fval3[1] << ", " << fval3[2]
             << ")\n";
 
-  auto J3 = ve3.eval_jacobian();
+  auto J3 = ve3.jacobian<DiffMode::Symbolic>();
   std::cout << "Jacobian:\n";
   std::cout << J3;
 }

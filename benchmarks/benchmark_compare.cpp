@@ -34,7 +34,7 @@ template <ExpressionConcept Expr, std::size_t N>
 static void run_our_forward(benchmark::State &state, Expr &expr,
                              const std::array<dual_scalar_t<typename Expr::value_type>, N> &vals) {
     for (auto _ : state) {
-        auto g = forward_mode_gradient(expr, vals);
+        auto g = gradient<DiffMode::Forward>(expr, vals);
         benchmark::DoNotOptimize(g);
         benchmark::ClobberMemory();
     }
@@ -43,7 +43,7 @@ static void run_our_forward(benchmark::State &state, Expr &expr,
 template <ExpressionConcept Expr>
 static void run_our_reverse(benchmark::State &state, const Expr &expr) {
     for (auto _ : state) {
-        auto g = reverse_mode_gradient(expr);
+        auto g = gradient<DiffMode::Reverse>(expr);
         benchmark::DoNotOptimize(g);
         benchmark::ClobberMemory();
     }
