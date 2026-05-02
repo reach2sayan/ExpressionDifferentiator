@@ -8,9 +8,11 @@ namespace diff {
 
 namespace mp = boost::mp11;
 
+// Direct index_sequence fold — no Boost mp_for_each intermediate lambda.
 template <std::size_t N, class F> constexpr void static_for(F &&f) {
-  mp::mp_for_each<mp::mp_iota_c<N>>(
-      [&]<class I>(I) { std::forward<F>(f).template operator()<I::value>(); });
+  [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+    (std::forward<F>(f).template operator()<Is>(), ...);
+  }(std::make_index_sequence<N>{});
 }
 
 template <typename T> constexpr static bool is_const = false;

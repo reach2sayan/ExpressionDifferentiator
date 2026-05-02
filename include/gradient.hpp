@@ -59,21 +59,19 @@ template <ExpressionConcept Expr,
   using symbols = typename extract_symbols_from_expr<expr_type>::type;
   constexpr std::size_t n = mp::mp_size<symbols>::value;
 
-  // Seed zero dual parts as baseline.
   std::array<value_type, n> seeds{};
-  for (std::size_t i = 0; i < n; ++i) {
-    seeds[i] = value_type{values[i], scalar_type{}};
-  }
-
   std::array<scalar_type, n> gradients{};
-  for (std::size_t j = 0; j < n; ++j) {
-    seeds[j] = value_type{values[j], scalar_type{1}};
-    expr.update(symbols{}, seeds);
-    gradients[j] = expr.eval().template get<1>();
-    seeds[j] = value_type{values[j], scalar_type{}};
-  }
 
-  // Restore zero dual parts.
+  static_for<n>([&]<std::size_t I>() {
+    seeds[I] = value_type{values[I], scalar_type{}};
+  });
+  static_for<n>([&]<std::size_t J>() {
+    seeds[J] = value_type{values[J], scalar_type{1}};
+    expr.update(symbols{}, seeds);
+    gradients[J] = expr.eval().template get<1>();
+    seeds[J] = value_type{values[J], scalar_type{}};
+  });
+
   expr.update(symbols{}, seeds);
   return gradients;
 }
@@ -243,3 +241,5 @@ template <DiffMode Mode, ExpressionConcept Expr,
 
 #define reverse_mode_grad gradient<diff::DiffMode::Reverse>
 #define forward_mode_grad gradient<diff::DiffMode::Forward>
+#define reverse_mode_hess hessian<diff::DiffMode::Reverse>
+#define forward_mode_hess hessian<diff::DiffMode::Forward>
