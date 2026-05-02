@@ -346,11 +346,11 @@ public:
       return static_cast<T>(derivative());
   }
 };
-
+/*
 template <typename T> auto RV(T value, std::size_t index) {
   return RuntimeVariable<T>(value, index);
 }
-
+*/
 #define DEFINE_CONST_UDL(type, suffix)                                         \
   consteval diff::Constant<type> operator"" _##suffix(                         \
       unsigned long long val) {                                                 \
@@ -393,6 +393,7 @@ struct tuple_element<I, diff::Variable<T, C>> {
 };
 } // namespace std
 
+#define RV(x, index) diff::RuntimeVariable(x, index)
 #define PDV(x, label)                                                          \
   diff::Variable<diff::Dual<decltype(x)>, label>(                             \
       diff::Dual<decltype(x)>{x, 0})

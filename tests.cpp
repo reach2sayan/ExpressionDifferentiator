@@ -6,7 +6,6 @@
 #include "vector_equation.hpp"
 #include <gtest/gtest.h>
 #include <numbers>
-#include <ranges>
 
 using namespace diff;
 
@@ -479,7 +478,7 @@ TEST(ExpressionTest, ExpSum) {
 }
 
 TEST(ExpressionTest, ExpDerivative) {
-  for (auto i : std::ranges::iota_view{1, 1000}) {
+  for (std::size_t i = 1; i < 1000; ++i) {
     auto target = exp(Variable<double, 'x'>{i * 1.0});
     ASSERT_EQ(target.derivative(), target);
   }
