@@ -116,43 +116,82 @@ template <Numeric T> struct DivideOp : BinaryOp<T, std::divides<T>, '/'> {
 
 namespace detail {
 template <Numeric T> struct sine_impl {
-  T operator()(const T &a) const { using std::sin; return sin(a); }
+  T operator()(const T &a) const {
+    using std::sin;
+    return sin(a);
+  }
 };
 template <Numeric T> struct cosine_impl {
-  T operator()(const T &a) const { using std::cos; return cos(a); }
+  T operator()(const T &a) const {
+    using std::cos;
+    return cos(a);
+  }
 };
 template <Numeric T> struct tan_impl {
-  T operator()(const T &a) const { using std::tan; return tan(a); }
+  T operator()(const T &a) const {
+    using std::tan;
+    return tan(a);
+  }
 };
 template <Numeric T> struct log_impl {
-  T operator()(const T &a) const { using std::log; return log(a); }
+  T operator()(const T &a) const {
+    using std::log;
+    return log(a);
+  }
 };
 template <Numeric T> struct sqrt_impl {
-  T operator()(const T &a) const { using std::sqrt; return sqrt(a); }
+  T operator()(const T &a) const {
+    using std::sqrt;
+    return sqrt(a);
+  }
 };
 template <Numeric T> struct abs_impl {
-  T operator()(const T &a) const { using std::abs; return abs(a); }
+  T operator()(const T &a) const {
+    using std::abs;
+    return abs(a);
+  }
 };
 template <Numeric T> struct asin_impl {
-  T operator()(const T &a) const { using std::asin; return asin(a); }
+  T operator()(const T &a) const {
+    using std::asin;
+    return asin(a);
+  }
 };
 template <Numeric T> struct acos_impl {
-  T operator()(const T &a) const { using std::acos; return acos(a); }
+  T operator()(const T &a) const {
+    using std::acos;
+    return acos(a);
+  }
 };
 template <Numeric T> struct atan_impl {
-  T operator()(const T &a) const { using std::atan; return atan(a); }
+  T operator()(const T &a) const {
+    using std::atan;
+    return atan(a);
+  }
 };
 template <Numeric T> struct sinh_impl {
-  T operator()(const T &a) const { using std::sinh; return sinh(a); }
+  T operator()(const T &a) const {
+    using std::sinh;
+    return sinh(a);
+  }
 };
 template <Numeric T> struct cosh_impl {
-  T operator()(const T &a) const { using std::cosh; return cosh(a); }
+  T operator()(const T &a) const {
+    using std::cosh;
+    return cosh(a);
+  }
 };
 template <Numeric T> struct tanh_impl {
-  T operator()(const T &a) const { using std::tanh; return tanh(a); }
+  T operator()(const T &a) const {
+    using std::tanh;
+    return tanh(a);
+  }
 };
 template <Numeric T> struct exp_impl {
-  T operator()(const T &a) const { using std::exp; return exp(a); }
+  T operator()(const T &a) const {
+    using std::exp;
+    return exp(a);
+  }
 };
 } // namespace detail
 

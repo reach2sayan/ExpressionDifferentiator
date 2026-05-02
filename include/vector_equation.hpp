@@ -191,7 +191,7 @@ private:
     update(symbols{}, seeds);
     auto dual_vals = evaluate();
     std::array<S, output_dim> f_vals;
-    for (std::size_t i = 0; i < output_dim; ++i)  {
+    for (std::size_t i = 0; i < output_dim; ++i) {
       f_vals[i] = dual_vals[i].template get<0>();
     }
     return std::pair{f_vals, H};
@@ -212,9 +212,9 @@ private:
         expressions);
 
     Eigen::Vector<value_type, input_dim> seeds;
-    for (std::size_t i = 0; i < input_dim; ++i)  {
-      for (std::size_t j = 0; j < input_dim; ++j)  {
-        for (std::size_t k = 0; k < input_dim; ++k)  {
+    for (std::size_t i = 0; i < input_dim; ++i) {
+      for (std::size_t j = 0; j < input_dim; ++j) {
+        for (std::size_t k = 0; k < input_dim; ++k) {
           S real_k = current[k].template get<0>().template get<0>();
           seeds[k] = value_type{D{real_k, k == j ? S{1} : S{}},
                                 D{k == i ? S{1} : S{}, S{}}};
@@ -288,7 +288,8 @@ public:
 
   // Reverse-mode Jacobian with point update — compile-time path.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto jacobian(Eigen::Vector<value_type, input_dim> values)
+  [[nodiscard]] constexpr auto
+  jacobian(Eigen::Vector<value_type, input_dim> values)
     requires(Mode == DiffMode::Reverse && input_dim > 0)
   {
     update(symbols{}, values);

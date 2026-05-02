@@ -203,12 +203,13 @@ public:
 
   template <std::size_t I> [[nodiscard]] constexpr auto get() const {
     static_assert(I < 2);
-    if constexpr (requires { std::tuple_size<T>::value; })
+    if constexpr (requires { std::tuple_size<T>::value; }) {
       return eval().template get<I>();
-    else if constexpr (I == 0)
+    } else if constexpr (I == 0) {
       return eval();
-    else
+    } else {
       return static_cast<T>(derivative());
+    }
   }
 };
 
@@ -216,10 +217,12 @@ template <Numeric T, char symbol> class Variable : public IOperators {
   T value;
   friend std::ostream &operator<<(std::ostream &out,
                                   const Variable<T, symbol> &c) {
-    if constexpr (PRINT_VARIABLE_VALUE)
+    if constexpr (PRINT_VARIABLE_VALUE) {
       out << std::format("{}_", c.value);
-    if constexpr (PRINT_VARIABLE_LABEL)
+    }
+    if constexpr (PRINT_VARIABLE_LABEL) {
       out << symbol;
+    }
     return out;
   }
   static constexpr inline size_t static_counter = 0;
@@ -353,9 +356,9 @@ template <typename T> auto RV(T value, std::size_t index) {
 */
 #define DEFINE_CONST_UDL(type, suffix)                                         \
   consteval diff::Constant<type> operator"" _##suffix(                         \
-      unsigned long long val) {                                                 \
+      unsigned long long val) {                                                \
     return diff::Constant<type>{static_cast<type>(val)};                       \
-  }                                                                             \
+  }                                                                            \
   consteval diff::Constant<type> operator"" _##suffix(long double val) {       \
     return diff::Constant<type>{static_cast<type>(val)};                       \
   }
@@ -363,7 +366,7 @@ template <typename T> auto RV(T value, std::size_t index) {
 #define DEFINE_VAR_UDL(type, suffix, label)                                    \
   consteval auto operator"" _##suffix(unsigned long long val) {                \
     return diff::Variable<type, label>{static_cast<type>(val)};                \
-  }                                                                             \
+  }                                                                            \
   consteval auto operator"" _##suffix(long double val) {                       \
     return diff::Variable<type, label>{static_cast<type>(val)};                \
   }
@@ -395,7 +398,6 @@ struct tuple_element<I, diff::Variable<T, C>> {
 
 #define RV(x, index) diff::RuntimeVariable(x, index)
 #define PDV(x, label)                                                          \
-  diff::Variable<diff::Dual<decltype(x)>, label>(                             \
-      diff::Dual<decltype(x)>{x, 0})
+  diff::Variable<diff::Dual<decltype(x)>, label>(diff::Dual<decltype(x)>{x, 0})
 #define PV(x, label) diff::Variable<decltype(x), label>(x)
 #define PC(x) diff::Constant(x)
