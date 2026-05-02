@@ -50,8 +50,7 @@ template <ExpressionConcept Expr,
               dual_scalar_t<typename std::remove_cvref_t<Expr>::value_type>,
           std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
               std::remove_cvref_t<Expr>>::type>::value>
-[[nodiscard]] constexpr auto forward_mode_gradient(const Expr &expr,
-                                                   std::array<TArr, N> values)
+[[nodiscard]] auto forward_mode_gradient(Expr &expr, std::array<TArr, N> values)
   requires is_dual_v<typename std::remove_cvref_t<Expr>::value_type>
 {
   using expr_type = std::remove_cvref_t<Expr>;
@@ -60,15 +59,22 @@ template <ExpressionConcept Expr,
   using symbols = typename extract_symbols_from_expr<expr_type>::type;
   constexpr std::size_t n = mp::mp_size<symbols>::value;
 
-  std::array<scalar_type, n> gradients{};
-  static_for<n>([&]<std::size_t J>() {
-    std::array<value_type, n> s{};
-    static_for<n>([&]<std::size_t I>() {
-      s[I] = value_type{values[I], I == J ? scalar_type{1} : scalar_type{}};
-    });
-    gradients[J] = expr.template eval_seeded<symbols>(s).template get<1>();
-  });
+  // Seed zero dual parts as baseline.
+  std::array<value_type, n> seeds{};
+  for (std::size_t i = 0; i < n; ++i) {
+    seeds[i] = value_type{values[i], scalar_type{}};
+  }
 
+  std::array<scalar_type, n> gradients{};
+  for (std::size_t j = 0; j < n; ++j) {
+    seeds[j] = value_type{values[j], scalar_type{1}};
+    expr.update(symbols{}, seeds);
+    gradients[j] = expr.eval().template get<1>();
+    seeds[j] = value_type{values[j], scalar_type{}};
+  }
+
+  // Restore zero dual parts.
+  expr.update(symbols{}, seeds);
   return gradients;
 }
 
@@ -188,8 +194,7 @@ template <DiffMode Mode, ExpressionConcept Expr,
               std::remove_cvref_t<Expr>>::type>::value>
   requires(Mode == DiffMode::Forward &&
            is_dual_v<typename std::remove_cvref_t<Expr>::value_type>)
-[[nodiscard]] constexpr auto gradient(const Expr &expr,
-                                      std::array<TArr, N> values) {
+[[nodiscard]] auto gradient(Expr &expr, std::array<TArr, N> values) {
   return detail::forward_mode_gradient(expr, values);
 }
 
