@@ -29,9 +29,8 @@ constexpr auto make_jac_rows(const std::tuple<Exprs...> &es,
 //   jacobian<DiffMode::Reverse>([values])    — reverse-mode AD
 //   jacobian<DiffMode::Forward>([values])    — forward-mode AD (Dual<T>)
 //   hessian<DiffMode::Reverse>([values])     — forward-over-reverse (Dual<T>)
-//   hessian<DiffMode::Forward>([values])     — forward-over-forward
-//   (Dual<Dual<T>>) update(syms, values) / update(values)    — update variable
-//   values
+//   hessian<DiffMode::Forward>([values])     — forward-over-forward (Dual<Dual<T>>)
+//   update(syms, values) / update(values)    — update variable values
 // ===========================================================================
 template <ExpressionConcept TFirst, ExpressionConcept... TRest>
   requires(
@@ -68,40 +67,38 @@ private:
   }
 
   // --- Symbolic Jacobian (compile-time only) ---
-  [[nodiscard]] constexpr auto jacobian_symbolic() const
+  [[nodiscard]] auto jacobian_symbolic() const
     requires(input_dim > 0)
   {
     Eigen::Matrix<value_type, output_dim, input_dim> J;
     static_for<output_dim>([&]<std::size_t I>() {
       auto row = std::apply(detail::eval_func, std::get<I>(jacobian_data));
-      for (std::size_t j = 0; j < input_dim; ++j) {
+      for (auto j : std::views::iota(std::size_t{0}, input_dim)) {
         J(I, j) = row[j];
       }
     });
     return J;
   }
 
-  // --- Reverse-mode Jacobian (compile-time path) — returns {f, J} ---
-  [[nodiscard]] constexpr auto jacobian_reverse_mode() const
+  // --- Reverse-mode Jacobian (compile-time path) ---
+  [[nodiscard]] auto jacobian_reverse_mode() const
     requires(input_dim > 0)
   {
-    auto f_vals = evaluate();
     Eigen::Matrix<value_type, output_dim, input_dim> J;
     static_for<output_dim>([&]<std::size_t I>() {
       std::array<value_type, input_dim> row{};
       std::get<I>(expressions).backward(symbols{}, value_type{1}, row);
-      for (std::size_t j = 0; j < input_dim; ++j) {
+      for (auto j : std::views::iota(std::size_t{0}, input_dim)) {
         J(I, j) = row[j];
       }
     });
-    return std::pair{f_vals, J};
+    return J;
   }
 
-  // --- Reverse-mode Jacobian (runtime path) — returns {f, J} ---
-  [[nodiscard]] constexpr auto jacobian_reverse_mode() const
+  // --- Reverse-mode Jacobian (runtime path) ---
+  [[nodiscard]] auto jacobian_reverse_mode() const
     requires(input_dim == 0)
   {
-    auto f_vals = evaluate();
     Eigen::Matrix<value_type, output_dim, Eigen::Dynamic> J(output_dim,
                                                             runtime_input_dim_);
     J.setZero();
@@ -111,11 +108,11 @@ private:
       std::get<I>(expressions).backward(mp::mp_list<>{}, value_type{1}, row);
       J.row(I) = std::move(row);
     });
-    return std::pair{f_vals, J};
+    return J;
   }
 
-  // --- Forward-mode Jacobian — returns {f, J} ---
-  [[nodiscard]] constexpr auto jacobian_forward_mode()
+  // --- Forward-mode Jacobian ---
+  [[nodiscard]] auto jacobian_forward_mode()
     requires is_dual_v<value_type> && (input_dim > 0)
   {
     using S = dual_scalar_t<value_type>;
@@ -127,41 +124,35 @@ private:
         [&](const auto &...exprs) { (exprs.collect(symbols{}, current), ...); },
         expressions);
 
-    for (std::size_t j = 0; j < input_dim; ++j) {
-      for (std::size_t i = 0; i < input_dim; ++i) {
+    for (auto j : std::views::iota(std::size_t{0}, input_dim)) {
+      for (auto i : std::views::iota(std::size_t{0}, input_dim)) {
         seeds[i] =
             value_type{current[i].template get<0>(), i == j ? S{1} : S{}};
       }
       update(symbols{}, seeds);
       auto vals = evaluate();
-      for (std::size_t i = 0; i < output_dim; ++i) {
+      for (auto i : std::views::iota(std::size_t{0}, output_dim))
         J(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)) =
             vals[i].template get<1>();
-      }
     }
 
-    for (std::size_t i = 0; i < input_dim; ++i) {
+    // Restore to real-part values with zero dual tangent.
+    for (auto i : std::views::iota(std::size_t{0}, input_dim)) {
       seeds[i] = value_type{current[i].template get<0>(), S{}};
     }
     update(symbols{}, seeds);
-    auto dual_vals = evaluate();
-    std::array<S, output_dim> f_vals;
-    for (std::size_t i = 0; i < output_dim; ++i) {
-      f_vals[i] = dual_vals[i].template get<0>();
-    }
 
-    return std::pair{f_vals, J};
+    return J;
   }
 
-  // --- Forward-over-reverse Hessian — returns {f, H} ---
-  [[nodiscard]] constexpr auto hessian_forward_over_reverse()
+  // --- Forward-over-reverse Hessian ---
+  [[nodiscard]] auto hessian_forward_over_reverse()
     requires is_dual_v<value_type> && (input_dim > 0)
   {
     using S = dual_scalar_t<value_type>;
     std::array<Eigen::Matrix<S, input_dim, input_dim>, output_dim> H;
-    for (auto &h : H) {
+    for (auto &h : H)
       h.setZero();
-    }
 
     std::array<value_type, input_dim> current{};
     std::apply(
@@ -169,8 +160,8 @@ private:
         expressions);
 
     Eigen::Vector<value_type, input_dim> seeds;
-    for (std::size_t j = 0; j < input_dim; ++j) {
-      for (std::size_t i = 0; i < input_dim; ++i) {
+    for (auto j : std::views::iota(std::size_t{0}, input_dim)) {
+      for (auto i : std::views::iota(std::size_t{0}, input_dim)) {
         seeds[i] =
             value_type{current[i].template get<0>(), i == j ? S{1} : S{}};
       }
@@ -178,27 +169,24 @@ private:
       static_for<output_dim>([&]<std::size_t K>() {
         std::array<value_type, input_dim> grads{};
         std::get<K>(expressions).backward(symbols{}, value_type{1}, grads);
-        for (std::size_t i = 0; i < input_dim; ++i) {
+        for (auto i : std::views::iota(std::size_t{0}, input_dim)) {
           H[K](static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)) =
               grads[i].template get<1>();
         }
       });
     }
 
-    for (std::size_t i = 0; i < input_dim; ++i) {
+    // Restore to real-part values with zero dual tangent.
+    for (auto i : std::views::iota(std::size_t{0}, input_dim)) {
       seeds[i] = value_type{current[i].template get<0>(), S{}};
     }
     update(symbols{}, seeds);
-    auto dual_vals = evaluate();
-    std::array<S, output_dim> f_vals;
-    for (std::size_t i = 0; i < output_dim; ++i) {
-      f_vals[i] = dual_vals[i].template get<0>();
-    }
-    return std::pair{f_vals, H};
+
+    return H;
   }
 
-  // --- Forward-over-forward Hessian — returns {f, H} ---
-  [[nodiscard]] constexpr auto hessian_forward_over_forward()
+  // --- Forward-over-forward Hessian ---
+  [[nodiscard]] auto hessian_forward_over_forward()
     requires is_dual_v<value_type> && is_dual_v<dual_scalar_t<value_type>> &&
              (input_dim > 0)
   {
@@ -206,15 +194,16 @@ private:
     using S = dual_scalar_t<D>;
 
     std::array<Eigen::Matrix<S, input_dim, input_dim>, output_dim> H;
+
     std::array<value_type, input_dim> current{};
     std::apply(
         [&](const auto &...exprs) { (exprs.collect(symbols{}, current), ...); },
         expressions);
 
     Eigen::Vector<value_type, input_dim> seeds;
-    for (std::size_t i = 0; i < input_dim; ++i) {
-      for (std::size_t j = 0; j < input_dim; ++j) {
-        for (std::size_t k = 0; k < input_dim; ++k) {
+    for (auto i : std::views::iota(std::size_t{0}, input_dim)) {
+      for (auto j : std::views::iota(std::size_t{0}, input_dim)) {
+        for (auto k : std::views::iota(std::size_t{0}, input_dim)) {
           S real_k = current[k].template get<0>().template get<0>();
           seeds[k] = value_type{D{real_k, k == j ? S{1} : S{}},
                                 D{k == i ? S{1} : S{}, S{}}};
@@ -228,17 +217,14 @@ private:
       }
     }
 
-    for (std::size_t k = 0; k < input_dim; ++k) {
+    // Restore to real-part values.
+    for (auto k : std::views::iota(std::size_t{0}, input_dim)) {
       S real_k = current[k].template get<0>().template get<0>();
       seeds[k] = value_type{D{real_k, S{}}, D{}};
     }
     update(symbols{}, seeds);
-    auto dual_vals = evaluate();
-    std::array<S, output_dim> f_vals;
-    for (std::size_t k = 0; k < output_dim; ++k) {
-      f_vals[k] = dual_vals[k].template get<0>().template get<0>();
-    }
-    return std::pair{f_vals, H};
+
+    return H;
   }
 
 public:
@@ -248,12 +234,10 @@ public:
         jacobian_data{make_jac_rows(expressions, symbols{})},
         runtime_input_dim_{input_dim} {}
 
-  // Runtime constructor: no compile-time symbols; n_inputs given at
-  // construction.
-  constexpr Equation(std::size_t n_inputs, TFirst first, TRest... rest)
+  // Runtime constructor: no compile-time symbols; n_inputs given at construction.
+  Equation(std::size_t n_inputs, TFirst first, TRest... rest)
     requires(input_dim == 0)
-      : expressions{first, rest...}, jacobian_data{},
-        runtime_input_dim_{n_inputs} {}
+      : expressions{first, rest...}, jacobian_data{}, runtime_input_dim_{n_inputs} {}
 
   // Evaluate all component expressions.
   [[nodiscard]] constexpr auto evaluate() const {
@@ -262,113 +246,95 @@ public:
 
   // --- jacobian<Mode>() ---
 
-  // Symbolic Jacobian — compile-time symbolic differentiation.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto jacobian() const
+  [[nodiscard]] auto jacobian() const
     requires(Mode == DiffMode::Symbolic && input_dim > 0)
   {
     return jacobian_symbolic();
   }
 
-  // Reverse-mode Jacobian — compile-time path.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto jacobian() const
+  [[nodiscard]] auto jacobian() const
     requires(Mode == DiffMode::Reverse && input_dim > 0)
   {
-    return jacobian_reverse_mode().second;
+    return jacobian_reverse_mode();
   }
 
-  // Reverse-mode Jacobian — runtime path.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto jacobian() const
+  [[nodiscard]] auto jacobian() const
     requires(Mode == DiffMode::Reverse && input_dim == 0)
   {
-    return jacobian_reverse_mode().second;
+    return jacobian_reverse_mode();
   }
 
-  // Reverse-mode Jacobian with point update — compile-time path.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto
-  jacobian(Eigen::Vector<value_type, input_dim> values)
+  [[nodiscard]] auto jacobian(Eigen::Vector<value_type, input_dim> values)
     requires(Mode == DiffMode::Reverse && input_dim > 0)
   {
     update(symbols{}, values);
     return jacobian<Mode>();
   }
 
-  // Reverse-mode Jacobian with point update — runtime path.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto jacobian(Eigen::VectorX<value_type> values)
+  [[nodiscard]] auto jacobian(Eigen::VectorX<value_type> values)
     requires(Mode == DiffMode::Reverse && input_dim == 0)
   {
     update(values);
     return jacobian<Mode>();
   }
 
-  // Forward-mode Jacobian — requires Dual<T> variables.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto jacobian()
-    requires(Mode == DiffMode::Forward && is_dual_v<value_type> &&
-             input_dim > 0)
+  [[nodiscard]] auto jacobian()
+    requires(Mode == DiffMode::Forward && is_dual_v<value_type> && input_dim > 0)
   {
-    return jacobian_forward_mode().second;
+    return jacobian_forward_mode();
   }
 
-  // Forward-mode Jacobian with point update.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto
-  jacobian(Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
-    requires(Mode == DiffMode::Forward && is_dual_v<value_type> &&
-             input_dim > 0)
+  [[nodiscard]] auto jacobian(
+      Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
+    requires(Mode == DiffMode::Forward && is_dual_v<value_type> && input_dim > 0)
   {
     using S = dual_scalar_t<value_type>;
     Eigen::Vector<value_type, input_dim> seeds;
-    for (std::size_t i = 0; i < input_dim; ++i) {
+    for (std::size_t i = 0; i < input_dim; ++i)
       seeds[i] = value_type{values[i], S{}};
-    }
     update(symbols{}, seeds);
     return jacobian<Mode>();
   }
 
   // --- hessian<Mode>() ---
 
-  // Reverse Hessian (forward-over-reverse) — requires Dual<T> variables.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto hessian()
-    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> &&
-             input_dim > 0)
+  [[nodiscard]] auto hessian()
+    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> && input_dim > 0)
   {
-    return hessian_forward_over_reverse().second;
+    return hessian_forward_over_reverse();
   }
 
-  // Reverse Hessian with point update.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto
-  hessian(Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
-    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> &&
-             input_dim > 0)
+  [[nodiscard]] auto hessian(
+      Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
+    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> && input_dim > 0)
   {
     using S = dual_scalar_t<value_type>;
     Eigen::Vector<value_type, input_dim> seeds;
-    for (std::size_t i = 0; i < input_dim; ++i) {
+    for (std::size_t i = 0; i < input_dim; ++i)
       seeds[i] = value_type{values[i], S{}};
-    }
     update(symbols{}, seeds);
     return hessian<Mode>();
   }
 
-  // Forward Hessian (forward-over-forward) — requires Dual<Dual<T>> variables.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto hessian()
+  [[nodiscard]] auto hessian()
     requires(Mode == DiffMode::Forward && is_dual_v<value_type> &&
              is_dual_v<dual_scalar_t<value_type>> && input_dim > 0)
   {
-    return hessian_forward_over_forward().second;
+    return hessian_forward_over_forward();
   }
 
-  // Forward Hessian with point update.
   template <DiffMode Mode>
-  [[nodiscard]] constexpr auto hessian(
+  [[nodiscard]] auto hessian(
       Eigen::Vector<dual_scalar_t<dual_scalar_t<value_type>>, input_dim> values)
     requires(Mode == DiffMode::Forward && is_dual_v<value_type> &&
              is_dual_v<dual_scalar_t<value_type>> && input_dim > 0)
@@ -376,9 +342,8 @@ public:
     using D = dual_scalar_t<value_type>;
     using S = dual_scalar_t<D>;
     Eigen::Vector<value_type, input_dim> seeds;
-    for (std::size_t i = 0; i < input_dim; ++i) {
+    for (auto i : std::views::iota(0u, input_dim))
       seeds[i] = value_type{D{values[i], S{}}, D{}};
-    }
     update(symbols{}, seeds);
     return hessian<Mode>();
   }
@@ -408,23 +373,7 @@ Equation(T, Ts...) -> Equation<T, Ts...>;
 template <ExpressionConcept T, ExpressionConcept... Ts>
 Equation(std::size_t, T, Ts...) -> Equation<T, Ts...>;
 
-template <ExpressionConcept... Ts>
-constexpr auto make_equation(Ts &&...expressions) {
-  return Equation{std::forward<Ts>(expressions)...};
-}
-
-template <ExpressionConcept... Ts>
-constexpr auto make_equation(std::size_t n_inputs, Ts &&...expressions) {
-  return Equation{n_inputs, std::forward<Ts>(expressions)...};
-}
-
 } // namespace diff
-
-template <typename... Ts>
-constexpr auto make_equation(Ts &&...expressions)
-    -> decltype(diff::make_equation(std::forward<Ts>(expressions)...)) {
-  return diff::make_equation(std::forward<Ts>(expressions)...);
-}
 
 #define forward_mode_hess hessian<diff::DiffMode::Forward>
 #define reverse_mode_hess hessian<diff::DiffMode::Reverse>

@@ -13,11 +13,9 @@ template <std::size_t N, class F> constexpr void static_for(F &&f) {
       [&]<class I>(I) { std::forward<F>(f).template operator()<I::value>(); });
 }
 
-// --- compile-time "is this a Constant?" ---
 template <typename T> constexpr static bool is_const = false;
 template <typename T> constexpr static bool is_const<Constant<T>> = true;
 
-// --- make_all_constant: replace every Variable with Constant in a type ---
 template <typename T, char symbol = 'X'> struct make_all_constant {
   using type = T;
 };
@@ -36,7 +34,6 @@ using as_const_expression = make_all_constant<
     Expression<typename TExpression::op_type, typename TExpression::lhs_type,
                typename TExpression::rhs_type>>::type;
 
-// --- replace_matching_variable_as_const: freeze one specific symbol ---
 template <char symbol, typename Expr> struct replace_matching_variable_as_const;
 template <char symbol, typename T> struct replace_matching_variable_as_const {
   using type = T;
@@ -109,7 +106,6 @@ constexpr void make_labels_array(const Expression<Op, LHS, RHS> &expr,
   make_labels_array(expr.expressions().second, out, index);
 }
 
-// --- constify_unmatched_var: keep one symbol live, freeze all others ---
 template <char symbol, typename Expr> struct constify_unmatched_var;
 
 template <char symbol, typename T>
@@ -166,10 +162,6 @@ constexpr auto make_all_constant_except(const Constant<T> &c) {
   return c;
 }
 
-template <char symbol, typename Op, typename Expr>
-constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
-    -> constify_unmatched_var_t<symbol, MonoExpression<Op, Expr>>;
-
 template <char symbol, typename Op, typename LHS, typename RHS>
 constexpr auto make_all_constant_except(const Expression<Op, LHS, RHS> &expr)
     -> constify_unmatched_var_t<symbol, Expression<Op, LHS, RHS>> {
@@ -181,34 +173,26 @@ constexpr auto make_all_constant_except(const Expression<Op, LHS, RHS> &expr)
 template <char symbol, typename Op, typename Expr>
 constexpr auto make_all_constant_except(const MonoExpression<Op, Expr> &expr)
     -> constify_unmatched_var_t<symbol, MonoExpression<Op, Expr>> {
-  return {make_all_constant_except<symbol>(expr.expressions())};
+  return make_all_constant_except<symbol>(expr.expressions());
 }
 
 // ===========================================================================
 // Type-list metaprogramming via Boost.MP11
-//
-// All symbol sets are mp_list<integral_constant<char,C>...> — purely
-// type-level lists.  MP11 algorithms give sorted, deduplicated, set-union
-// and set-difference operations at compile time.
 // ===========================================================================
 
-// Strict-weak-ordering on integral_constant<char,C> by char value.
 template <typename A, typename B>
 using ic_less = mp::mp_bool<(A::value < B::value)>;
 
-// Sort an mp_list of integral_constant<char,C> by char value.
 template <typename List> using sort_tuple_t = mp::mp_sort<List, ic_less>;
 
 template <typename List>
 using unique_tuple_t = mp::mp_unique<sort_tuple_t<List>>;
 
-// Sorted set-union of any number of mp_lists.
 template <typename... Lists>
 using tuple_union_t = unique_tuple_t<mp::mp_append<Lists...>>;
 
 // ===========================================================================
 // Extract the set of Variable symbols from an expression type.
-// Result is a sorted, deduplicated mp_list<integral_constant<char,C>...>.
 // ===========================================================================
 
 template <typename T>
@@ -237,19 +221,13 @@ template <typename Op, typename Expr>
 struct extract_symbols_from_expr<MonoExpression<Op, Expr>> {
   using type = typename extract_symbols_from_expr<Expr>::type;
 };
-// ===========================================================================
-// idx<N>(): consteval replacement for the IDX macro.
-//   Old:  eq[IDX(1)]
-//   New:  eq[idx<1>()]
-// ===========================================================================
+
 template <std::size_t N> consteval auto idx() noexcept {
   return std::integral_constant<std::size_t, N>{};
 }
 
-// Legacy macro kept for backward compatibility.
 template <size_t value> struct idx_t : std::integral_constant<size_t, value> {};
 
 } // namespace diff
 
-#define IDX(value)                                                             \
-  diff::idx_t<value> {}
+#define IDX(value) diff::idx_t<value>{}

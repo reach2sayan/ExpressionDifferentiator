@@ -20,17 +20,6 @@ concept CompatibleValueTypes =
     std::is_convertible_v<typename LHS::value_type, typename RHS::value_type> ||
     std::is_convertible_v<typename RHS::value_type, typename LHS::value_type>;
 
-constexpr std::string_view letters =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-class character_generator {
-  mutable size_t c = 0;
-
-public:
-  constexpr char operator()() const { return letters[++c % 52]; }
-};
-constexpr static character_generator cgenerator{};
-
 template <char C, typename SymList> consteval std::size_t find_index_of_char() {
   return boost::mp11::mp_find<SymList, std::integral_constant<char, C>>::value;
 }

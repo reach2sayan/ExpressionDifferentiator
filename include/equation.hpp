@@ -8,8 +8,6 @@
 
 namespace diff {
 
-namespace mp = boost::mp11;
-
 namespace detail {
 struct eval_func_t {
   constexpr auto operator()(const auto &...exprs) const {
@@ -27,7 +25,6 @@ template <class Syms, class Updates> struct update_func_t {
 inline constexpr eval_func_t eval_func{};
 } // namespace detail
 
-// Pretty-print a std::tuple of expressions, one per line.
 template <typename... Ts>
 constexpr std::ostream &print_tup(std::ostream &out,
                                   const std::tuple<Ts...> &tup) {
@@ -45,8 +42,6 @@ constexpr std::ostream &print_tup(std::ostream &out,
   return out;
 }
 
-// Build a std::tuple of partial derivatives — one per symbol in the mp_list.
-// Each element type is make_all_constant_except<C>(expr).derivative().
 template <typename... Syms, ExpressionConcept Expr>
 constexpr auto make_derivatives(mp::mp_list<Syms...>, const Expr &expr) {
   return std::tuple(
