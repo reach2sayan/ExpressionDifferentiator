@@ -123,6 +123,9 @@ public:
   constexpr void update(const auto &symbols, const auto &updates) {
     expression.update(symbols, updates);
   }
+  constexpr void collect(const auto &symbols, auto &out) const {
+    expression.collect(symbols, out);
+  }
   constexpr void backward(const auto &syms, value_type adj, auto &grads) const {
     Op::backward(expression, adj, syms, grads);
   }
@@ -186,6 +189,10 @@ public:
   constexpr void update(const auto &symbols, const auto &updates) {
     inner_expressions.first.update(symbols, updates);
     inner_expressions.second.update(symbols, updates);
+  }
+  constexpr void collect(const auto &symbols, auto &out) const {
+    inner_expressions.first.collect(symbols, out);
+    inner_expressions.second.collect(symbols, out);
   }
   constexpr void backward(const auto &syms, value_type adj, auto &grads) const {
     std::apply([&](const auto &...e) { Op::backward(e..., adj, syms, grads); },

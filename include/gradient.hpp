@@ -5,6 +5,7 @@
 #include "traits.hpp"
 #include <array>
 #include <boost/mp11/algorithm.hpp>
+#include <ranges>
 
 namespace mp = boost::mp11;
 
@@ -29,7 +30,7 @@ template <ExpressionConcept Expr, typename T = typename Expr::value_type>
   std::array<T, N> grads{};
   expr.backward(Syms{}, T{1}, grads);
   std::array<scalar_t, N> result{};
-  for (std::size_t i = 0; i < N; ++i) {
+  for (auto i : std::views::iota(decltype(N){0}, N)) {
     result[i] = grads[i].template get<0>();
   }
 

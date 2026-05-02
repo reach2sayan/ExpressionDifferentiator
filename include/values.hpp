@@ -195,6 +195,7 @@ public:
   constexpr operator T() const { return value; }
   [[nodiscard]] constexpr auto derivative() const { return Constant{T{}}; }
   constexpr void update(const auto &, const auto &) const {}
+  constexpr void collect(const auto &, auto &) const {}
   constexpr void backward(const auto &, T, auto &) const {}
 
   template <typename Syms, std::size_t N>
@@ -233,6 +234,7 @@ public:
   [[nodiscard]] constexpr auto get() const { return value; }
   template <typename U> constexpr decltype(auto) operator=(U &&v);
   constexpr void update(const auto &symbols, const auto &updates);
+  constexpr void collect(const auto &symbols, auto &out) const;
   [[nodiscard]] constexpr auto derivative() const;
   constexpr void backward(const auto &syms, T adj, auto &grads) const;
 
@@ -278,6 +280,14 @@ constexpr void Variable<T, symbol>::update(const auto &symbols,
 }
 
 template <Numeric T, char symbol>
+constexpr void Variable<T, symbol>::collect(const auto &symbols,
+                                            auto &out) const {
+  using Syms = std::decay_t<decltype(symbols)>;
+  constexpr auto index = find_index_of_char<symbol, Syms>();
+  out[index] = value;
+}
+
+template <Numeric T, char symbol>
 constexpr auto Variable<T, symbol>::derivative() const {
   auto ret = T{};
   return Constant{++ret};
@@ -308,7 +318,8 @@ template <Numeric T> class RuntimeVariable : public IOperators {
 
 public:
   using value_type = T;
-  RuntimeVariable(T value, std::size_t index) : value_(value), index_(index) {}
+  RuntimeVariable(T value, std::size_t index = {})
+      : value_(std::move(value)), index_(index) {}
   [[nodiscard]] T eval() const { return value_; }
   [[nodiscard]] Constant<T> derivative() const { return Constant<T>{T{1}}; }
   operator T() const { return value_; }
@@ -318,6 +329,7 @@ public:
   void update(const auto & /*syms*/, const auto &updates) {
     value_ = T(updates[index_]);
   }
+  void collect(const auto & /*syms*/, auto &) const {}
 
   void backward(const auto & /*syms*/, T adj, auto &grads) const {
     grads[index_] += adj;

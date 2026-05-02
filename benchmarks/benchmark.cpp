@@ -50,18 +50,16 @@ static void run_symbolic_jacobian(benchmark::State &state, VE &ve) {
 template <typename VE>
 static void run_reverse_jacobian(benchmark::State &state, const VE &ve) {
   for (auto _ : state) {
-    auto J = ve.eval_jacobian_reverse();
+    auto [f, J] = ve.eval_jacobian_reverse();
     benchmark::DoNotOptimize(J);
     benchmark::ClobberMemory();
   }
 }
 
-template <typename VE, std::size_t N>
-static void run_forward_jacobian(
-    benchmark::State &state, VE &ve,
-    const Eigen::Vector<dual_scalar_t<typename VE::value_type>, N> &values) {
+template <typename VE>
+static void run_forward_jacobian(benchmark::State &state, VE &ve) {
   for (auto _ : state) {
-    auto J = ve.eval_jacobian_forward(values);
+    auto [f, J] = ve.eval_jacobian_forward();
     benchmark::DoNotOptimize(J);
     benchmark::ClobberMemory();
   }
@@ -194,9 +192,7 @@ static void BM_Forward_Vector_F4(benchmark::State &state) {
   auto ve = Equation(
       (x + y) * (z - w) + exp(x * z),
       sin(y * w) + x * y * z * w);
-  run_forward_jacobian<decltype(ve), 4>(
-      state, ve,
-      Eigen::Vector<double, 4>{1.0, 0.5, 1.7, std::numbers::pi_v<double> / 6.0});
+  run_forward_jacobian(state, ve);
 }
 BENCHMARK(BM_Forward_Vector_F4);
 

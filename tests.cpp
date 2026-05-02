@@ -831,7 +831,7 @@ TEST(EquationTest, ReverseJacobianAgreesWithSymbolic) {
   auto ve = Equation(x * y, sin(x) + y * z, exp(z));
 
   auto J_sym = ve.eval_jacobian();
-  auto J_rev = ve.eval_jacobian_reverse();
+  auto [f_rev, J_rev] = ve.eval_jacobian_reverse();
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
@@ -848,7 +848,7 @@ TEST(EquationTest, ParallelReverseJacobian_FourOutputs) {
   static_assert(decltype(ve)::input_dim == 3);
 
   auto J_sym = ve.eval_jacobian();
-  auto J_rev = ve.eval_jacobian_reverse();
+  auto [f_rev, J_rev] = ve.eval_jacobian_reverse();
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
@@ -866,7 +866,7 @@ TEST(EquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
   static_assert(decltype(ve)::input_dim == 3);
 
   auto J_sym = ve.eval_jacobian();
-  auto J_rev = ve.eval_jacobian_reverse();
+  auto [f_rev, J_rev] = ve.eval_jacobian_reverse();
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
     for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
@@ -880,7 +880,7 @@ TEST(EquationTest, ReverseJacobianSingleOutputMatchesGradient) {
   // Use a 2-component Equation so the vector specialization is selected.
   auto ve = Equation(expr, exp(x) * sin(y));
 
-  auto J_rev = ve.eval_jacobian_reverse();
+  auto [f_rev, J_rev] = ve.eval_jacobian_reverse();
   auto g = reverse_mode_gradient(expr);
 
   for (std::size_t j = 0; j < decltype(ve)::input_dim; ++j)
@@ -1138,7 +1138,7 @@ TEST(EquationForward, TwoVariables) {
   Variable<D, 'x'> x{D{3.0}};
   Variable<D, 'y'> y{D{4.0}};
   auto ve = Equation(x * y, x + y);
-  auto J = ve.eval_jacobian_forward({3.0, 4.0});
+  auto [f, J] = ve.eval_jacobian_forward();
   EXPECT_DOUBLE_EQ(J(0, 0), 4.0); // ∂(x*y)/∂x = y = 4
   EXPECT_DOUBLE_EQ(J(0, 1), 3.0); // ∂(x*y)/∂y = x = 3
   EXPECT_DOUBLE_EQ(J(1, 0), 1.0); // ∂(x+y)/∂x
@@ -1160,7 +1160,7 @@ TEST(EquationForward, AgreesWithSymbolic) {
   Variable<D, 'x'> xd{D{xv}};
   Variable<D, 'y'> yd{D{yv}};
   auto ve_fwd = Equation(xd * xd, xd * yd, yd * yd);
-  auto J_fwd = ve_fwd.eval_jacobian_forward({xv, yv});
+  auto [f_fwd, J_fwd] = ve_fwd.eval_jacobian_forward();
 
   for (std::size_t i = 0; i < 3; ++i)
     for (std::size_t j = 0; j < 2; ++j)
@@ -1174,7 +1174,7 @@ TEST(EquationForward, TrigJacobian) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto ve = Equation(x * y, sin(x) + y * y);
-  auto J = ve.eval_jacobian_forward({2.0, 3.0});
+  auto [f, J] = ve.eval_jacobian_forward();
   EXPECT_DOUBLE_EQ(J(0, 0), 3.0);
   EXPECT_DOUBLE_EQ(J(0, 1), 2.0);
   EXPECT_DOUBLE_EQ(J(1, 0), std::cos(2.0));
@@ -1186,12 +1186,12 @@ TEST(EquationForward, ReverseAgreesWithForward) {
   Variable<D, 'x'> x{D{2.0}};
   Variable<D, 'y'> y{D{3.0}};
   auto ve_fwd = Equation(x * y, sin(x) + y * y);
-  auto J_fwd = ve_fwd.eval_jacobian_forward({2.0, 3.0});
+  auto [f_fwd, J_fwd] = ve_fwd.eval_jacobian_forward();
 
   auto xs = PV(2.0, 'x');
   auto ys = PV(3.0, 'y');
   auto ve_rev = Equation(xs * ys, sin(xs) + ys * ys);
-  auto J_rev = ve_rev.eval_jacobian_reverse();
+  auto [f_rev, J_rev] = ve_rev.eval_jacobian_reverse();
 
   for (std::size_t i = 0; i < 2; ++i)
     for (std::size_t j = 0; j < 2; ++j)
@@ -1380,7 +1380,7 @@ TEST(RuntimeEquationTest, JacobianLinear) {
   auto c3 = Constant<double>{3.0};
   auto eq = Equation(2, c2 * x + c3 * y, x - y);
 
-  auto J = eq.eval_jacobian_reverse();
+  auto [f, J] = eq.eval_jacobian_reverse();
   ASSERT_EQ(J.rows(), 2);
   ASSERT_EQ(J.cols(), 2);
   EXPECT_DOUBLE_EQ(J(0, 0), 2.0);
@@ -1396,7 +1396,7 @@ TEST(RuntimeEquationTest, JacobianProduct) {
   auto y = RV(4.0, 1);
   auto eq = Equation(2, x * y, x * x);
 
-  auto J = eq.eval_jacobian_reverse();
+  auto [f, J] = eq.eval_jacobian_reverse();
   EXPECT_DOUBLE_EQ(J(0, 0), 4.0);
   EXPECT_DOUBLE_EQ(J(0, 1), 3.0);
   EXPECT_DOUBLE_EQ(J(1, 0), 6.0);
@@ -1411,7 +1411,7 @@ TEST(RuntimeEquationTest, JacobianThreeInputs) {
   auto z = RV(3.0, 2);
   auto eq = Equation(3, x * y * z, x + y + z);
 
-  auto J = eq.eval_jacobian_reverse();
+  auto [f, J] = eq.eval_jacobian_reverse();
   ASSERT_EQ(J.rows(), 2);
   ASSERT_EQ(J.cols(), 3);
   EXPECT_DOUBLE_EQ(J(0, 0), 6.0);
@@ -1431,7 +1431,7 @@ TEST(RuntimeEquationTest, JacobianTrig) {
   auto y = RV(yv, 1);
   auto eq = Equation(2, sin(x), cos(y));
 
-  auto J = eq.eval_jacobian_reverse();
+  auto [f, J] = eq.eval_jacobian_reverse();
   EXPECT_NEAR(J(0, 0), std::cos(xv), 1e-12);
   EXPECT_NEAR(J(0, 1), 0.0, 1e-12);
   EXPECT_NEAR(J(1, 0), 0.0, 1e-12);
@@ -1448,7 +1448,7 @@ TEST(RuntimeEquationTest, JacobianAfterUpdate) {
   eq.update(vals);
 
   // J = [[y, x], [1, 1]] = [[5, 2], [1, 1]]
-  auto J = eq.eval_jacobian_reverse();
+  auto [f, J] = eq.eval_jacobian_reverse();
   EXPECT_DOUBLE_EQ(J(0, 0), 5.0);
   EXPECT_DOUBLE_EQ(J(0, 1), 2.0);
   EXPECT_DOUBLE_EQ(J(1, 0), 1.0);
@@ -1465,9 +1465,172 @@ TEST(RuntimeEquationTest, SingleInputTwoOutputs) {
   EXPECT_DOUBLE_EQ(out[0], 4.0); // 2^2
   EXPECT_DOUBLE_EQ(out[1], 8.0); // 2^3
 
-  auto J = eq.eval_jacobian_reverse();
+  auto [f, J] = eq.eval_jacobian_reverse();
   ASSERT_EQ(J.rows(), 2);
   ASSERT_EQ(J.cols(), 1);
   EXPECT_DOUBLE_EQ(J(0, 0), 4.0);  // d/dx(x^2) = 2x = 4
   EXPECT_DOUBLE_EQ(J(1, 0), 12.0); // d/dx(x^3) = 3x^2 = 12
+}
+
+// ===========================================================================
+// Hessian via forward-over-reverse (eval_hessian)
+// ===========================================================================
+
+TEST(HessianTest, ForwardOverReverse_FunctionValues) {
+  // f(x,y) = (x*y, x*x)  at (2, 3)  =>  f0=6, f1=4
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{2.0}};
+  Variable<D, 'y'> y{D{3.0}};
+  auto ve = Equation(x * y, x * x);
+  auto [f, H] = ve.eval_hessian();
+  EXPECT_DOUBLE_EQ(f[0], 6.0);
+  EXPECT_DOUBLE_EQ(f[1], 4.0);
+}
+
+TEST(HessianTest, ForwardOverReverse_XY) {
+  // H[f0] where f0(x,y) = x*y:
+  // ∂²/∂x² = 0, ∂²/∂x∂y = 1, ∂²/∂y∂x = 1, ∂²/∂y² = 0
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{2.0}};
+  Variable<D, 'y'> y{D{3.0}};
+  auto ve = Equation(x * y, x * x);
+  auto [f, H] = ve.eval_hessian();
+  EXPECT_DOUBLE_EQ(H[0](0, 0), 0.0); // ∂²(x*y)/∂x²
+  EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0); // ∂²(x*y)/∂x∂y
+  EXPECT_DOUBLE_EQ(H[0](1, 0), 1.0); // ∂²(x*y)/∂y∂x
+  EXPECT_DOUBLE_EQ(H[0](1, 1), 0.0); // ∂²(x*y)/∂y²
+}
+
+TEST(HessianTest, ForwardOverReverse_Quadratic) {
+  // H[f1] where f1(x,y) = x²:
+  // ∂²/∂x² = 2, all others = 0
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{2.0}};
+  Variable<D, 'y'> y{D{3.0}};
+  auto ve = Equation(x * y, x * x);
+  auto [f, H] = ve.eval_hessian();
+  EXPECT_DOUBLE_EQ(H[1](0, 0), 2.0);
+  EXPECT_DOUBLE_EQ(H[1](0, 1), 0.0);
+  EXPECT_DOUBLE_EQ(H[1](1, 0), 0.0);
+  EXPECT_DOUBLE_EQ(H[1](1, 1), 0.0);
+}
+
+TEST(HessianTest, ForwardOverReverse_WithValues) {
+  // Same as above but via the values-accepting overload (sets point first).
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{0.0}};
+  Variable<D, 'y'> y{D{0.0}};
+  auto ve = Equation(x * y, x * x);
+  Eigen::Vector2d pt{2.0, 3.0};
+  auto [f, H] = ve.eval_hessian(pt);
+  EXPECT_DOUBLE_EQ(f[0], 6.0);
+  EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0);
+  EXPECT_DOUBLE_EQ(H[1](0, 0), 2.0);
+}
+
+TEST(HessianTest, ForwardOverReverse_TrigFunction) {
+  // f(x,y) = (sin(x)*y, x+y)
+  // H[f0]: ∂²(y*sin(x))/∂x² = -y*sin(x), ∂²/∂x∂y = cos(x), ∂²/∂y² = 0
+  double xv = 1.0, yv = 2.0;
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{xv}};
+  Variable<D, 'y'> y{D{yv}};
+  auto ve = Equation(sin(x) * y, x + y);
+  auto [f, H] = ve.eval_hessian();
+  EXPECT_NEAR(H[0](0, 0), -yv * std::sin(xv), 1e-12); // -y*sin(x)
+  EXPECT_NEAR(H[0](0, 1), std::cos(xv), 1e-12);        // cos(x)
+  EXPECT_NEAR(H[0](1, 0), std::cos(xv), 1e-12);        // symmetric
+  EXPECT_NEAR(H[0](1, 1), 0.0, 1e-12);
+}
+
+TEST(HessianTest, ForwardOverReverse_Symmetric) {
+  // Hessian must be symmetric for smooth functions.
+  // f(x,y) = (exp(x*y),)  — we need 2 outputs so wrap it
+  double xv = 0.5, yv = 1.5;
+  using D = Dual<double>;
+  Variable<D, 'x'> x{D{xv}};
+  Variable<D, 'y'> y{D{yv}};
+  auto ve = Equation(exp(x * y), x + y);
+  auto [f, H] = ve.eval_hessian();
+  EXPECT_NEAR(H[0](0, 1), H[0](1, 0), 1e-12);
+}
+
+// ===========================================================================
+// Hessian via forward-over-forward, nested Dual<Dual<T>> (eval_hessian_forward)
+// ===========================================================================
+
+TEST(HessianForwardTest, NestedDual_FunctionValues) {
+  // f(x,y) = (x*y, x*x)  at (2, 3)  =>  f0=6, f1=4
+  using DD = Dual<Dual<double>>;
+  using D = Dual<double>;
+  Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
+  Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
+  auto ve = Equation(x * y, x * x);
+  auto [f, H] = ve.eval_hessian_forward();
+  EXPECT_DOUBLE_EQ(f[0], 6.0);
+  EXPECT_DOUBLE_EQ(f[1], 4.0);
+}
+
+TEST(HessianForwardTest, NestedDual_XY) {
+  // H[f0] where f0(x,y) = x*y — same expected values as forward-over-reverse
+  using DD = Dual<Dual<double>>;
+  using D = Dual<double>;
+  Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
+  Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
+  auto ve = Equation(x * y, x * x);
+  auto [f, H] = ve.eval_hessian_forward();
+  EXPECT_DOUBLE_EQ(H[0](0, 0), 0.0);
+  EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0);
+  EXPECT_DOUBLE_EQ(H[0](1, 0), 1.0);
+  EXPECT_DOUBLE_EQ(H[0](1, 1), 0.0);
+}
+
+TEST(HessianForwardTest, NestedDual_Quadratic) {
+  // H[f1] where f1(x,y) = x²
+  using DD = Dual<Dual<double>>;
+  using D = Dual<double>;
+  Variable<DD, 'x'> x{DD{D{2.0}, D{}}};
+  Variable<DD, 'y'> y{DD{D{3.0}, D{}}};
+  auto ve = Equation(x * y, x * x);
+  auto [f, H] = ve.eval_hessian_forward();
+  EXPECT_DOUBLE_EQ(H[1](0, 0), 2.0);
+  EXPECT_DOUBLE_EQ(H[1](0, 1), 0.0);
+  EXPECT_DOUBLE_EQ(H[1](1, 0), 0.0);
+  EXPECT_DOUBLE_EQ(H[1](1, 1), 0.0);
+}
+
+TEST(HessianForwardTest, AgreesWithForwardOverReverse) {
+  // Both methods must produce the same Hessian for f(x,y) = (x*y, x*x).
+  double xv = 1.5, yv = 2.5;
+
+  using D = Dual<double>;
+  Variable<D, 'x'> xr{D{xv}};
+  Variable<D, 'y'> yr{D{yv}};
+  auto ve_rev = Equation(xr * yr, xr * xr);
+  auto [f_rev, H_rev] = ve_rev.eval_hessian();
+
+  using DD = Dual<Dual<double>>;
+  Variable<DD, 'x'> xf{DD{D{xv}, D{}}};
+  Variable<DD, 'y'> yf{DD{D{yv}, D{}}};
+  auto ve_fwd = Equation(xf * yf, xf * xf);
+  auto [f_fwd, H_fwd] = ve_fwd.eval_hessian_forward();
+
+  for (std::size_t k = 0; k < 2; ++k)
+    for (std::size_t i = 0; i < 2; ++i)
+      for (std::size_t j = 0; j < 2; ++j)
+        EXPECT_NEAR(H_fwd[k](i, j), H_rev[k](i, j), 1e-12);
+}
+
+TEST(HessianForwardTest, NestedDual_WithValues) {
+  // Values-accepting overload: start at (0,0), set to (2,3).
+  using DD = Dual<Dual<double>>;
+  using D = Dual<double>;
+  Variable<DD, 'x'> x{DD{D{0.0}, D{}}};
+  Variable<DD, 'y'> y{DD{D{0.0}, D{}}};
+  auto ve = Equation(x * y, x * x);
+  Eigen::Vector2d pt{2.0, 3.0};
+  auto [f, H] = ve.eval_hessian_forward(pt);
+  EXPECT_DOUBLE_EQ(f[0], 6.0);
+  EXPECT_DOUBLE_EQ(H[0](0, 1), 1.0);
+  EXPECT_DOUBLE_EQ(H[1](0, 0), 2.0);
 }
