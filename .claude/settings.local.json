@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake --build \"out/build/x64-Release\" --target tests)",
+      "Bash(\"C:/Users/sayan.samanta/source/repos/Expression_Differentiator/build-win/Debug/tests.exe\")",
+      "Bash(cmake --build . --target tests --config Release)",
+      "Bash(\"C:/Users/sayan.samanta/source/repos/Expression_Differentiator/build-win/Release/tests.exe\")"
+    ]
+  }
+}
