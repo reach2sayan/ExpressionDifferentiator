@@ -29,8 +29,9 @@ constexpr auto make_jac_rows(const std::tuple<Exprs...> &es,
 //   jacobian<DiffMode::Reverse>([values])    — reverse-mode AD
 //   jacobian<DiffMode::Forward>([values])    — forward-mode AD (Dual<T>)
 //   hessian<DiffMode::Reverse>([values])     — forward-over-reverse (Dual<T>)
-//   hessian<DiffMode::Forward>([values])     — forward-over-forward (Dual<Dual<T>>)
-//   update(syms, values) / update(values)    — update variable values
+//   hessian<DiffMode::Forward>([values])     — forward-over-forward
+//   (Dual<Dual<T>>) update(syms, values) / update(values)    — update variable
+//   values
 // ===========================================================================
 template <ExpressionConcept TFirst, ExpressionConcept... TRest>
   requires(
@@ -234,10 +235,12 @@ public:
         jacobian_data{make_jac_rows(expressions, symbols{})},
         runtime_input_dim_{input_dim} {}
 
-  // Runtime constructor: no compile-time symbols; n_inputs given at construction.
+  // Runtime constructor: no compile-time symbols; n_inputs given at
+  // construction.
   Equation(std::size_t n_inputs, TFirst first, TRest... rest)
     requires(input_dim == 0)
-      : expressions{first, rest...}, jacobian_data{}, runtime_input_dim_{n_inputs} {}
+      : expressions{first, rest...}, jacobian_data{},
+        runtime_input_dim_{n_inputs} {}
 
   // Evaluate all component expressions.
   [[nodiscard]] constexpr auto evaluate() const {
@@ -285,15 +288,17 @@ public:
 
   template <DiffMode Mode>
   [[nodiscard]] auto jacobian()
-    requires(Mode == DiffMode::Forward && is_dual_v<value_type> && input_dim > 0)
+    requires(Mode == DiffMode::Forward && is_dual_v<value_type> &&
+             input_dim > 0)
   {
     return jacobian_forward_mode();
   }
 
   template <DiffMode Mode>
-  [[nodiscard]] auto jacobian(
-      Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
-    requires(Mode == DiffMode::Forward && is_dual_v<value_type> && input_dim > 0)
+  [[nodiscard]] auto
+  jacobian(Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
+    requires(Mode == DiffMode::Forward && is_dual_v<value_type> &&
+             input_dim > 0)
   {
     using S = dual_scalar_t<value_type>;
     Eigen::Vector<value_type, input_dim> seeds;
@@ -307,15 +312,17 @@ public:
 
   template <DiffMode Mode>
   [[nodiscard]] auto hessian()
-    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> && input_dim > 0)
+    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> &&
+             input_dim > 0)
   {
     return hessian_forward_over_reverse();
   }
 
   template <DiffMode Mode>
-  [[nodiscard]] auto hessian(
-      Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
-    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> && input_dim > 0)
+  [[nodiscard]] auto
+  hessian(Eigen::Vector<dual_scalar_t<value_type>, input_dim> values)
+    requires(Mode == DiffMode::Reverse && is_dual_v<value_type> &&
+             input_dim > 0)
   {
     using S = dual_scalar_t<value_type>;
     Eigen::Vector<value_type, input_dim> seeds;

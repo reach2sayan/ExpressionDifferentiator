@@ -230,4 +230,5 @@ template <size_t value> struct idx_t : std::integral_constant<size_t, value> {};
 
 } // namespace diff
 
-#define IDX(value) diff::idx_t<value>{}
+#define IDX(value)                                                             \
+  diff::idx_t<value> {}
