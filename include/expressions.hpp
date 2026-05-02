@@ -229,9 +229,3 @@ struct tuple_element<I, diff::MonoExpression<Op, Exp>> {
       typename diff::MonoExpression<Op, Exp>::value_type, I>::type;
 };
 } // namespace std
-
-using diff::AnOp;
-using diff::Expression;
-using diff::ExpressionConcept;
-using diff::MonoExpression;
-using diff::Numeric;

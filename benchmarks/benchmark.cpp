@@ -10,6 +10,8 @@
 #include <numbers>
 #include <vector>
 
+using namespace diff;
+
 template <typename Eq>
 static void run_symbolic(benchmark::State &state, Eq &eq) {
   for (auto _ : state) {
@@ -67,7 +69,7 @@ static void run_forward_jacobian(benchmark::State &state, VE &ve) {
 
 static void BM_Symbolic_F1_Univariate(benchmark::State &state) {
   auto x = PV(1.25, 'x');
-  auto eq = Equation(exp(x) * sin(x) + x * x * x + 2.0 * x);
+  auto eq = make_equation(exp(x) * sin(x) + x * x * x + 2.0 * x);
   run_symbolic(state, eq);
 }
 BENCHMARK(BM_Symbolic_F1_Univariate);
@@ -90,7 +92,7 @@ BENCHMARK(BM_Reverse_F1_Univariate);
 static void BM_Symbolic_F2_Bivariate(benchmark::State &state) {
   auto x = PV(1.3, 'x');
   auto y = PV(0.7, 'y');
-  auto eq = Equation(x * y + sin(x) + y * y + exp(x + y));
+  auto eq = make_equation(x * y + sin(x) + y * y + exp(x + y));
   run_symbolic(state, eq);
 }
 BENCHMARK(BM_Symbolic_F2_Bivariate);
@@ -116,7 +118,7 @@ static void BM_Symbolic_F3_Trivariate(benchmark::State &state) {
   auto x = PV(0.9, 'x');
   auto y = PV(1.1, 'y');
   auto z = PV(0.4, 'z');
-  auto eq = Equation(exp(x * y) + sin(z) * x + y * z + x * x * z);
+  auto eq = make_equation(exp(x * y) + sin(z) * x + y * z + x * x * z);
   run_symbolic(state, eq);
 }
 BENCHMARK(BM_Symbolic_F3_Trivariate);
@@ -145,7 +147,7 @@ static void BM_Symbolic_F4_FourVariables(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto eq = Equation((x + y) * (z - w) + exp(x * z) + sin(y * w) + x * y * z * w);
+  auto eq = make_equation((x + y) * (z - w) + exp(x * z) + sin(y * w) + x * y * z * w);
   run_symbolic(state, eq);
 }
 BENCHMARK(BM_Symbolic_F4_FourVariables);
@@ -176,7 +178,7 @@ static void BM_Symbolic_Vector_F4(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = Equation(
+  auto ve = make_equation(
       (x + y) * (z - w) + exp(x * z),
       sin(y * w) + x * y * z * w);
   run_symbolic_jacobian(state, ve);
@@ -189,7 +191,7 @@ static void BM_Forward_Vector_F4(benchmark::State &state) {
   Variable<D, 'y'> y{D{0.5}};
   Variable<D, 'z'> z{D{1.7}};
   Variable<D, 'w'> w{D{std::numbers::pi_v<double> / 6.0}};
-  auto ve = Equation(
+  auto ve = make_equation(
       (x + y) * (z - w) + exp(x * z),
       sin(y * w) + x * y * z * w);
   run_forward_jacobian(state, ve);
@@ -201,7 +203,7 @@ static void BM_Reverse_Vector_F4(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = Equation(
+  auto ve = make_equation(
       (x + y) * (z - w) + exp(x * z),
       sin(y * w) + x * y * z * w);
   run_reverse_jacobian(state, ve);
@@ -221,7 +223,7 @@ static void BM_Reverse_Parallel_2Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = Equation(f(), f());
+  auto ve = make_equation(f(), f());
   run_reverse_jacobian(state, ve);
 }
 BENCHMARK(BM_Reverse_Parallel_2Rows);
@@ -232,7 +234,7 @@ static void BM_Symbolic_Parallel_2Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = Equation(f(), f());
+  auto ve = make_equation(f(), f());
   run_symbolic_jacobian(state, ve);
 }
 BENCHMARK(BM_Symbolic_Parallel_2Rows);
@@ -243,7 +245,7 @@ static void BM_Reverse_Parallel_4Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = Equation(f(), f(), f(), f());
+  auto ve = make_equation(f(), f(), f(), f());
   run_reverse_jacobian(state, ve);
 }
 BENCHMARK(BM_Reverse_Parallel_4Rows);
@@ -254,7 +256,7 @@ static void BM_Symbolic_Parallel_4Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = Equation(f(), f(), f(), f());
+  auto ve = make_equation(f(), f(), f(), f());
   run_symbolic_jacobian(state, ve);
 }
 BENCHMARK(BM_Symbolic_Parallel_4Rows);
@@ -265,7 +267,7 @@ static void BM_Reverse_Parallel_6Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = Equation(f(), f(), f(), f(), f(), f());
+  auto ve = make_equation(f(), f(), f(), f(), f(), f());
   run_reverse_jacobian(state, ve);
 }
 BENCHMARK(BM_Reverse_Parallel_6Rows);
@@ -276,7 +278,7 @@ static void BM_Symbolic_Parallel_6Rows(benchmark::State &state) {
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto f = [&] { return exp(x * z) + sin(y * w) + x * y * z * w; };
-  auto ve = Equation(f(), f(), f(), f(), f(), f());
+  auto ve = make_equation(f(), f(), f(), f(), f(), f());
   run_symbolic_jacobian(state, ve);
 }
 BENCHMARK(BM_Symbolic_Parallel_6Rows);
@@ -292,7 +294,7 @@ static void BM_Reverse_Parallel_Large(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = Equation(
+  auto ve = make_equation(
       x * y + exp(z),
       sin(x) * cos(y) + z * w,
       exp(x + y) + z * z,
@@ -307,7 +309,7 @@ static void BM_Symbolic_Parallel_Large(benchmark::State &state) {
   auto y = PV(0.5, 'y');
   auto z = PV(1.7, 'z');
   auto w = PV(std::numbers::pi_v<double> / 6.0, 'w');
-  auto ve = Equation(
+  auto ve = make_equation(
       x * y + exp(z),
       sin(x) * cos(y) + z * w,
       exp(x + y) + z * z,
@@ -323,7 +325,7 @@ static void BM_Footprint_F4(benchmark::State &state) {
   auto zs = PV(1.7, 'z');
   auto ws = PV(std::numbers::pi_v<double> / 6.0, 'w');
   auto sym_expr = (xs + ys) * (zs - ws) + exp(xs * zs) + sin(ys * ws) + xs * ys * zs * ws;
-  auto sym_eq = Equation(sym_expr);
+  auto sym_eq = make_equation(sym_expr);
 
   using D = Dual<double>;
   auto xf = PDV(1.0, 'x');

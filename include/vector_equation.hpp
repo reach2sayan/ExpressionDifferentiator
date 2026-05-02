@@ -5,10 +5,8 @@
 #include <Eigen/Dense>
 #include <boost/mp11/algorithm.hpp>
 #include <ranges>
-using diff::Dual;
-using diff::ExpressionConcept;
-using diff::dual_scalar_t;
-using diff::is_dual_v;
+
+namespace diff {
 
 // Build a std::tuple of Jacobian rows — one row (std::tuple of derivatives)
 // per expression in the std::tuple es.
@@ -397,8 +395,26 @@ Equation(T, Ts...) -> Equation<T, Ts...>;
 template <ExpressionConcept T, ExpressionConcept... Ts>
 Equation(std::size_t, T, Ts...) -> Equation<T, Ts...>;
 
-#define forward_mode_hess hessian<DiffMode::Forward>
-#define reverse_mode_hess hessian<DiffMode::Reverse>
-#define forward_mode_jac jacobian<DiffMode::Forward>
-#define reverse_mode_jac jacobian<DiffMode::Reverse>
-#define symbolic_mode_jac jacobian<DiffMode::Symbolic>
+template <ExpressionConcept... Ts>
+constexpr auto make_equation(Ts &&...expressions) {
+  return Equation{std::forward<Ts>(expressions)...};
+}
+
+template <ExpressionConcept... Ts>
+constexpr auto make_equation(std::size_t n_inputs, Ts &&...expressions) {
+  return Equation{n_inputs, std::forward<Ts>(expressions)...};
+}
+
+} // namespace diff
+
+template <typename... Ts>
+constexpr auto make_equation(Ts &&...expressions)
+    -> decltype(diff::make_equation(std::forward<Ts>(expressions)...)) {
+  return diff::make_equation(std::forward<Ts>(expressions)...);
+}
+
+#define forward_mode_hess hessian<diff::DiffMode::Forward>
+#define reverse_mode_hess hessian<diff::DiffMode::Reverse>
+#define forward_mode_jac jacobian<diff::DiffMode::Forward>
+#define reverse_mode_jac jacobian<diff::DiffMode::Reverse>
+#define symbolic_mode_jac jacobian<diff::DiffMode::Symbolic>

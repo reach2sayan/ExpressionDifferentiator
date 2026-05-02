@@ -8,6 +8,8 @@
 #include <numbers>
 #include <ranges>
 
+using namespace diff;
+
 // ===========================================================================
 // Math function tests — ported from autodiff's test suite
 // Covers: tan, log, sqrt, abs, asin, acos, atan, sinh, cosh, tanh,

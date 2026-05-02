@@ -2,6 +2,8 @@
 #include "vector_equation.hpp"
 #include <iostream>
 
+using namespace diff;
+
 int main() {
   // f(x, y) = x * y + 3 * x * y^2
   auto x = PV(4, 'x');
@@ -11,7 +13,7 @@ int main() {
   std::cout << "f(x,y) = " << expr << "\n";
   std::cout << "f(4,2) = " << expr.eval() << "\n";
 
-  auto eq = Equation(expr);
+  auto eq = make_equation(expr);
   auto [dx, dy] = eq.eval_derivatives();
   std::cout << "df/dx at (4,2) = " << dx << "\n";
   std::cout << "df/dy at (4,2) = " << dy << "\n";
@@ -26,7 +28,7 @@ int main() {
   // f(x, y) = (x + y,  x * y)
   auto vx2 = PV(3.0, 'x');
   auto vy2 = PV(4.0, 'y');
-  auto ve = Equation(vx2 + vy2, vx2 * 3 * vy2 * 2 + 1);
+  auto ve = make_equation(vx2 + vy2, vx2 * 3 * vy2 * 2 + 1);
   std::cout << "\n--- Equation f(x,y) = (x+y, x*y) at (3, 4) ---\n";
   std::cout << ve;
 
@@ -42,7 +44,7 @@ int main() {
   // f(x, y) = (x*x,  sin(x)*y,  x + y*y)
   auto vx3 = PV(1.0, 'x');
   auto vy3 = PV(2.0, 'y');
-  auto ve3 = Equation(vx3 * vx3, sin(vx3) * vy3, vx3 + vy3 * vy3);
+  auto ve3 = make_equation(vx3 * vx3, sin(vx3) * vy3, vx3 + vy3 * vy3);
   std::cout << "\n--- Equation f(x,y) = (x^2, sin(x)*y, x+y^2) at (1, 2) ---\n";
   std::cout << ve3;
 

@@ -4,12 +4,10 @@
 #include <boost/mp11/algorithm.hpp>
 #include <type_traits>
 
+namespace diff {
+
 namespace mp = boost::mp11;
-using diff::Constant;
-using diff::Expression;
-using diff::MonoExpression;
-using diff::RuntimeVariable;
-using diff::Variable;
+
 template <std::size_t N, class F> constexpr void static_for(F &&f) {
   mp::mp_for_each<mp::mp_iota_c<N>>(
       [&]<class I>(I) { std::forward<F>(f).template operator()<I::value>(); });
@@ -250,5 +248,8 @@ template <std::size_t N> consteval auto idx() noexcept {
 
 // Legacy macro kept for backward compatibility.
 template <size_t value> struct idx_t : std::integral_constant<size_t, value> {};
+
+} // namespace diff
+
 #define IDX(value)                                                             \
-  idx_t<value> {}
+  diff::idx_t<value> {}

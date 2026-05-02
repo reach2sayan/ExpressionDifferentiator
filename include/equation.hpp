@@ -5,8 +5,10 @@
 #include <boost/mp11/algorithm.hpp>
 #include <concepts>
 #include <tuple>
+
+namespace diff {
+
 namespace mp = boost::mp11;
-using diff::ExpressionConcept;
 
 namespace detail {
 struct eval_func_t {
@@ -110,3 +112,5 @@ public:
 };
 
 template <ExpressionConcept T> Equation(T &&) -> Equation<std::decay_t<T>>;
+
+} // namespace diff

@@ -7,11 +7,9 @@
 #include <boost/mp11/algorithm.hpp>
 #include <ranges>
 
+namespace diff {
+
 namespace mp = boost::mp11;
-using diff::Dual;
-using diff::ExpressionConcept;
-using diff::dual_scalar_t;
-using diff::is_dual_v;
 
 enum class DiffMode { Symbolic, Forward, Reverse };
 
@@ -249,4 +247,6 @@ template <DiffMode Mode, ExpressionConcept Expr,
   return detail::forward_mode_hessian(expr);
 }
 
-#define reverse_mode_grad gradient<DiffMode::Reverse>
+} // namespace diff
+
+#define reverse_mode_grad diff::gradient<diff::DiffMode::Reverse>

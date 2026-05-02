@@ -370,13 +370,6 @@ template <typename T> auto RV(T value, std::size_t index) {
 
 } // namespace diff
 
-using diff::Constant;
-using diff::Dual;
-using diff::Numeric;
-using diff::RuntimeVariable;
-using diff::Variable;
-using diff::RV;
-
 DEFINE_CONST_UDL(int, ci)
 DEFINE_CONST_UDL(double, cd)
 DEFINE_VAR_UDL(int, vi, 'c')
