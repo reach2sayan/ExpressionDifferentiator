@@ -79,7 +79,8 @@ template <ExpressionConcept Expr,
               std::remove_cvref_t<Expr>>::type>::value>
   requires is_dual_v<T>
 [[nodiscard]] auto reverse_mode_hessian(Expr &expr, std::array<S, N> values) {
-  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+  using symbols =
+      typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
 
   std::array<std::array<S, N>, N> H{};
   std::array<T, N> seeds{};
@@ -111,7 +112,8 @@ template <ExpressionConcept Expr,
               std::remove_cvref_t<Expr>>::type>::value>
   requires is_dual_v<T>
 [[nodiscard]] auto reverse_mode_hessian(Expr &expr) {
-  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+  using symbols =
+      typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
   std::array<T, N> current{};
   expr.collect(symbols{}, current);
   std::array<S, N> values{};
@@ -123,25 +125,26 @@ template <ExpressionConcept Expr,
 
 template <ExpressionConcept Expr,
           typename T = typename std::remove_cvref_t<Expr>::value_type,
-          typename D = dual_scalar_t<T>,
-          typename S = dual_scalar_t<D>,
+          typename D = dual_scalar_t<T>, typename S = dual_scalar_t<D>,
           std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
               std::remove_cvref_t<Expr>>::type>::value>
   requires is_dual_v<T> && is_dual_v<D>
 [[nodiscard]] constexpr auto forward_mode_hessian(const Expr &expr,
                                                   std::array<S, N> values) {
-  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+  using symbols =
+      typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
 
   std::array<std::array<S, N>, N> H{};
   static_for<N>([&]<std::size_t I>() {
     static_for<N>([&]<std::size_t J>() {
       std::array<T, N> seeds{};
       static_for<N>([&]<std::size_t K>() {
-        seeds[K] = T{D{values[K], K == J ? S{1} : S{}},
-                     D{K == I ? S{1} : S{}, S{}}};
+        seeds[K] =
+            T{D{values[K], K == J ? S{1} : S{}}, D{K == I ? S{1} : S{}, S{}}};
       });
-      H[I][J] =
-          expr.template eval_seeded<symbols>(seeds).template get<1>().template get<1>();
+      H[I][J] = expr.template eval_seeded<symbols>(seeds)
+                    .template get<1>()
+                    .template get<1>();
     });
   });
 
@@ -150,13 +153,13 @@ template <ExpressionConcept Expr,
 
 template <ExpressionConcept Expr,
           typename T = typename std::remove_cvref_t<Expr>::value_type,
-          typename D = dual_scalar_t<T>,
-          typename S = dual_scalar_t<D>,
+          typename D = dual_scalar_t<T>, typename S = dual_scalar_t<D>,
           std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
               std::remove_cvref_t<Expr>>::type>::value>
   requires is_dual_v<T> && is_dual_v<D>
 [[nodiscard]] constexpr auto forward_mode_hessian(const Expr &expr) {
-  using symbols = typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
+  using symbols =
+      typename extract_symbols_from_expr<std::remove_cvref_t<Expr>>::type;
   std::array<T, N> current{};
   expr.collect(symbols{}, current);
   std::array<S, N> values{};
@@ -212,19 +215,18 @@ template <DiffMode Mode, ExpressionConcept Expr,
 
 template <DiffMode Mode, ExpressionConcept Expr,
           typename T = typename std::remove_cvref_t<Expr>::value_type,
-          typename D = dual_scalar_t<T>,
-          typename S = dual_scalar_t<D>,
+          typename D = dual_scalar_t<T>, typename S = dual_scalar_t<D>,
           std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
               std::remove_cvref_t<Expr>>::type>::value>
   requires(Mode == DiffMode::Forward && is_dual_v<T> && is_dual_v<D>)
-[[nodiscard]] constexpr auto hessian(const Expr &expr, std::array<S, N> values) {
+[[nodiscard]] constexpr auto hessian(const Expr &expr,
+                                     std::array<S, N> values) {
   return detail::forward_mode_hessian(expr, values);
 }
 
 template <DiffMode Mode, ExpressionConcept Expr,
           typename T = typename std::remove_cvref_t<Expr>::value_type,
-          typename D = dual_scalar_t<T>,
-          typename S = dual_scalar_t<D>,
+          typename D = dual_scalar_t<T>, typename S = dual_scalar_t<D>,
           std::size_t N = mp::mp_size<typename extract_symbols_from_expr<
               std::remove_cvref_t<Expr>>::type>::value>
   requires(Mode == DiffMode::Forward && is_dual_v<T> && is_dual_v<D>)

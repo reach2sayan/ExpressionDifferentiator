@@ -1209,9 +1209,9 @@ TEST(EquationForward, StateRestoredAfterCall) {
   auto ve = Equation(x * y, x + y);
   auto [v0, v1] = ve.evaluate();
   auto [v01, v02] = v0;
-  EXPECT_DOUBLE_EQ(v01, 12.0); // x*y = 12
-  EXPECT_DOUBLE_EQ(v02, 0.0);  // dual part zeroed
-  EXPECT_DOUBLE_EQ(v1.template get<0>(), 7.0);  // x+y = 7
+  EXPECT_DOUBLE_EQ(v01, 12.0);                 // x*y = 12
+  EXPECT_DOUBLE_EQ(v02, 0.0);                  // dual part zeroed
+  EXPECT_DOUBLE_EQ(v1.template get<0>(), 7.0); // x+y = 7
 }
 
 TEST(ReverseModeAD, ScalarLiteralCoercion) {
@@ -1542,8 +1542,8 @@ TEST(HessianTest, ForwardOverReverse_TrigFunction) {
   auto ve = Equation(sin(x) * y, x + y);
   auto H = ve.reverse_mode_hess();
   EXPECT_NEAR(H[0](0, 0), -yv * std::sin(xv), 1e-12); // -y*sin(x)
-  EXPECT_NEAR(H[0](0, 1), std::cos(xv), 1e-12);        // cos(x)
-  EXPECT_NEAR(H[0](1, 0), std::cos(xv), 1e-12);        // symmetric
+  EXPECT_NEAR(H[0](0, 1), std::cos(xv), 1e-12);       // cos(x)
+  EXPECT_NEAR(H[0](1, 0), std::cos(xv), 1e-12);       // symmetric
   EXPECT_NEAR(H[0](1, 1), 0.0, 1e-12);
 }
 
