@@ -11,7 +11,10 @@
       "Bash(\"./build-win/Release/tests.exe\")",
       "Bash(cmake --build build)",
       "Bash(cmake --build build-win)",
-      "Bash(cmake --build build-win --target tests)"
+      "Bash(cmake --build build-win --target tests)",
+      "Bash(cmake --build cmake-build-debug)",
+      "Bash(cmake --build cmake-build-debug --clean-first)",
+      "Bash(./cmake-build-debug/tests)"
     ]
   }
 }
