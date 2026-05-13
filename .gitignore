@@ -502,3 +502,4 @@ build/
 *.aux
 *.toc
 .claude/*
+/*/settings.local.json
