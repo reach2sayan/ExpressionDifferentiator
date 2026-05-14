@@ -14,7 +14,21 @@
       "Bash(cmake --build build-win --target tests)",
       "Bash(cmake --build cmake-build-debug)",
       "Bash(cmake --build cmake-build-debug --clean-first)",
-      "Bash(./cmake-build-debug/tests)"
+      "Bash(./cmake-build-debug/tests)",
+      "Bash(g++ --version)",
+      "Bash(cmake -L cmake-build-gcc-release)",
+      "Bash(cat)",
+      "Bash(g++ -std=c++20 -O3 -I cmake-build-gcc-release/_deps/googlebenchmark-src/include /tmp/test_dno.cpp -c -o /tmp/test_dno.o)",
+      "Bash(./cmake-build-gcc-release/benchmarks *)",
+      "Bash(cmake --build build --target all)",
+      "Bash(cmake -B build_minimizer_test -DDIFF_BUILD_BENCHMARKS=OFF)",
+      "Bash(cmake *)",
+      "Bash(g++ -std=c++23 -march=x86-64-v3 -I/home/sayan/CLionProjects/Expression_Differentiator -I/home/sayan/CLionProjects/Expression_Differentiator/include -I/home/sayan/CLionProjects/Expression_Differentiator/minimizer/include -I/home/sayan/CLionProjects/Expression_Differentiator/build_minimizer_test/_deps/boost_mp11-src/include /tmp/test_golden.cpp -L/home/sayan/CLionProjects/Expression_Differentiator/build_minimizer_test/minimizer -lminimizer -o /tmp/test_golden)",
+      "Bash(/tmp/test_golden)",
+      "Bash(./cmake-build-debug/minimizer/minimizer_tests *)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; grep -c \"minimizer\" {} 2>/dev/null || echo 0')",
+      "Bash(wait)",
+      "Bash(./cmake-build-clang-debug/minimizer/minimizer_tests)"
     ]
   }
 }
