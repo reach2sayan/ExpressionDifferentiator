@@ -501,6 +501,5 @@ build/
 /cmake-build-gcc-release/
 *.aux
 *.toc
-/.claude/*
 /*/settings.local.json
 /build_test/*
