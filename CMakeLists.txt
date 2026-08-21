@@ -109,6 +109,38 @@ if (DEFINED DDX_DEDUCING_THIS_VALUE)
     target_compile_definitions(ddx INTERFACE DDX_DEDUCING_THIS=${DDX_DEDUCING_THIS_VALUE})
 endif ()
 
+option(ENABLE_NATIVE_ARCH "Build optimized for this machine" ON)
+# Pin FP contraction, drop errno.  Neither flag is lossy.  Nothing that trades
+# accuracy for speed belongs here -- in particular never -ffast-math (nor
+# /fp:fast on MSVC, which needs no flags at all).
+option(DDX_FP_FLAGS "Pin FP contraction and drop errno on libm calls" ON)
+
+if (MSVC)
+    # /bigobj: one TU instantiates past the 2^16 COFF section limit.
+    set(DDX_CODEGEN_FLAGS /arch:AVX2 /bigobj)
+    # /Wall noise a header-only expression-template library emits by the
+    # thousand.  C4365 and C5219 are deliberately left on.
+    set(DDX_WARNINGS /Wall /wd4623 /wd4625 /wd4626 /wd5026 /wd5027 /wd4710
+                     /wd4711 /wd4868 /wd4820 /wd5045 /wd5246 /wd4514 /wd4324 /wd5266)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+else ()
+    if (ENABLE_NATIVE_ARCH)
+        set(DDX_CODEGEN_FLAGS -march=native)
+    else ()
+        set(DDX_CODEGEN_FLAGS -march=x86-64-v3)
+    endif ()
+    if (DDX_FP_FLAGS)
+        list(APPEND DDX_CODEGEN_FLAGS -ffp-contract=fast -fno-math-errno)
+    endif ()
+    set(DDX_WARNINGS -Wall -Wextra -Wpedantic -Wfatal-errors)
+endif ()
+
+# Our own targets only -- never the INTERFACE library, which must not push flags
+# onto a consumer.
+function(ddx_target_flags target)
+    target_compile_options(${target} PRIVATE ${DDX_CODEGEN_FLAGS} ${DDX_WARNINGS})
+endfunction()
+
 # --- optional runtime graph -------------------------------------------------
 # Everything above is header-only and dependency-free, and stays that way.  The
 # runtime graph is what an expression built at run time lives in, and it is
@@ -148,6 +180,23 @@ if (DDX_BUILD_RT)
     add_subdirectory(include/rt)
 endif ()
 
+if (DDX_BUILD_JIT)
+    # LLVMConfig declares itself compatible only with an exact version request,
+    # so a find_package version range never matches; check the major ourselves.
+    # The ORC C++ API is not stable across releases, hence the range at all.
+    find_package(LLVM REQUIRED CONFIG)
+    if (LLVM_VERSION_MAJOR LESS 18 OR LLVM_VERSION_MAJOR GREATER 20)
+        message(FATAL_ERROR
+                "ddx::jit has been built against LLVM 18-20; found ${LLVM_PACKAGE_VERSION}. "
+                "Point CMake at a supported one with -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm.")
+    endif ()
+    message(STATUS "LLVM ${LLVM_PACKAGE_VERSION} (${LLVM_INCLUDE_DIRS})")
+    separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND "${LLVM_DEFINITIONS}")
+    llvm_map_components_to_libnames(DDX_LLVM_LIBS
+            core orcjit native passes support analysis target)
+    add_subdirectory(src/jit)
+endif ()
+
 # Everything below builds the executables, and only when this is the top-level
 # project.  A consumer that add_subdirectory()s us gets the library and nothing else.
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -155,37 +204,6 @@ if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 endif ()
 
 option(DDX_BUILD_BENCHMARKS "Build Google Benchmark benchmarks" ON)
-option(ENABLE_NATIVE_ARCH "Build optimized for this machine" ON)
-# Pin FP contraction, drop errno.  Neither flag is lossy.  Nothing that trades
-# accuracy for speed belongs here -- in particular never -ffast-math (nor
-# /fp:fast on MSVC, which needs no flags at all).
-option(DDX_FP_FLAGS "Pin FP contraction and drop errno on libm calls" ON)
-
-if (MSVC)
-    # /bigobj: one TU instantiates past the 2^16 COFF section limit.
-    set(DDX_CODEGEN_FLAGS /arch:AVX2 /bigobj)
-    # /Wall noise a header-only expression-template library emits by the
-    # thousand.  C4365 and C5219 are deliberately left on.
-    set(DDX_WARNINGS /Wall /wd4623 /wd4625 /wd4626 /wd5026 /wd5027 /wd4710
-                     /wd4711 /wd4868 /wd4820 /wd5045 /wd5246 /wd4514 /wd4324 /wd5266)
-    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-else ()
-    if (ENABLE_NATIVE_ARCH)
-        set(DDX_CODEGEN_FLAGS -march=native)
-    else ()
-        set(DDX_CODEGEN_FLAGS -march=x86-64-v3)
-    endif ()
-    if (DDX_FP_FLAGS)
-        list(APPEND DDX_CODEGEN_FLAGS -ffp-contract=fast -fno-math-errno)
-    endif ()
-    set(DDX_WARNINGS -Wall -Wextra -Wpedantic -Wfatal-errors)
-endif ()
-
-# Our own targets only -- never the INTERFACE library, which must not push flags
-# onto a consumer.
-function(ddx_target_flags target)
-    target_compile_options(${target} PRIVATE ${DDX_CODEGEN_FLAGS} ${DDX_WARNINGS})
-endfunction()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -219,6 +237,14 @@ if (DDX_BUILD_RT)
     target_link_libraries(tests_rt PRIVATE gtest_main ddx_rt)
     ddx_target_flags(tests_rt)
     gtest_discover_tests(tests_rt)
+endif ()
+
+if (DDX_BUILD_JIT)
+    file(GLOB DDX_JIT_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/jit/*.cpp")
+    add_executable(tests_jit ${DDX_JIT_TEST_SOURCES})
+    target_link_libraries(tests_jit PRIVATE gtest_main ddx_jit)
+    ddx_target_flags(tests_jit)
+    gtest_discover_tests(tests_jit)
 endif ()
 
 if (DDX_BUILD_BENCHMARKS)
