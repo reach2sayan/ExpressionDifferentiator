@@ -91,17 +91,16 @@ template <impl::Numeric T>
 
   // Only what the root reaches: another expression sharing the builder would
   // otherwise contribute couplings this one does not have.
-  const auto live =
-      detail::reachable(b.size(), std::span{&root, 1}, [&](NodeId v,
-                                                           auto &&mark) {
-        const auto &node = b[v];
-        if (arity_of(node.op) >= 1) {
-          mark(node.a);
-        }
-        if (arity_of(node.op) == 2) {
-          mark(node.b);
-        }
-      });
+  const auto live = detail::reachable(b.size(), std::span{&root, 1},
+                                      [&](NodeId v, auto &&mark) {
+                                        const auto &node = b[v];
+                                        if (arity_of(node.op) >= 1) {
+                                          mark(node.a);
+                                        }
+                                        if (arity_of(node.op) == 2) {
+                                          mark(node.b);
+                                        }
+                                      });
 
   std::vector<SymbolSet> support(b.size());
   for (NodeId v = 0; v < b.size(); ++v) {
@@ -182,9 +181,9 @@ template <impl::Numeric T>
   // search.
   out.scatter.assign(out.count * n, no_column);
   for (std::size_t j = 0; j < n; ++j) {
-    detail::for_each_set(
-        rows[j], [&, scatter = by_color(out.scatter, out.count, n)](
-                     std::size_t i) { scatter[out.color[j], i] = j; });
+    detail::for_each_set(rows[j],
+                         [&, scatter = by_color(out.scatter, out.count, n)](
+                             std::size_t i) { scatter[out.color[j], i] = j; });
   }
   return out;
 }

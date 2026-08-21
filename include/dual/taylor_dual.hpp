@@ -106,8 +106,8 @@ template <Numeric S, std::size_t N> struct TaylorDual {
   operator<=>(const TaylorDual &a, const TaylorDual &b) noexcept {
     return a.c[0] <=> b.c[0];
   }
-  [[nodiscard]] friend constexpr bool
-  operator==(const TaylorDual &a, const TaylorDual &b) noexcept {
+  [[nodiscard]] friend constexpr bool operator==(const TaylorDual &a,
+                                                 const TaylorDual &b) noexcept {
     return a.c[0] == b.c[0];
   }
 
@@ -317,16 +317,18 @@ template <Numeric S, std::size_t N> struct TaylorDual {
   }
 
   // log10(u) = log(u) / ln(10); every coefficient scales by log10(e).
-  [[nodiscard]] friend constexpr TaylorDual log10(const TaylorDual &u) noexcept {
+  [[nodiscard]] friend constexpr TaylorDual
+  log10(const TaylorDual &u) noexcept {
     TaylorDual w = log(u);
     const S log10e = static_cast<S>(std::numbers::log10e);
-    std::ranges::transform(w.c, w.c.begin(),
-                           [log10e](const S &x) noexcept { return x * log10e; });
+    std::ranges::transform(
+        w.c, w.c.begin(), [log10e](const S &x) noexcept { return x * log10e; });
     return w;
   }
 
   // asinh: sqrt(1+u²)·w' = u'  (mirrors asin with s = sqrt(1 + u²)).
-  [[nodiscard]] friend constexpr TaylorDual asinh(const TaylorDual &u) noexcept {
+  [[nodiscard]] friend constexpr TaylorDual
+  asinh(const TaylorDual &u) noexcept {
     using std::asinh;
     TaylorDual one;
     one.c[0] = S{1};
@@ -334,7 +336,8 @@ template <Numeric S, std::size_t N> struct TaylorDual {
   }
 
   // acosh: sqrt(u²-1)·w' = u'  (requires u[0] > 1).
-  [[nodiscard]] friend constexpr TaylorDual acosh(const TaylorDual &u) noexcept {
+  [[nodiscard]] friend constexpr TaylorDual
+  acosh(const TaylorDual &u) noexcept {
     using std::acosh;
     TaylorDual one;
     one.c[0] = S{1};
@@ -342,7 +345,8 @@ template <Numeric S, std::size_t N> struct TaylorDual {
   }
 
   // atanh: (1-u²)·w' = u'  (mirrors atan with p = 1 - u²).
-  [[nodiscard]] friend constexpr TaylorDual atanh(const TaylorDual &u) noexcept {
+  [[nodiscard]] friend constexpr TaylorDual
+  atanh(const TaylorDual &u) noexcept {
     using std::atanh;
     TaylorDual p = -(u * u);
     p.c[0] += S{1};
@@ -369,19 +373,18 @@ template <Numeric S, std::size_t N> struct TaylorDual {
 
   // atan2(y, x) and atan(y/x) differ by a piecewise constant, so only the value
   // coefficient differs; atan is composite-safe, so this is exact.
-  [[nodiscard]] friend constexpr TaylorDual atan2(const TaylorDual &y,
-                                        const TaylorDual &x) noexcept {
+  [[nodiscard]] friend constexpr TaylorDual
+  atan2(const TaylorDual &y, const TaylorDual &x) noexcept {
     using std::atan2;
     TaylorDual w = atan(y / x);
     w.c[0] = atan2(y.c[0], x.c[0]);
     return w;
   }
 
-  [[nodiscard]] friend constexpr TaylorDual hypot(const TaylorDual &x,
-                                        const TaylorDual &y) noexcept {
+  [[nodiscard]] friend constexpr TaylorDual
+  hypot(const TaylorDual &x, const TaylorDual &y) noexcept {
     return sqrt(x * x + y * y);
   }
-
 };
 
 static_assert(Numeric<TaylorDual<double, 3>>,
@@ -417,7 +420,8 @@ inline constexpr bool is_dual_family_v<TaylorDual<S, N>> = true;
 template <ddx::impl::Numeric S, std::size_t N>
 struct std::formatter<ddx::impl::TaylorDual<S, N>, char>
     : ddx::impl::detail::dual_formatter_base<S> {
-  auto format(const ddx::impl::TaylorDual<S, N> &t, std::format_context &ctx) const {
+  auto format(const ddx::impl::TaylorDual<S, N> &t,
+              std::format_context &ctx) const {
     this->series(ctx, t.c);
     return ctx.out();
   }

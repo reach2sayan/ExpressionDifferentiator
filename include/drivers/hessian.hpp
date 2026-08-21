@@ -53,8 +53,7 @@ constexpr void check_graph_point(std::size_t arity, std::span<const double> x,
 
 // All-variables form: a point longer than the symbol set is as wrong as a short
 // one.
-constexpr void check_graph_point(std::size_t arity,
-                                 std::span<const double> x) {
+constexpr void check_graph_point(std::size_t arity, std::span<const double> x) {
   if (x.size() != arity) {
     throw std::out_of_range(
         "hessian: an expression graph needs exactly one value per symbol (see "

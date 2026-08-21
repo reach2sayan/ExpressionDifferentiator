@@ -178,10 +178,9 @@ public:
   }
   [[nodiscard]] constexpr const_reference
   at_index(const std::array<index_type, Ext::rank()> &idx) const noexcept {
-    return index_apply<Ext::rank()>(
-        [&]<std::size_t... K>() -> const_reference {
-          return data_[static_cast<std::size_t>(kMapping(idx[K]...))];
-        });
+    return index_apply<Ext::rank()>([&]<std::size_t... K>() -> const_reference {
+      return data_[static_cast<std::size_t>(kMapping(idx[K]...))];
+    });
   }
 #endif
 

@@ -7,35 +7,35 @@
 
 namespace ddx::impl::detail {
 
-#define DDX_UNARY_MATH_FNS                                                    \
+#define DDX_UNARY_MATH_FNS                                                     \
   using std::sin, std::cos, std::tan, std::exp, std::log, std::log10,          \
       std::sqrt, std::cbrt, std::asin, std::acos, std::atan, std::sinh,        \
       std::cosh, std::tanh, std::asinh, std::acosh, std::atanh, std::erf
-#define DDX_UNARY_MATH_DESC(NAME, VAL, ...)                                   \
+#define DDX_UNARY_MATH_DESC(NAME, VAL, ...)                                    \
   template <Numeric T> struct NAME {                                           \
     constexpr auto operator()(const auto &u) const noexcept {                  \
-      DDX_UNARY_MATH_FNS;                                                     \
+      DDX_UNARY_MATH_FNS;                                                      \
       return (VAL);                                                            \
     }                                                                          \
     static constexpr auto deriv(const auto &u) noexcept {                      \
-      DDX_UNARY_MATH_FNS;                                                     \
+      DDX_UNARY_MATH_FNS;                                                      \
       return (__VA_ARGS__);                                                    \
     }                                                                          \
   };
 
-#define DDX_UNARY_MATH_DESC_FV(NAME, VAL, DERIV, ...)                         \
+#define DDX_UNARY_MATH_DESC_FV(NAME, VAL, DERIV, ...)                          \
   template <Numeric T> struct NAME {                                           \
     constexpr auto operator()(const auto &u) const noexcept {                  \
-      DDX_UNARY_MATH_FNS;                                                     \
+      DDX_UNARY_MATH_FNS;                                                      \
       return (VAL);                                                            \
     }                                                                          \
     static constexpr auto deriv(const auto &u) noexcept {                      \
-      DDX_UNARY_MATH_FNS;                                                     \
+      DDX_UNARY_MATH_FNS;                                                      \
       return (DERIV);                                                          \
     }                                                                          \
     static constexpr auto deriv_from_value(const auto &u,                      \
                                            const auto &fu) noexcept {          \
-      DDX_UNARY_MATH_FNS;                                                     \
+      DDX_UNARY_MATH_FNS;                                                      \
       (void)u;                                                                 \
       return (__VA_ARGS__);                                                    \
     }                                                                          \

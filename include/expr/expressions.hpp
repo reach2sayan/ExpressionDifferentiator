@@ -23,7 +23,7 @@ concept CFieldLike = std::default_initializable<T> &&
                      std::constructible_from<T, int> && requires(T a, T b) {
                        { a + b } -> std::convertible_to<T>;
                        { a - b } -> std::convertible_to<T>;
-                       { a *b } -> std::convertible_to<T>;
+                       { a * b } -> std::convertible_to<T>;
                        { a / b } -> std::convertible_to<T>;
                        { -a } -> std::convertible_to<T>;
                      };
@@ -207,8 +207,9 @@ inline constexpr std::size_t node_count_v =
 template <std::size_t Base, CTupleLike Kids, std::size_t I>
 consteval std::size_t child_base_at() {
   std::size_t off = Base + 1;
-  static_for<I>(
-      [&]<std::size_t K>() { off += node_count_v<std::tuple_element_t<K, Kids>>; });
+  static_for<I>([&]<std::size_t K>() {
+    off += node_count_v<std::tuple_element_t<K, Kids>>;
+  });
   return off;
 }
 

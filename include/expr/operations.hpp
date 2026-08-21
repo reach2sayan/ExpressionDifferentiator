@@ -3,8 +3,8 @@
 #include "expr/expressions.hpp"
 #include "expr/unary_math.hpp"
 #include <array>
-#include <concepts>
 #include <cmath>
+#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <string_view>
@@ -16,7 +16,8 @@ namespace ddx::impl {
 //   Prefix -a   Infix a + b   Function pow(a, b)
 enum class Notation : std::uint8_t { Prefix, Infix, Function };
 
-// Binding strength; higher binds tighter.  Function calls and leaves are atomic.
+// Binding strength; higher binds tighter.  Function calls and leaves are
+// atomic.
 inline constexpr int precedence_atom = 100;
 
 template <Numeric T, typename func, CFixedString auto symbol,
@@ -64,8 +65,8 @@ struct BinaryOp {
 };
 
 template <Numeric T>
-struct SumOp : BinaryOp<T, std::plus<void>, FixedString{"+"}, Notation::Infix,
-                        10> {
+struct SumOp
+    : BinaryOp<T, std::plus<void>, FixedString{"+"}, Notation::Infix, 10> {
   // A sum hands its adjoint to both operands unchanged, and a - b is a + (-b),
   // so this is the biggest source of skippable stores.
   static constexpr bool reads_primals = false;
@@ -104,8 +105,8 @@ struct MultiplyOp : BinaryOp<T, std::multiplies<void>, FixedString{"*"},
 };
 
 template <Numeric T>
-struct NegateOp : UnaryOp<T, std::negate<void>, FixedString{"-"},
-                          Notation::Prefix, 30> {
+struct NegateOp
+    : UnaryOp<T, std::negate<void>, FixedString{"-"}, Notation::Prefix, 30> {
   static constexpr bool reads_primals = false;
 
   // Through operator-, so values.hpp's folding ladder sees it: -0 is a Lit.
@@ -121,8 +122,8 @@ struct NegateOp : UnaryOp<T, std::negate<void>, FixedString{"-"},
 };
 
 template <Numeric T>
-struct DivideOp : BinaryOp<T, std::divides<void>, FixedString{"/"},
-                           Notation::Infix, 20> {
+struct DivideOp
+    : BinaryOp<T, std::divides<void>, FixedString{"/"}, Notation::Infix, 20> {
   // `a / b` means a * b^-1 -- RIGHT division.  CFieldLike cannot distinguish
   // the two, so the side is a stated convention.  Under it
   // dc = da*b^-1 - a*b^-1*db*b^-1, which does not fold into one division by
@@ -179,7 +180,7 @@ struct abs_impl {
 };
 // `using std::` plus an unqualified call: ADL finds Dual's / TaylorDual's own
 // overloads, std::* otherwise.
-#define DDX_ADL_BINARY_IMPL(NAME, FN)                                         \
+#define DDX_ADL_BINARY_IMPL(NAME, FN)                                          \
   struct NAME {                                                                \
     constexpr auto operator()(const Numeric auto &a,                           \
                               const Numeric auto &b) const noexcept {          \
@@ -208,7 +209,7 @@ struct min_impl {
 // Generated from the registry: each op pulls value and derivative from its
 // descriptor in unary_math.hpp.  Forward mode needs no member here -- it is the
 // ordinary eval() sweep seeded with Dual, through the same descriptor.
-#define DDX_UNARY_MATH_OP(FN, NAME, LABEL)                                    \
+#define DDX_UNARY_MATH_OP(FN, NAME, LABEL)                                     \
   template <Numeric T>                                                         \
     requires(!detail::needs_real_constants_v<detail::NAME##Fn<T>> ||           \
              std::constructible_from<T, double>)                               \
@@ -250,7 +251,8 @@ struct AbsOp : UnaryOp<T, detail::abs_impl, FixedString{"abs"}> {
 
 // pow(a, b) = a^b.  d(a^b) = a^b * (b' ln a + b a'/a).
 template <Numeric T>
-struct PowOp : BinaryOp<T, detail::pow_impl, FixedString{"pow"}, Notation::Function> {
+struct PowOp
+    : BinaryOp<T, detail::pow_impl, FixedString{"pow"}, Notation::Function> {
   [[nodiscard]] static constexpr auto
   derivative(const CExpression auto &lhs, const CExpression auto &rhs) noexcept;
   template <std::size_t Base, std::size_t... CB>
@@ -267,7 +269,8 @@ struct PowOp : BinaryOp<T, detail::pow_impl, FixedString{"pow"}, Notation::Funct
 
 // atan2(y, x): lhs is y, rhs is x.  d = (x y' - y x') / (x² + y²).
 template <Numeric T>
-struct Atan2Op : BinaryOp<T, detail::atan2_impl, FixedString{"atan2"}, Notation::Function> {
+struct Atan2Op : BinaryOp<T, detail::atan2_impl, FixedString{"atan2"},
+                          Notation::Function> {
   [[nodiscard]] static constexpr auto
   derivative(const CExpression auto &lhs, const CExpression auto &rhs) noexcept;
   template <std::size_t Base, std::size_t... CB>
@@ -283,7 +286,8 @@ struct Atan2Op : BinaryOp<T, detail::atan2_impl, FixedString{"atan2"}, Notation:
 
 // hypot(x, y) = sqrt(x² + y²).  d = (x x' + y y') / hypot.
 template <Numeric T>
-struct HypotOp : BinaryOp<T, detail::hypot_impl, FixedString{"hypot"}, Notation::Function> {
+struct HypotOp : BinaryOp<T, detail::hypot_impl, FixedString{"hypot"},
+                          Notation::Function> {
   [[nodiscard]] static constexpr auto
   derivative(const CExpression auto &lhs, const CExpression auto &rhs) noexcept;
   template <std::size_t Base, std::size_t... CB>
@@ -301,7 +305,8 @@ struct HypotOp : BinaryOp<T, detail::hypot_impl, FixedString{"hypot"}, Notation:
 // totally_ordered because the rules below branch on a comparison.
 template <Numeric T>
   requires std::totally_ordered<T>
-struct MaxOp : BinaryOp<T, detail::max_impl, FixedString{"max"}, Notation::Function> {
+struct MaxOp
+    : BinaryOp<T, detail::max_impl, FixedString{"max"}, Notation::Function> {
   // max(a, b) = (a + b + |a - b|) / 2, so with s = (a - b)/|a - b|,
   //   max' = (a' + b' + s*(a' - b')) / 2
   // Branch-free of necessity: a runtime conditional would have to choose
@@ -328,7 +333,8 @@ struct MaxOp : BinaryOp<T, detail::max_impl, FixedString{"max"}, Notation::Funct
 // totally_ordered because the rules below branch on a comparison.
 template <Numeric T>
   requires std::totally_ordered<T>
-struct MinOp : BinaryOp<T, detail::min_impl, FixedString{"min"}, Notation::Function> {
+struct MinOp
+    : BinaryOp<T, detail::min_impl, FixedString{"min"}, Notation::Function> {
   // min(a, b) = (a + b - |a - b|) / 2; see MaxOp for why this is branch-free.
   [[nodiscard]] static constexpr auto
   derivative(const CExpression auto &lhs,

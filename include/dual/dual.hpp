@@ -1,8 +1,8 @@
 #pragma once
 
 #include "expr/expressions.hpp"
-#include "util/config.hpp" // DDX_ALWAYS_INLINE
 #include "expr/unary_math.hpp"
+#include "util/config.hpp" // DDX_ALWAYS_INLINE
 #include "util/fmt.hpp"
 #include <array>
 #include <cmath>
@@ -191,48 +191,56 @@ template <typename C, typename T>
 concept ScalarOperand = !std::same_as<std::remove_cvref_t<C>, Dual<T>>;
 
 template <Numeric T>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_add(const Dual<T> &a, const Dual<T> &b) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_add(const Dual<T> &a,
+                                             const Dual<T> &b) noexcept {
   const auto &[av, ad] = a;
   const auto &[bv, bd] = b;
   return Dual<T>{av + bv, ad + bd};
 }
 
 template <Numeric T, ScalarOperand<T> C>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_add(const Dual<T> &a, const C &s) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_add(const Dual<T> &a,
+                                             const C &s) noexcept {
   const auto &[av, ad] = a;
   return Dual<T>{av + s, ad};
 }
 template <Numeric T>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_sub(const Dual<T> &a, const Dual<T> &b) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_sub(const Dual<T> &a,
+                                             const Dual<T> &b) noexcept {
   const auto &[av, ad] = a;
   const auto &[bv, bd] = b;
   return Dual<T>{av - bv, ad - bd};
 }
 template <Numeric T, ScalarOperand<T> C>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_sub(const Dual<T> &a, const C &s) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_sub(const Dual<T> &a,
+                                             const C &s) noexcept {
   const auto &[av, ad] = a;
   return Dual<T>{av - s, ad};
 }
 template <Numeric T, ScalarOperand<T> C>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_sub(const C &s, const Dual<T> &a) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_sub(const C &s,
+                                             const Dual<T> &a) noexcept {
   const auto &[av, ad] = a; // s - a == -(a - s);
   return Dual<T>{-(av - s), -ad};
 }
 template <Numeric T>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_mul(const Dual<T> &a, const Dual<T> &b) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_mul(const Dual<T> &a,
+                                             const Dual<T> &b) noexcept {
   const auto &[av, ad] = a;
   const auto &[bv, bd] = b;
   return Dual<T>{av * bv, ad * bv + av * bd};
 }
 template <Numeric T, ScalarOperand<T> C>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_mul(const Dual<T> &a, const C &s) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_mul(const Dual<T> &a,
+                                             const C &s) noexcept {
   const auto &[av, ad] = a; // scalar distributes; no zero-derivative term
   return Dual<T>{av * s, ad * s};
 }
 
 // Reciprocal form: one hardware division per nesting level instead of two.
 template <Numeric T>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const Dual<T> &a, const Dual<T> &b) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const Dual<T> &a,
+                                             const Dual<T> &b) noexcept {
   const auto &[av, ad] = a;
   const auto &[bv, bd] = b;
   const T inv = T{1} / bv;
@@ -240,13 +248,15 @@ DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const Dual<T> &a, const Dual<T> &b)
   return Dual<T>{q, (ad - q * bd) * inv};
 }
 template <Numeric T, ScalarOperand<T> C>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const Dual<T> &a, const C &s) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const Dual<T> &a,
+                                             const C &s) noexcept {
   const auto &[av, ad] = a; // s is a zero-derivative constant
   const T inv = T{1} / T(s);
   return Dual<T>{av * inv, ad * inv};
 }
 template <Numeric T, ScalarOperand<T> C>
-DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const C &s, const Dual<T> &a) noexcept {
+DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const C &s,
+                                             const Dual<T> &a) noexcept {
   const auto &[av, ad] = a; // s / a; inner kept T-on-left (wide-scalar-safe)
   const T inv = T{1} / av;
   const T q = T{s} * inv; // value = s / a
@@ -258,7 +268,7 @@ DDX_ALWAYS_INLINE constexpr Dual<T> dual_div(const C &s, const Dual<T> &a) noexc
 // operators.  The scalar shapes are separate kernels, never a promotion to a
 // zero-derivative Dual: promotion leaves an `ad + 0` IEEE will not let the
 // compiler fold.
-#define DDX_DUAL_BINOP(OP, COMB, LEFT)                                        \
+#define DDX_DUAL_BINOP(OP, COMB, LEFT)                                         \
   template <DualLike A, DualCompatible<A> B>                                   \
   constexpr auto operator OP(A &&a, B &&b) noexcept {                          \
     return COMB(a, b);                                                         \
@@ -287,7 +297,8 @@ template <DualLike A> constexpr auto operator-(A &&a) noexcept {
 // Chain rule for a unary math node; the primal is reused when the descriptor
 // can express its derivative in terms of f(u).
 template <template <Numeric> class Fn> struct unary_dual_combine {
-  DDX_ALWAYS_INLINE constexpr auto operator()(const DualLike auto &x) const noexcept {
+  DDX_ALWAYS_INLINE constexpr auto
+  operator()(const DualLike auto &x) const noexcept {
     const auto &[v, d] = x;
     // Comp types the primal and the result, and must stay a Dual at depth >= 2
     // or fv truncates.  S is the base scalar, and the only thing the descriptor
@@ -304,7 +315,8 @@ template <template <Numeric> class Fn> struct unary_dual_combine {
     }
   }
 };
-// Not a unary_dual_combine: the derivative is a sign, and at 0 it is taken as 0.
+// Not a unary_dual_combine: the derivative is a sign, and at 0 it is taken as
+// 0.
 struct abs_combine {
   constexpr auto operator()(const DualLike auto &x) const noexcept {
     using std::abs;
@@ -316,7 +328,7 @@ struct abs_combine {
   }
 };
 // One chain-rule overload per unary math function, from the registry.
-#define DDX_DUAL_UNARY(FN, OP, LABEL)                                         \
+#define DDX_DUAL_UNARY(FN, OP, LABEL)                                          \
   template <DualLike A> constexpr auto FN(A &&a) noexcept {                    \
     return unary_dual_combine<detail::OP##Fn>{}(a);                            \
   }
@@ -361,8 +373,7 @@ constexpr auto pow(A &&a, B &&b) noexcept {
 // The b' ln a term is identically absent, so there is no `log` at any depth,
 // and at av < 0 with an integral exponent the derivative stays finite where
 // `0 * log(-2)` would be NaN.
-template <DualLike A, CArithmetic U>
-constexpr auto pow(A &&a, U s) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto pow(A &&a, U s) noexcept {
   using std::pow;
   const auto &[av, ad] = a;
   using DT = std::remove_cvref_t<A>;
@@ -373,8 +384,7 @@ constexpr auto pow(A &&a, U s) noexcept {
 
 // pow(s, a), s a constant base.  d(s^a) = s^a ln(s) a'.  ln(s) is a scalar log
 // of a constant, so one libm call however deeply the dual is nested.
-template <DualLike A, CArithmetic U>
-constexpr auto pow(U s, A &&a) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto pow(U s, A &&a) noexcept {
   using std::log, std::pow;
   const auto &[av, ad] = a;
   using DT = std::remove_cvref_t<A>;
@@ -396,23 +406,19 @@ constexpr auto min(A &&a, B &&b) noexcept {
 }
 
 // max/min select an operand whole, so the bound stays a scalar.
-template <DualLike A, CArithmetic U>
-constexpr auto max(A &&a, U s) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto max(A &&a, U s) noexcept {
   using DT = std::remove_cvref_t<A>;
   return val(a) < s ? DT{s} : DT{a};
 }
-template <DualLike A, CArithmetic U>
-constexpr auto max(U s, A &&a) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto max(U s, A &&a) noexcept {
   using DT = std::remove_cvref_t<A>;
   return s < val(a) ? DT{a} : DT{s};
 }
-template <DualLike A, CArithmetic U>
-constexpr auto min(A &&a, U s) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto min(A &&a, U s) noexcept {
   using DT = std::remove_cvref_t<A>;
   return s < val(a) ? DT{s} : DT{a};
 }
-template <DualLike A, CArithmetic U>
-constexpr auto min(U s, A &&a) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto min(U s, A &&a) noexcept {
   using DT = std::remove_cvref_t<A>;
   return val(a) < s ? DT{a} : DT{s};
 }
@@ -454,32 +460,28 @@ constexpr auto hypot(A &&a, B &&b, C &&c) noexcept {
 }
 
 // Against a constant: the zero term is absent rather than added.
-template <DualLike A, CArithmetic U>
-constexpr auto atan2(A &&y, U s) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto atan2(A &&y, U s) noexcept {
   using std::atan2;
   const auto &[yv, yd] = y;
   using DT = std::remove_cvref_t<A>;
   const auto q = s * s + yv * yv;
   return DT{atan2(yv, s), (s * yd) / q};
 }
-template <DualLike A, CArithmetic U>
-constexpr auto atan2(U s, A &&x) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto atan2(U s, A &&x) noexcept {
   using std::atan2;
   const auto &[xv, xd] = x;
   using DT = std::remove_cvref_t<A>;
   const auto q = xv * xv + s * s;
   return DT{atan2(s, xv), -(s * xd) / q};
 }
-template <DualLike A, CArithmetic U>
-constexpr auto hypot(A &&a, U s) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto hypot(A &&a, U s) noexcept {
   using std::hypot;
   const auto &[av, ad] = a;
   using DT = std::remove_cvref_t<A>;
   const auto h = hypot(av, s);
   return DT{h, (av * ad) / h};
 }
-template <DualLike A, CArithmetic U>
-constexpr auto hypot(U s, A &&a) noexcept {
+template <DualLike A, CArithmetic U> constexpr auto hypot(U s, A &&a) noexcept {
   using std::hypot;
   const auto &[av, ad] = a;
   using DT = std::remove_cvref_t<A>;

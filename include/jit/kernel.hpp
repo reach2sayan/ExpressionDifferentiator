@@ -68,9 +68,9 @@ public:
   // value alone and it is never touched.
   // Each pointer is an array of columns, each column n long.  A block that was
   // not requested has no columns, and its pointer is never read.
-  void operator()(std::span<const double *const> xs,
-                  std::span<double *const> f, std::span<double *const> g,
-                  std::span<double *const> h, std::size_t n) const {
+  void operator()(std::span<const double *const> xs, std::span<double *const> f,
+                  std::span<double *const> g, std::span<double *const> h,
+                  std::size_t n) const {
     fn_(xs.data(), f.data(), g.data(), h.data(), n);
   }
 

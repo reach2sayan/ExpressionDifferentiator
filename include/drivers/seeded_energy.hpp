@@ -16,10 +16,11 @@ namespace ddx::impl {
 // dofs arrive in sorted symbol order and the graph is traversed once via
 // eval_seeded.
 template <CExpression Expr> class SeededExprEnergy {
-  static_assert(!std::is_reference_v<Expr>,
-                "SeededExprEnergy stores the expression by value on purpose — a "
-                "reference parameter would leave the callable holding a "
-                "dangling graph.  Use seeded_energy(), which decays.");
+  static_assert(
+      !std::is_reference_v<Expr>,
+      "SeededExprEnergy stores the expression by value on purpose — a "
+      "reference parameter would leave the callable holding a "
+      "dangling graph.  Use seeded_energy(), which decays.");
   Expr expr_;
 
 public:

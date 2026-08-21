@@ -1,7 +1,7 @@
 #pragma once
 
-#include "drivers/coupling.hpp" // compile-time Hessian sparsity + colouring
 #include "drivers/common.hpp"   // HessianStatic, symmetrize
+#include "drivers/coupling.hpp" // compile-time Hessian sparsity + colouring
 
 #include "dual/dual.hpp"
 #include "dual/taylor_dual.hpp"
@@ -86,8 +86,8 @@ template <auto Colors, CExpression Expr, CNumericBuffer Point, typename Harvest>
       const typename std::remove_cvref_t<Expr>::value_type &,
       std::array<typename std::remove_cvref_t<Expr>::value_type,
                  detail::expr_arity_v<std::remove_cvref_t<Expr>>> &>
-DDX_ALWAYS_INLINE constexpr void
-color_sweeps(const Expr &expr, const Point &x, Harvest &&harvest) {
+DDX_ALWAYS_INLINE constexpr void color_sweeps(const Expr &expr, const Point &x,
+                                              Harvest &&harvest) {
   using E = std::remove_cvref_t<Expr>;
   using T = typename E::value_type;
   using S = dual_scalar_t<T>;
@@ -134,7 +134,8 @@ template <CExpression Expr>
   using SymList = detail::expr_symbols_t<std::remove_cvref_t<Expr>>;
   constexpr std::size_t N = mp::mp_size(SymList{});
   std::array<std::string_view, N> out{};
-  static_for<N>([&]<std::size_t I>() { out[I] = mp::mp_at_c<SymList, I>::name; });
+  static_for<N>(
+      [&]<std::size_t I>() { out[I] = mp::mp_at_c<SymList, I>::name; });
   return out;
 }
 
@@ -374,8 +375,7 @@ univariate_derivative_impl(const Expr &expr, S x0) noexcept {
   seed.c[0] = x0;
   seed.c[1] = S{1};
 
-  const TD result =
-      expr.template eval_seeded<symbols>(std::array<TD, 1>{seed});
+  const TD result = expr.template eval_seeded<symbols>(std::array<TD, 1>{seed});
 
   constexpr S factorial = static_cast<S>(compile_time_factorial(Order));
   return result.c[Order] * factorial;
@@ -395,7 +395,7 @@ namespace detail {
 template <CExpression Expr>
 constexpr HessianStatic<
     mpl::mp_size(detail::expr_symbols_t<std::remove_cvref_t<Expr>>{})>
-hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
+    hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
   using E = std::remove_cvref_t<Expr>;
   using T = typename E::value_type;
   using Syms = detail::expr_symbols_t<E>;
@@ -410,28 +410,29 @@ hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
   auto &res_gradient = res.gradient;
   auto &res_hessian = res.hessian;
 
-  color_sweeps<kColors>(expr, x, [&](std::size_t c, const T &root,
-                                     const auto &grads) {
-    static constexpr auto kScatter = scatter_targets<N>(kPattern, kColors);
-    if (c == 0) {
-      // Neither depends on the tangent seeding, so any one sweep yields both.
-      res.value = static_cast<double>(root.template get<0>());
-      std::ranges::transform(grads, res_gradient.begin(), [](const T &g) {
-        return static_cast<double>(g.template get<0>());
-      });
-    }
+  color_sweeps<kColors>(
+      expr, x, [&](std::size_t c, const T &root, const auto &grads) {
+        static constexpr auto kScatter = scatter_targets<N>(kPattern, kColors);
+        if (c == 0) {
+          // Neither depends on the tangent seeding, so any one sweep yields
+          // both.
+          res.value = static_cast<double>(root.template get<0>());
+          std::ranges::transform(grads, res_gradient.begin(), [](const T &g) {
+            return static_cast<double>(g.template get<0>());
+          });
+        }
 
-    // At most one of this colour's columns is structurally nonzero in row i,
-    // so the sum IS that entry; which column was resolved at compile time.
-    for (auto &&[row, grad, target] :
-         std::views::zip(res_hessian | std::views::chunk(N), grads,
-                         kScatter[c])) {
-      if (target != no_column) {
-        row[static_cast<std::ranges::range_difference_t<decltype(row)>>(
-            target)] = static_cast<double>(grad.template get<1>());
-      }
-    }
-  });
+        // At most one of this colour's columns is structurally nonzero in row
+        // i, so the sum IS that entry; which column was resolved at compile
+        // time.
+        for (auto &&[row, grad, target] : std::views::zip(
+                 res_hessian | std::views::chunk(N), grads, kScatter[c])) {
+          if (target != no_column) {
+            row[static_cast<std::ranges::range_difference_t<decltype(row)>>(
+                target)] = static_cast<double>(grad.template get<1>());
+          }
+        }
+      });
 
   // Independent sweeps, so mirrored entries can differ in the last ULP.
   detail::symmetrize(res_hessian, N);
@@ -458,20 +459,19 @@ std::array<double, NNZ + 1> hessian_values_sparse(const Expr &expr,
   // CSC consumer reads exactly nnz entries and never sees it.
   std::array<double, NNZ + 1> values{};
 
-  color_sweeps<kColors>(expr, x,
-               [&](std::size_t c, const T &, const auto &grads) {
-                 static constexpr auto kSlots = sparse_slots<E>();
-                 for (auto &&[grad, slot] : std::views::zip(grads, kSlots[c])) {
-                   if (slot != no_column) {
-                     values[slot] = static_cast<double>(grad.template get<1>());
-                   }
-                 }
-               });
+  color_sweeps<kColors>(
+      expr, x, [&](std::size_t c, const T &, const auto &grads) {
+        static constexpr auto kSlots = sparse_slots<E>();
+        for (auto &&[grad, slot] : std::views::zip(grads, kSlots[c])) {
+          if (slot != no_column) {
+            values[slot] = static_cast<double>(grad.template get<1>());
+          }
+        }
+      });
   return values;
 }
 
 } // namespace detail
-
 
 // A sparse Hessian whose structure is a property of the expression type, so
 // `outer` and `inner` are static constexpr and only the nnz values are

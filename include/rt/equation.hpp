@@ -1,9 +1,9 @@
 #pragma once
 
 #include "drivers/symbolic.hpp" // compile_time_factorial
-#include "md/md.hpp"
 #include "dual/taylor_dual.hpp"
 #include "expr/equation.hpp"
+#include "md/md.hpp"
 #include "rt/coupling.hpp"
 #include "rt/derivative.hpp"
 #include "rt/expr.hpp"
@@ -153,9 +153,8 @@ public:
     const impl::md::mdspan dense{
         out.data(), impl::md::dextents<std::size_t, 3>{output_dim, n, n}};
     for (const auto [k, block] : std::views::enumerate(blocks)) {
-      for (const auto [i, j] :
-           std::views::cartesian_product(std::views::iota(0uz, n),
-                                         std::views::iota(0uz, n))) {
+      for (const auto [i, j] : std::views::cartesian_product(
+               std::views::iota(0uz, n), std::views::iota(0uz, n))) {
         dense[static_cast<std::size_t>(k), i, j] = values[block.at(i, j)];
       }
     }
@@ -279,12 +278,10 @@ private:
   // constexpr as a result.
   const std::vector<rt::Hessian> &cached_hessians() const {
     if (hessians_.empty()) {
-      hessians_ =
-          roots_ |
-          std::views::transform([&](rt::NodeId r) {
-            return rt::hessian(*arena_, r);
-          }) |
-          std::ranges::to<std::vector<rt::Hessian>>();
+      hessians_ = roots_ | std::views::transform([&](rt::NodeId r) {
+                    return rt::hessian(*arena_, r);
+                  }) |
+                  std::ranges::to<std::vector<rt::Hessian>>();
     }
     return hessians_;
   }
@@ -409,8 +406,8 @@ private:
   }
 
   void run(const Compiled &c, std::span<const T *const> xs,
-           std::span<T *const> f, std::span<T *const> g,
-           std::span<T *const> h, std::size_t n) const {
+           std::span<T *const> f, std::span<T *const> g, std::span<T *const> h,
+           std::size_t n) const {
 #ifdef DDX_HAS_JIT
     if constexpr (std::same_as<T, double>) {
       c.kernel(xs, f, g, h, n);

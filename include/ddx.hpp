@@ -11,16 +11,17 @@ namespace ddx {
 using impl::Equation;
 
 // Symbol value types.  A `double` graph answers evaluate()/gradient()/
-// jacobian()/derivative_tensor()/univariate_derivative(); hessian() needs `dual`.
+// jacobian()/derivative_tensor()/univariate_derivative(); hessian() needs
+// `dual`.
 using impl::dual;
 using impl::dual2nd;
 
 // var<"x">, or "x"_s.  var_of<"x">(v) / dual_var_of<"x">(v) take the scalar
 // type from an exemplar value instead of naming it.
-using impl::var;
-using impl::var_of;
 using impl::dual_var_of;
 using impl::sym;
+using impl::var;
+using impl::var_of;
 namespace literals = impl::literals;
 
 // constant(3.0) -- a value stored in the tree.
@@ -39,7 +40,8 @@ using impl::NamedValue;
 using impl::map;
 using impl::Map;
 
-// Symbolic (evaluate the stored partial trees) vs Reverse (one sweep, no trees).
+// Symbolic (evaluate the stored partial trees) vs Reverse (one sweep, no
+// trees).
 using impl::DiffMode;
 
 } // namespace ddx

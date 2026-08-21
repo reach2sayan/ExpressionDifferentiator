@@ -18,7 +18,8 @@ template <typename T>
 concept CVariable = is_variable_v<std::remove_cvref_t<T>>;
 
 // Freezing a symbol: same leaf, same value lookup, zero derivative.  A pure
-// type transform, which is what keeps the symbolic Jacobian made of empty types.
+// type transform, which is what keeps the symbolic Jacobian made of empty
+// types.
 template <CVariable T> struct frozen_variable;
 template <Numeric T, CFixedString auto C, bool F>
 struct frozen_variable<Variable<T, C, F>> {
@@ -133,8 +134,9 @@ make_all_constant_except(const Variable<T, symbol, F> &v) noexcept {
 template <CFixedString auto symbol, Numeric T, CFixedString auto othersymbol,
           bool F>
   requires(symbol != othersymbol)
-constexpr auto make_all_constant_except(
-    const Variable<T, othersymbol, F> &) noexcept -> Variable<T, othersymbol, true> {
+constexpr auto
+make_all_constant_except(const Variable<T, othersymbol, F> &) noexcept
+    -> Variable<T, othersymbol, true> {
   return {};
 }
 
@@ -159,8 +161,7 @@ make_all_constant_except(const Expression<Op, C...> &expr) noexcept
 inline constexpr auto symbol_less = []<CSymbol A, CSymbol B>() consteval {
   return A::name < B::name;
 };
-template <CSymbolList List>
-using sort_tuple_t = mp::mp_sort<List, symbol_less>;
+template <CSymbolList List> using sort_tuple_t = mp::mp_sort<List, symbol_less>;
 
 template <CSymbolList List>
 using unique_tuple_t = mp::mp_unique<sort_tuple_t<List>>;
