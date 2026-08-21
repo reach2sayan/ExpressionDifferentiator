@@ -40,8 +40,10 @@ auto g  = Equation{f}.gradient(1.0, 2.0);   // {∂f/∂x, ∂f/∂y}
 
 ## Requirements and setup
 
-- A C++23 compiler with a C++23 standard library: **GCC 14+**, or **Clang 17+**
-  over libstdc++ 14+ / libc++ 17+. MSVC (VS 2022, `/std:c++latest`) is supported.
+- A C++23 compiler with a C++23 standard library: **GCC 14+**, **Clang 19+**
+  over libstdc++ 14+, or **Clang 17+** over libc++ 17+. MSVC (VS 2022,
+  `/std:c++latest`) is supported. Clang before 19 defines `__cpp_concepts` as
+  `201907L`, below what libstdc++ asks of it before it will offer `<expected>`.
 - **CMake 3.21+** if you build through CMake.
 
 C++23 is a hard requirement — the library uses `constexpr std::bitset` inside

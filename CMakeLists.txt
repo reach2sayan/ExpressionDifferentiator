@@ -21,6 +21,21 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_FLAGS "-std=c++23")
 
+# --- <expected> -------------------------------------------------------------
+# ddx::result is std::expected, and libstdc++ offers <expected> only where
+# __cpp_concepts is 202002L -- which Clang first defines in 19.  Unguarded, the
+# toolchain floor shows up as a missing name partway down an include stack.
+# MSVC is exempt because the probe's -std= is not its spelling.
+check_cxx_source_compiles(
+        "#include <expected>
+         int main() { return std::expected<int, int>{0}.value(); }"
+        DDX_HAS_STD_EXPECTED)
+if (NOT MSVC AND NOT DDX_HAS_STD_EXPECTED)
+    message(FATAL_ERROR
+            "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} has no usable <expected>.  "
+            "Build with GCC 14+, Clang 19+ over libstdc++, or Clang 17+ with -stdlib=libc++.")
+endif ()
+
 # --- accessor spelling ------------------------------------------------------
 # include/util/config.hpp owns the decision; this only overrides it.
 #   auto - the compiler's own answer (__cpp_explicit_this_parameter)

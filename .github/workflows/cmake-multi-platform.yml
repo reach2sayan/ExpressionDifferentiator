@@ -16,8 +16,8 @@ jobs:
         include:
           - os: ubuntu-latest
             build_type: Release
-            c_compiler: clang
-            cpp_compiler: clang++
+            c_compiler: clang-20
+            cpp_compiler: clang++-20
           - os: ubuntu-latest
             build_type: Release
             c_compiler: gcc-14
@@ -33,11 +33,14 @@ jobs:
       # g++-14, not the image's default g++/libstdc++: the library floor is
       # libstdc++ 14 (std::ranges::to), and clang on Linux compiles against the
       # newest libstdc++ installed, so this line is what feeds both Linux jobs.
+      #
+      # clang-20, not the image's default clang-18: libstdc++ gates <expected>
+      # on __cpp_concepts >= 202002L, and Clang first defines that in 19.
       - name: Install compilers (Ubuntu)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y clang gcc-14 g++-14
+          sudo apt-get install -y clang-20 gcc-14 g++-14
 
       # The core depends on the standard library and Boost.Mp11, the header-only
       # type-list vocabulary the symbol lists are built out of, declared on
