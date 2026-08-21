@@ -39,22 +39,24 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y clang gcc-14 g++-14
 
-      # The library depends on nothing but the standard library, and the
-      # constexpr core could not use a matrix package in constant evaluation
-      # anyway.  Standard headers carry no '/', so any angle-include with a path
-      # is a third-party leak; the vendored mdspan copy is the one exception.
+      # The core depends on the standard library and Boost.Mp11, the header-only
+      # type-list vocabulary the symbol lists are built out of, declared on
+      # ddx::ddx and found again by ddx-config.cmake.  Standard headers carry no
+      # '/', so any other angle-include with a path is a third-party leak; the
+      # vendored mdspan copy is the one exception.
       # Recursive — the headers live in subdirectories.
       #
       # include/rt/ is scoped out of that rule and given its own: it is the
       # runtime expression graph, a separate opt-in target (ddx::rt) whose
       # dependencies are declared, and it may reach for boost and nothing
       # else.  The core must not depend on it in either direction.
-      - name: Headers stay dependency-free
+      - name: Header dependencies stay declared
         if: runner.os == 'Linux'
         shell: bash
         run: |
           angled=$(grep -rnE '#[[:space:]]*include[[:space:]]*<[^>]*/' include --include='*.hpp' \
-                   | grep -v third_party | grep -v '^include/rt/' || true)
+                   | grep -v third_party | grep -v '^include/rt/' \
+                   | grep -v '<boost/mp11/' || true)
           # A quoted include is one of ours and must resolve inside include/;
           # one that does not is a bundled dependency under another spelling.
           quoted=$( { grep -rnE '#[[:space:]]*include[[:space:]]*"' include --include='*.hpp' \
@@ -67,7 +69,7 @@ jobs:
           # anything else is a leak.
           rt=$(grep -rnE '#[[:space:]]*include[[:space:]]*<[^>]*/' include/rt --include='*.hpp' \
                | grep -vE '<boost/' || true)
-          # The dependency-free core must never reach into rt/.
+          # The core must never reach into rt/.
           core=$(grep -rnE '#[[:space:]]*include[[:space:]]*"rt/' include --include='*.hpp' \
                  | grep -v '^include/rt/' || true)
           if [ -n "$angled$quoted$rt$core" ]; then
@@ -78,7 +80,7 @@ jobs:
             [ -n "$core" ] && echo "the core must not depend on rt/:" && echo "$core"
             exit 1
           fi
-          echo "include/ depends on the standard library only (rt/: plus boost)"
+          echo "include/ depends on the standard library and Boost.Mp11 only (rt/: plus boost)"
 
       - name: Set build directory
         id: strings
