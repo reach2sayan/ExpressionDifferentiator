@@ -10,6 +10,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/TargetParser/Host.h>
 
+#include <atomic>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -103,7 +104,10 @@ void optimize(llvm::Module &m, llvm::TargetMachine &tm, const Options &opt) {
 struct Compiler::Impl {
   std::unique_ptr<llvm::orc::LLJIT> jit;
   std::unique_ptr<llvm::TargetMachine> tm;
-  unsigned counter = 0;
+  // Two threads compiling through one Compiler would otherwise race here and,
+  // worse, hand the JIT two modules under one name.  LLJIT itself is
+  // internally synchronised, so this counter is the only shared mutable state.
+  std::atomic<unsigned> counter{0};
 
   Impl() {
     init_native_target_once();
@@ -157,7 +161,7 @@ struct Compiler::Impl {
   }
 };
 
-Compiler::Compiler() : impl_(std::make_unique<Impl>()) {}
+Compiler::Compiler() : impl_(std::make_shared<Impl>()) {}
 Compiler::~Compiler() = default;
 Compiler::Compiler(Compiler &&) noexcept = default;
 Compiler &Compiler::operator=(Compiler &&) noexcept = default;
@@ -174,8 +178,14 @@ Kernel Compiler::compile(const rt::Graph<double> &g, const Options &opt) {
   const auto sym = must(impl_->jit->lookup(name), "looking up " + name);
 
   const auto &layout = g.layout();
-  return Kernel{sym.toPtr<Kernel::function_type>(), g.symbols().size(),
-                layout.values, layout.jacobian, layout.hessian};
+  // The Impl is what owns the code, so the Kernel holds a share of it: a
+  // Compiler that goes out of scope no longer takes live kernels with it.
+  return Kernel{sym.toPtr<Kernel::function_type>(),
+                g.symbols().size(),
+                layout.values,
+                layout.jacobian,
+                layout.hessian,
+                impl_};
 }
 
 std::string Compiler::render_ir(const rt::Graph<double> &g,

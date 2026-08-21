@@ -234,4 +234,26 @@ TEST(JitValue, SeparateCompilesCoexist) {
   EXPECT_NEAR(bb, std::cos(0.5), 1e-15);
 }
 
+// A Kernel shares ownership of the JIT its code lives in, so a Compiler going
+// out of scope does not take the code with it.  Without that share this call
+// lands in an unmapped page, which is why it is asserted rather than left to
+// the lifetime comment in kernel.hpp.
+TEST(JitValue, KernelOutlivesItsCompiler) {
+  ddx::jit::Kernel kernel;
+  {
+    ddx::jit::Compiler local;
+    Builder<> b;
+    const auto x = var(b, "x");
+    kernel = local.compile(Graph<>::freeze(b, std::array{(x * x).id(b)}));
+  }
+  ASSERT_TRUE(static_cast<bool>(kernel));
+
+  const std::array c{3.0};
+  const std::array<const double *, 1> xs{c.data()};
+  double got = 0;
+  double *const value_columns[]{&got};
+  kernel(xs, value_columns, {}, {}, 1);
+  EXPECT_DOUBLE_EQ(got, 9.0);
+}
+
 } // namespace

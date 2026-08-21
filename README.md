@@ -30,9 +30,10 @@ auto g  = Equation{f}.gradient(1.0, 2.0);   // {∂f/∂x, ∂f/∂y}
 6. [Getting the most speed out of it](#getting-the-most-speed-out-of-it)
 7. [Compile-time use](#compile-time-use)
 8. [Runtime expressions](#runtime-expressions)
-9. [Building the project](#building-the-project)
-10. [Cheat sheet](#cheat-sheet)
-11. [Diagnostics](#diagnostics)
+9. [Thread safety](#thread-safety)
+10. [Building the project](#building-the-project)
+11. [Cheat sheet](#cheat-sheet)
+12. [Diagnostics](#diagnostics)
 
 ---
 
@@ -659,13 +660,22 @@ The kernel takes columns, not points:
 
 ```cpp
 const std::array<const double *, 2> xs{x_column, y_column};
-std::array<double *, 2> partials{dx_column, dy_column};
-kernel(xs, f_column, partials.data(), n);
+const std::array<double *, 1> values{f_column};
+const std::array<double *, 2> partials{dx_column, dy_column};
+kernel(xs, values, partials, {}, n);
 ```
 
 `xs[j]` is the column for symbol `j` and `partials[j]` the column for the partial in
-it, each of length `n`. Freeze with the value alone and the partials pointer is never
-read. A `Kernel` does not own its code, so it must not outlive its `Compiler`.
+it, each of length `n`. The four blocks are the symbols, the values, the Jacobian and
+the Hessian; a block the graph was not frozen with is `{}` here rather than a null
+pointer whose length the kernel would have to infer, and it is never read.
+
+A `Kernel` is a function pointer plus a share of the `Compiler` that emitted it, so it
+may outlive that `Compiler` and still be called; a copy costs one atomic increment and
+a call costs nothing. The flip side is that one surviving `Kernel` holds the whole
+LLJIT — the target machine, the symbol generators, every module compiled through it —
+so dropping a `Compiler` reclaims that memory only once the last kernel from it is
+gone.
 
 For a graph without the JIT there is `evaluate(b, root, point)`, a plain walk in node
 order. It is the reference the compiled kernels are tested against, and it is what you
@@ -755,6 +765,66 @@ pointless.
 
 ---
 
+## Thread safety
+
+Nothing in the library starts a thread, and nothing in it takes a lock. That is a
+deliberate reading of where the parallelism in this problem actually is: one point per
+call is nanoseconds of work, which no thread pool can pay for, and a batch of thousands
+is the caller's loop and the caller's pool. What the library owes that caller is a
+statement of what may be shared. Here it is.
+
+**The compile-time path is pure.** An `Equation` is an empty type and every entry point
+on it reads only its argument, so `evaluate`, `gradient`, `hessian`,
+`derivative_tensor<K>` and `univariate_derivative<K>` may be called from any number of
+threads on the same expression. There is nothing to synchronise because there is
+nothing shared to begin with.
+
+**A runtime model belongs to one thread while it is being built.** `equation()` makes
+its arena current through a thread-local, so two threads assembling models at the same
+time never see each other's; that is what the arena is thread-local *for*. A `Builder`
+is not itself synchronised, so one `Builder` is one thread's until it is frozen.
+
+**A frozen `Graph` is immutable.** `freeze` copies out of the builder and a `Graph` has
+no mutating operation, so it may be read, printed, and compiled from any number of
+threads at once.
+
+**One `Compiler` may compile from several threads.** LLJIT synchronises its own tables
+and the name each module is added under is handed out atomically, so concurrent
+`compile()` calls on one `Compiler` are well defined. They are not, however, fast:
+compiling is a single-threaded LLVM pipeline of a few milliseconds, and several at once
+contend inside LLVM. One `Compiler` per thread avoids that, at the cost of one LLJIT
+and one set of host-symbol generators each.
+
+**A `Kernel` is reentrant, and the batch is where parallelism belongs.** The emitted
+code reads no global and writes no static: every intermediate is a register, and the
+only memory it touches is the columns handed to it. So a batch splits by slicing the
+columns, with no synchronisation of any kind:
+
+```cpp
+const std::size_t chunk = (n + threads - 1) / threads;
+std::vector<std::jthread> pool;
+for (std::size_t t = 0; t < n; t += chunk) {
+  const std::size_t m = std::min(chunk, n - t);
+  pool.emplace_back([&, t, m] {
+    const std::array<const double *, 2> xs{x.data() + t, y.data() + t};
+    const std::array<double *, 1> values{f.data() + t};
+    const std::array<double *, 2> partials{dx.data() + t, dy.data() + t};
+    kernel(xs, values, partials, {}, m);
+  });
+}
+```
+
+Slice on the vector width if the difference matters; the tail of a chunk is a scalar
+remainder, and one per thread rather than one per batch is the only cost of splitting.
+
+**Lifetime needs no rule.** A `Kernel` shares ownership of the JIT its code lives in,
+so a `Compiler` that goes out of scope while threads are still calling kernels frees
+nothing they are using — the last `Kernel` to go frees the code. There is no pool to
+join before the `Compiler` leaves scope, and no way to spell the bug where a thread
+calls into an unmapped page.
+
+---
+
 ## Building the project
 
 ```sh
@@ -766,13 +836,22 @@ ctest --test-dir build --output-on-failure
 Or through the presets, which need CMake 3.21+ (the library itself still only needs
 3.20):
 
-| Preset | Build type | Runtime graph and JIT |
-|---|---|---|
-| `debug` | Debug | — |
-| `release` | Release | — |
-| `relwithdebinfo` | RelWithDebInfo | — |
-| `debug_with_jit` | Debug | yes, kernels at `-O1` |
-| `release_with_jit` | Release | yes, kernels at `-O3` |
+| Preset | Build type | Runtime graph | JIT |
+|---|---|---|---|
+| `debug` | Debug | — | — |
+| `release` | Release | — | — |
+| `relwithdebinfo` | RelWithDebInfo | — | — |
+| `debug_with_rt` | Debug | yes, interpreted | — |
+| `release_with_rt` | Release | yes, interpreted | — |
+| `debug_with_jit` | Debug | yes | kernels at `-O1` |
+| `release_with_jit` | Release | yes | kernels at `-O3` |
+
+The `_with_rt` pair is the runtime graph on the interpreter. It needs only the
+header-only Boost the build fetches, so it configures where the JIT presets do
+not — they are gated on Linux and on an LLVM install. It is also the path a
+graph over anything but `double` takes anyway: the JIT emits machine types, so
+`Equation` over a dual, a Taylor dual or a matrix interprets even in a JIT
+build.
 
 ```sh
 cmake --preset release_with_jit
@@ -809,8 +888,9 @@ cmake -S . -B build -DDDX_BUILD_JIT=ON -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llv
 cmake --build build --target tests_rt tests_jit
 ```
 
-`ddx::rt` needs [NWGraph](https://github.com/pnnl/NWGraph), fetched and patched during
-configuration, and oneTBB. `ddx::jit` adds LLVM 18–20 — the ORC API is not stable
+`ddx::rt` needs Boost.Graph and Boost.DynamicBitset, fetched at a pinned version during
+configuration. Both are header-only, so no compiled Boost library is linked and a
+system Boost is not consulted. `ddx::jit` adds LLVM 18–20 — the ORC API is not stable
 across releases, so the range is checked rather than assumed. Neither is reachable
 from `ddx::ddx`, which remains header-only and standard-library-only.
 
@@ -823,7 +903,7 @@ from `ddx::ddx`, which remains header-only and standard-library-only.
 | `DDX_FP_FLAGS` | `ON` | `-ffp-contract=fast -fno-math-errno` |
 | `DDX_MDSPAN_MODE` | `auto` | `auto` / `std` / `vendored` — which `mdspan` to bind to |
 | `DDX_DEDUCING_THIS` | `auto` | `auto` / `on` / `off` — accessor spelling (P0847) |
-| `DDX_BUILD_RT` | `OFF` | the runtime expression graph — needs NWGraph and oneTBB |
+| `DDX_BUILD_RT` | `OFF` | the runtime expression graph — fetches header-only Boost.Graph and Boost.DynamicBitset |
 | `DDX_BUILD_JIT` | `OFF` | the LLVM JIT backend — implies `DDX_BUILD_RT` |
 
 `-ffast-math` is not used and is not recommended: it changes derivative values.

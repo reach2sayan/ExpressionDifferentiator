@@ -138,7 +138,7 @@ llvm::Function *declare_kernel(llvm::Module &m, llvm::StringRef name) {
   static constexpr std::array names{"xs", "f", "g", "h", "n"};
   for (const auto [i, arg_name] : names | std::views::enumerate) {
     fn->getArg(static_cast<unsigned>(i))->setName(arg_name);
-  }
+}
   // The columns never alias the outputs; saying so is what lets the vectoriser
   // skip the runtime overlap check it would otherwise need.
   for (const unsigned i : std::views::iota(0u, 4u)) {

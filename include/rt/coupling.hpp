@@ -7,7 +7,8 @@
 #include <boost/dynamic_bitset.hpp>
 #include <boost/graph/adjacency_list.hpp>
 // shared_array_property_map first: smallest_last_ordering.hpp uses
-// make_shared_array_property_map without including it (Boost 1.83).
+// make_shared_array_property_map without including it, still true as of 1.92.
+// Not an unused include, and not safe to sort into the block below.
 #include <boost/property_map/shared_array_property_map.hpp>
 
 #include <boost/graph/sequential_vertex_coloring.hpp>

@@ -74,7 +74,7 @@ jobs:
             echo "a third-party header leaked into include/:"
             [ -n "$angled" ] && echo "$angled"
             [ -n "$quoted" ] && echo "$quoted"
-            [ -n "$rt" ] && echo "include/rt/ may depend on nwgraph only:" && echo "$rt"
+            [ -n "$rt" ] && echo "include/rt/ may depend on boost only:" && echo "$rt"
             [ -n "$core" ] && echo "the core must not depend on rt/:" && echo "$core"
             exit 1
           fi

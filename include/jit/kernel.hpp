@@ -41,7 +41,11 @@ struct Options {
   bool contract = default_contract; // Follows DDX_FP_FLAGS
 };
 
-// One compiled graph.  Cheap to copy
+// One compiled graph.  Cheap to copy: a copy is one atomic increment, because
+// a Kernel keeps the JIT that owns its code alive rather than pointing into
+// something another object may free.  Dropping the last Kernel is what frees
+// the code, so the failure this replaces -- a call jumping into an unmapped
+// page, with a stack trace that points at nothing -- cannot be written.
 class Kernel {
 public:
   using function_type = void (*)(const double *const *, double *const *,
@@ -49,9 +53,10 @@ public:
 
   Kernel() = default;
   Kernel(function_type fn, std::size_t arity, std::size_t values,
-         std::size_t jacobian, std::size_t hessian) noexcept
-      : fn_(fn), arity_(arity), values_(values), jacobian_(jacobian),
-        hessian_(hessian) {}
+         std::size_t jacobian, std::size_t hessian,
+         std::shared_ptr<void> code) noexcept
+      : fn_(fn), code_(std::move(code)), arity_(arity), values_(values),
+        jacobian_(jacobian), hessian_(hessian) {}
 
   // Spans on the C++ surface, raw pointers only in function_type, which is the
   // JIT's actual ABI: a block that was not requested is `{}` here rather than a
@@ -86,14 +91,21 @@ public:
 
 private:
   function_type fn_ = nullptr;
+  // Never read: it is here to be held.  operator() calls through fn_ alone, so
+  // sharing costs a call nothing.
+  std::shared_ptr<void> code_;
   std::size_t arity_ = 0;
   std::size_t values_ = 0;
   std::size_t jacobian_ = 0;
   std::size_t hessian_ = 0;
 };
 
-// One owner: a Compiler *is* the LLJIT, and the code a Kernel points at lives
-// in it.  Movable, so it can be handed on or held in a static.
+// A Compiler *is* the LLJIT, and the code a Kernel calls lives in it.
+// Move-only on the surface, so there is still one Compiler to hand on or hold
+// in a static; underneath, every Kernel it hands out shares that LLJIT with it.
+// A Compiler going out of scope therefore frees no code anything can still
+// call -- but it reclaims nothing either, so one surviving Kernel holds the
+// target machine, the symbol generators, and every module compiled through it.
 class Compiler : private impl::noncopyable {
 public:
   Compiler();
@@ -110,19 +122,19 @@ private:
                                       const Options &opt) const;
 
   struct Impl;
-  std::unique_ptr<Impl> impl_;
+  std::shared_ptr<Impl> impl_;
 };
 
 // The optimised IR a graph would compile to.  A borrowing handle rather than a
 // string, so that IR prints through the same formatter as everything else and
 // the pipeline only runs if something actually reads it.
 //
-// It owns neither end and cannot: a Compiler is move-only because it *is* the
-// LLJIT, so there is no sharing it, and copying a graph to print it would be
-// backwards.  Both have to outlive the handle -- which the deleted overloads
-// make the compiler check, rather than leaving it as a comment nobody reads.
-// Name what you render; a temporary graph is a dangling one the moment the
-// handle is stored.
+// It owns neither end and cannot: the LLJIT is shared with the Kernels a
+// Compiler hands out, not with a handle that only prints, and copying a graph
+// to print it would be backwards.  Both have to outlive the handle -- which the
+// deleted overloads make the compiler check, rather than leaving it as a
+// comment nobody reads.  Name what you render; a temporary graph is a dangling
+// one the moment the handle is stored.
 class Ir {
 public:
   Ir(const Compiler &c, const rt::Graph<double> &g, Options opt = {}) noexcept
