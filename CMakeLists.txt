@@ -145,38 +145,52 @@ endfunction()
 # Everything above is header-only and dependency-free, and stays that way.  The
 # runtime graph is what an expression built at run time lives in, and it is
 # opt-in because it pulls third-party code.
-option(DDX_BUILD_RT "Build the runtime expression graph (NWGraph + TBB)" OFF)
+option(DDX_BUILD_RT "Build the runtime expression graph (Boost.Graph)" OFF)
 option(DDX_BUILD_JIT "Build the LLVM JIT backend (implies DDX_BUILD_RT)" OFF)
 if (DDX_BUILD_JIT AND NOT DDX_BUILD_RT)
     set(DDX_BUILD_RT ON)
 endif ()
 
 if (DDX_BUILD_RT)
+    # Before include(FetchContent), which defines this itself and would make the
+    # guard below a no-op.
+    if (NOT DEFINED CACHE{FETCHCONTENT_BASE_DIR})
+        set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.deps" CACHE PATH
+                "Shared download cache for fetched dependencies")
+    endif ()
     include(FetchContent)
-    find_package(TBB REQUIRED)
 
-    # SOURCE_SUBDIR names no directory on purpose: NWGraph is header-only, and
-    # configuring its own CMakeLists would fetch Catch2 and build its test suite.
+    # Boost.Graph for the frozen graph's CSR and the Hessian colouring, and
+    # Boost.DynamicBitset for the coupling rows.  Header-only, so the compiled
+    # Boost libraries are not needed.
     #
-    # The patch is not optional.  NWGraph's SoA containers derive from
-    # std::tuple, and P2165R4 constrained std::apply to reject that; upstream
-    # never saw it because their CI is C++20, where std::apply was unconstrained.
-    # checkout-then-apply so re-configuring is idempotent.
-    FetchContent_Declare(nwgraph
-            GIT_REPOSITORY https://github.com/pnnl/NWGraph.git
-            GIT_TAG d129b869e1769a8a3658bf6fed817b60822da074
-            PATCH_COMMAND git checkout -- .
-            COMMAND git apply --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/cmake/nwgraph-cxx23.patch"
-            UPDATE_DISCONNECTED TRUE
-            SOURCE_SUBDIR ddx-uses-the-headers-only
+    # Fetched rather than taken from the system: a distro Boost is whatever it
+    # is, and the colouring's quality is something this project asserts on.
+    # BOOST_INCLUDE_LIBRARIES names the two used and the modular build resolves
+    # their dependencies -- this is not a fetch of all of Boost.
+    #
+    # Pinned, not floating: "latest" that moves under you is not reproducible.
+    # Bump the one line.
+    set(DDX_BOOST_VERSION "1.92.0" CACHE STRING "Boost release to fetch")
+
+    # The -cmake archive is the whole Boost source (~700 MB extracted);
+    # BOOST_INCLUDE_LIBRARIES limits what is *configured*, not what is
+    # downloaded.  The shared cache above means one copy per checkout rather
+    # than one per build tree -- five presets would otherwise be five copies.
+    set(BOOST_INCLUDE_LIBRARIES graph dynamic_bitset CACHE STRING "" FORCE)
+    set(BOOST_ENABLE_CMAKE ON CACHE BOOL "" FORCE)
+    # SYSTEM: a fetched dependency's warnings are not ours to fix, and Boost's
+    # smallest_last_ordering.hpp emits several under -Wall -Wextra.
+    FetchContent_Declare(Boost
+            URL https://github.com/boostorg/boost/releases/download/boost-${DDX_BOOST_VERSION}/boost-${DDX_BOOST_VERSION}-cmake.tar.xz
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            SYSTEM
     )
-    FetchContent_MakeAvailable(nwgraph)
+    FetchContent_MakeAvailable(Boost)
 
     add_library(ddx_rt INTERFACE)
     add_library(ddx::rt ALIAS ddx_rt)
-    target_link_libraries(ddx_rt INTERFACE ddx TBB::tbb)
-    # SYSTEM: fetched headers are not ours to warn about.
-    target_include_directories(ddx_rt SYSTEM INTERFACE "${nwgraph_SOURCE_DIR}/include")
+    target_link_libraries(ddx_rt INTERFACE ddx Boost::graph Boost::dynamic_bitset)
     add_subdirectory(include/rt)
 endif ()
 
@@ -233,6 +247,7 @@ FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        SYSTEM
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
@@ -275,6 +290,7 @@ if (DDX_BUILD_BENCHMARKS)
             googlebenchmark
             URL https://github.com/google/benchmark/archive/refs/tags/v1.9.1.zip
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            SYSTEM
     )
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
     set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)

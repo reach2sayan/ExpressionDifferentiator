@@ -159,7 +159,7 @@ struct Columns {
 };
 
 Columns hoist_columns(llvm::IRBuilder<> &b, llvm::Function &fn,
-                      const rt::Graph &g) {
+                      const rt::Graph<double> &g) {
   llvm::PointerType *const ptr = llvm::PointerType::getUnqual(fn.getContext());
   llvm::Argument *const xs = fn.getArg(0);
   llvm::Argument *const out_g = fn.getArg(2);
@@ -188,14 +188,11 @@ Columns hoist_columns(llvm::IRBuilder<> &b, llvm::Function &fn,
 // no recursion and no worklist: every operand is already a llvm::Value when
 // read.
 std::vector<llvm::Value *> emit_nodes(const Emitter &emit, llvm::IRBuilder<> &b,
-                                      const rt::Graph &g, const Columns &cols,
-                                      llvm::Value *index) {
+                                      const rt::Graph<double> &g,
+                                      const Columns &cols, llvm::Value *index) {
   llvm::Type *const f64 = b.getDoubleTy();
   std::vector<llvm::Value *> value(g.size(), nullptr);
-  for (rt::NodeId v = 0; v < g.size(); ++v) {
-    if (!g.live(v)) {
-      continue;
-    }
+  for (const rt::NodeId v : g.live_nodes()) {
     const auto &p = g[v];
     const auto operands = g.operands(v);
     switch (rt::arity_of(p.op)) {
@@ -217,9 +214,9 @@ std::vector<llvm::Value *> emit_nodes(const Emitter &emit, llvm::IRBuilder<> &b,
   return value;
 }
 
-void emit_stores(llvm::IRBuilder<> &b, llvm::Function &fn, const rt::Graph &g,
-                 const Columns &cols, std::span<llvm::Value *const> value,
-                 llvm::Value *index) {
+void emit_stores(llvm::IRBuilder<> &b, llvm::Function &fn,
+                 const rt::Graph<double> &g, const Columns &cols,
+                 std::span<llvm::Value *const> value, llvm::Value *index) {
   llvm::Type *const f64 = b.getDoubleTy();
   const auto outputs = g.outputs();
   const auto store = [&](llvm::Value *column, rt::NodeId node) {
@@ -234,7 +231,7 @@ void emit_stores(llvm::IRBuilder<> &b, llvm::Function &fn, const rt::Graph &g,
 } // namespace
 
 std::unique_ptr<llvm::Module> emit_module(llvm::LLVMContext &ctx,
-                                          const rt::Graph &g,
+                                          const rt::Graph<double> &g,
                                           const Options &opt,
                                           llvm::StringRef name) {
   auto m = std::make_unique<llvm::Module>("ddx.jit", ctx);

@@ -37,7 +37,7 @@ struct Batch {
 
 // Compile the gradient of a compile-time expression, through the bridge.
 ddx::jit::Kernel compile_gradient(ddx::jit::Compiler &c, const auto &expr,
-                                  Builder &b) {
+                                  Builder<> &b) {
   const auto root = ddx::rt::to_graph(b, expr);
   return c.compile(ddx::rt::GraphBuilder{b}.value(root).gradient().build());
 }
@@ -66,7 +66,7 @@ template <typename E> void jit_gradient(benchmark::State &state, E expr) {
   const auto n = static_cast<std::size_t>(state.range(0));
   Batch data(n);
   ddx::jit::Compiler compiler;
-  Builder b;
+  Builder<> b;
   const auto kernel = compile_gradient(compiler, expr, b);
 
   const std::array<const double *, 2> xs{data.x.data(), data.y.data()};
@@ -82,7 +82,7 @@ template <typename E> void jit_gradient(benchmark::State &state, E expr) {
 void jit_compile_time(benchmark::State &state) {
   ddx::jit::Compiler compiler;
   for (auto _ : state) {
-    Builder b;
+    Builder<> b;
     auto k = compile_gradient(compiler, exp(sym_x) * sin(sym_y), b);
     benchmark::DoNotOptimize(k);
   }

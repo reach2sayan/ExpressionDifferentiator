@@ -45,16 +45,16 @@ bool calls_vector_libm(const std::string &ir, const std::string &fn) {
 }
 
 std::string ir_for(auto build, std::size_t nvars, ddx::jit::Options opt = {}) {
-  Builder b;
-  std::vector<ddx::rt::Expr> vars;
+  Builder<> b;
+  std::vector<ddx::rt::RTExpression<>> vars;
   static constexpr const char *names[] = {"x", "y"};
   for (std::size_t i = 0; i < nvars; ++i) {
     vars.push_back(var(b, names[i]));
   }
   const auto root = build(vars);
   return std::format(
-      "{}",
-      ddx::jit::Ir{compiler(), Graph::freeze(b, std::array{root.id(b)}), opt});
+      "{}", ddx::jit::Ir{compiler(), Graph<>::freeze(b, std::array{root.id(b)}),
+                         opt});
 }
 
 constexpr bool host_has_libmvec =
@@ -85,7 +85,7 @@ TEST(JitVectorize, GradientLoopVectorises) {
   }
   // The gradient graph is wider and shares subexpressions; it must still
   // vectorise, since that is the call anyone actually cares about.
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto graph =
@@ -112,12 +112,12 @@ TEST(JitVectorize, EveryVectorSymbolResolves) {
   if constexpr (!host_has_libmvec) {
     GTEST_SKIP() << "libmvec is glibc on x86-64";
   }
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   auto f = sin(x) + cos(x) + exp(x) + log(x) + tanh(x) + erf(x) + cbrt(x);
-  f = f + atan(x) + asinh(x) + pow(x, ddx::rt::Expr{3});
+  f = f + atan(x) + asinh(x) + pow(x, ddx::rt::RTExpression<>{3});
 
-  const auto graph = Graph::freeze(b, std::array{f.id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{f.id(b)});
   const auto kernel = compiler().compile(graph);
   ASSERT_TRUE(static_cast<bool>(kernel));
 
@@ -136,9 +136,9 @@ namespace {
 
 // operator<< goes through the formatter, as it does for an expression.
 TEST(JitVectorize, IrStreamsAndFormatsAlike) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
-  const auto graph = Graph::freeze(b, std::array{sin(x).id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{sin(x).id(b)});
   const ddx::jit::Ir ir{compiler(), graph};
 
   std::ostringstream os;

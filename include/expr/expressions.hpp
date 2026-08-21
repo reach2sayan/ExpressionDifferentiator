@@ -21,12 +21,12 @@ template <typename T>
 // constructible_from<T, int>: differentiation manufactures exactly 0 and 1.
 concept CFieldLike = std::default_initializable<T> &&
                      std::constructible_from<T, int> && requires(T a, T b) {
-  { a + b } -> std::convertible_to<T>;
-  { a - b } -> std::convertible_to<T>;
-  { a * b } -> std::convertible_to<T>;
-  { a / b } -> std::convertible_to<T>;
-  { -a } -> std::convertible_to<T>;
-};
+                       { a + b } -> std::convertible_to<T>;
+                       { a - b } -> std::convertible_to<T>;
+                       { a *b } -> std::convertible_to<T>;
+                       { a / b } -> std::convertible_to<T>;
+                       { -a } -> std::convertible_to<T>;
+                     };
 
 template <typename T>
 concept Numeric = CArithmetic<T> || CFieldLike<T>;
@@ -101,7 +101,11 @@ template <FixedString S> [[nodiscard]] consteval auto operator""_s() noexcept {
 
 template <Numeric T, CFixedString auto, bool Frozen = false> class Variable;
 
-template <CExpression... Ts> class Equation;
+// Unconstrained, so include/rt can specialise it for a runtime graph.  The
+// compile-time definition in expr/equation.hpp carries the CExpression
+// constraint itself, and every use of Equation<...> in this header and that one
+// is constrained too, so nothing here widens.
+template <typename... Ts> class Equation;
 
 // Reaches Equation from a bare expression.  Declared here and defined out of
 // line, since Equation is still incomplete.  Keep it a constrained *template*:
@@ -149,8 +153,8 @@ template <Numeric T> struct EvalResult {
   constexpr operator T() const noexcept { return value; }
 };
 
-template <Numeric T> inline constexpr bool is_expression_type_v<EvalResult<T>> =
-    true;
+template <Numeric T>
+inline constexpr bool is_expression_type_v<EvalResult<T>> = true;
 
 template <COperation Op> struct BaseExpression {
   using value_type = typename Op::value_type;
@@ -159,10 +163,10 @@ template <COperation Op> struct BaseExpression {
 template <CExpression T> consteval std::size_t node_count_fn() {
   using U = std::remove_cvref_t<T>;
   if constexpr (CExpressionNode<U>) {
-    return []<CExpression... C>(
-               std::type_identity<std::tuple<C...>>) consteval {
-      return (1 + ... + node_count_fn<std::remove_cvref_t<C>>());
-    }(std::type_identity<typename U::children_t>{});
+    return
+        []<CExpression... C>(std::type_identity<std::tuple<C...>>) consteval {
+          return (1 + ... + node_count_fn<std::remove_cvref_t<C>>());
+        }(std::type_identity<typename U::children_t>{});
   } else {
     return 1; // constant / variable
   }
@@ -185,9 +189,9 @@ consteval std::size_t child_base_at() {
 // One element of a point: a bare number, a range of them, a ValueMap, or a
 // named value.
 template <typename T>
-concept CEvalArg = Numeric<T> || std::ranges::input_range<T> ||
-                   requires { typename std::remove_cvref_t<T>::symbols; } ||
-                   requires { std::remove_cvref_t<T>::symbol; };
+concept CEvalArg = Numeric<T> || std::ranges::input_range<T> || requires {
+  typename std::remove_cvref_t<T>::symbols;
+} || requires { std::remove_cvref_t<T>::symbol; };
 
 namespace detail {
 template <CExpression Expr, CEvalArg... Args>
@@ -233,8 +237,7 @@ public:
   eval_seeded(const std::array<U, N> &vals) const noexcept {
     return std::apply(
         [&](const auto &...e) noexcept {
-          return Op::eval(
-              EvalResult<U>{e.template eval_seeded<Syms>(vals)}...);
+          return Op::eval(EvalResult<U>{e.template eval_seeded<Syms>(vals)}...);
         },
         self().expressions());
   }
@@ -279,7 +282,8 @@ class ExpressionImpl<false, Op, Children...>
 public:
   using children_t = std::tuple<Children...>;
 
-  constexpr ExpressionImpl(Children... c) noexcept : operands{std::move(c)...} {}
+  constexpr ExpressionImpl(Children... c) noexcept
+      : operands{std::move(c)...} {}
   [[nodiscard]] constexpr const children_t &expressions() const noexcept {
     return operands;
   }
@@ -288,9 +292,8 @@ public:
 // Derives from the storage form rather than aliasing it, so Expression stays a
 // class template that partial specialisations can match.
 template <COperation Op, CExpression... Children>
-class Expression
-    : public ExpressionImpl<(std::is_empty_v<Children> && ...), Op,
-                            Children...> {
+class Expression : public ExpressionImpl<(std::is_empty_v<Children> && ...), Op,
+                                         Children...> {
   using base_type =
       ExpressionImpl<(std::is_empty_v<Children> && ...), Op, Children...>;
 
@@ -301,8 +304,7 @@ public:
 };
 
 namespace detail {
-template <Numeric V, std::size_t I, typename = void>
-struct expression_element {
+template <Numeric V, std::size_t I, typename = void> struct expression_element {
   using type = V;
 };
 
@@ -317,8 +319,8 @@ struct expression_element<V, I,
 
 // At GLOBAL scope: the body opens namespace ddx::impl.  Variadic, so a
 // template-id containing commas survives the preprocessor.
-#define DDX_COMMUTATIVE_MULTIPLY(...)                                         \
-  namespace ddx::impl {                                                             \
+#define DDX_COMMUTATIVE_MULTIPLY(...)                                          \
+  namespace ddx::impl {                                                        \
   template <>                                                                  \
   inline constexpr bool is_commutative_multiply_v<__VA_ARGS__> = true;         \
   }
@@ -328,7 +330,8 @@ template <ddx::impl::COperation Op, ddx::impl::CExpression... Children>
 struct tuple_size<ddx::impl::Expression<Op, Children...>>
     : integral_constant<size_t, 2> {};
 
-template <size_t I, ddx::impl::COperation Op, ddx::impl::CExpression... Children>
+template <size_t I, ddx::impl::COperation Op,
+          ddx::impl::CExpression... Children>
 struct tuple_element<I, ddx::impl::Expression<Op, Children...>> {
   using type = typename ddx::impl::detail::expression_element<
       typename ddx::impl::Expression<Op, Children...>::value_type, I>::type;

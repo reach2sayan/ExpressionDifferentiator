@@ -1,5 +1,7 @@
 #pragma once
 
+#include "drivers/symbolic.hpp" // DiffMode
+#include "rt/coupling.hpp"
 #include "rt/expr.hpp"
 
 #include <algorithm>
@@ -12,15 +14,16 @@ namespace ddx::rt {
 namespace detail {
 
 // d/du of a one-argument op.  The eighteen transcendentals come from the
-// descriptors in expr/unary_math.hpp instantiated at Expr: the rule bodies are
-// written against Numeric, so at T = Expr they build nodes instead of
-// computing.  There is no second copy of the chain rule.
-// A template, so `if constexpr` actually discards: several descriptors define
+// descriptors in expr/unary_math.hpp instantiated at RTExpression: the rule
+// bodies are written against Numeric, so at T = RTExpression they build nodes
+// instead of computing.  There is no second copy of the chain rule. A template,
+// so `if constexpr` actually discards: several descriptors define
 // deriv_from_value, which reuses the primal node instead of recomputing it --
 // d(exp)/du becomes the exp node itself rather than a second one.
-template <typename Fn>
-[[nodiscard]] inline constexpr Expr rule(const Expr &u, const Expr &fu) {
-  if constexpr (impl::detail::has_deriv_from_value_v<Fn, Expr>) {
+template <typename Fn, impl::Numeric T>
+[[nodiscard]] constexpr RTExpression<T> rule(const RTExpression<T> &u,
+                                             const RTExpression<T> &fu) {
+  if constexpr (impl::detail::has_deriv_from_value_v<Fn, RTExpression<T>>) {
     return Fn::deriv_from_value(u, fu);
   } else {
     return Fn::deriv(u);
@@ -28,14 +31,15 @@ template <typename Fn>
 }
 
 // d/du of a one-argument op.  The eighteen transcendentals come from the
-// descriptors in expr/unary_math.hpp instantiated at Expr: the rule bodies are
-// written against Numeric, so at T = Expr they build nodes instead of
-// computing.  `neg` and `abs` come from rt/opcode.hpp's table, which carries
-// their partials for the same reason -- there is no second copy of the chain
-// rule anywhere.
-[[nodiscard]] inline constexpr Expr partial(OpCode op, const Expr &u,
-                                            const Expr &f) {
-  using T = Expr;
+// descriptors in expr/unary_math.hpp instantiated at RTExpression: the rule
+// bodies are written against Numeric, so at T = RTExpression they build nodes
+// instead of computing.  `neg` and `abs` come from rt/opcode.hpp's table, which
+// carries their partials for the same reason -- there is no second copy of the
+// chain rule anywhere.
+template <impl::Numeric S>
+[[nodiscard]] constexpr RTExpression<S>
+partial(OpCode op, const RTExpression<S> &u, const RTExpression<S> &f) {
+  using T = RTExpression<S>;
   switch (op) {
 #define DDX_RT_PARTIAL(fn, Op, label, functor, dU)                             \
   case OpCode::Op:                                                             \
@@ -44,18 +48,20 @@ template <typename Fn>
 #undef DDX_RT_PARTIAL
 #define DDX_RT_PARTIAL(fn, Op, label)                                          \
   case OpCode::Op:                                                             \
-    return rule<impl::detail::Op##Fn<Expr>>(u, f);
+    return rule<impl::detail::Op##Fn<RTExpression<S>>>(u, f);
     DDX_UNARY_MATH_TABLE(DDX_RT_PARTIAL)
 #undef DDX_RT_PARTIAL
   default:
-    return Expr{0};
+    return RTExpression<S>{0};
   }
 }
 
 // (d/dl, d/dr) of a two-argument op, given the node for the result.
-[[nodiscard]] inline constexpr std::pair<Expr, Expr>
-partials(OpCode op, const Expr &l, const Expr &r, const Expr &f) {
-  using T = Expr;
+template <impl::Numeric S>
+[[nodiscard]] constexpr std::pair<RTExpression<S>, RTExpression<S>>
+partials(OpCode op, const RTExpression<S> &l, const RTExpression<S> &r,
+         const RTExpression<S> &f) {
+  using T = RTExpression<S>;
   switch (op) {
 #define DDX_RT_PARTIALS(fn, Op, label, functor, dL, dR)                        \
   case OpCode::Op:                                                             \
@@ -63,7 +69,7 @@ partials(OpCode op, const Expr &l, const Expr &r, const Expr &f) {
     DDX_RT_BINARY_TABLE(DDX_RT_PARTIALS)
 #undef DDX_RT_PARTIALS
   default:
-    return {Expr{0}, Expr{0}};
+    return {RTExpression<S>{0}, RTExpression<S>{0}};
   }
 }
 
@@ -81,15 +87,17 @@ struct Gradient {
 //
 // The sweep appends to the same builder it reads: new nodes land above the
 // snapshot, so reverse id order stays a topological order of what came before.
-[[nodiscard]] inline constexpr Gradient gradient(Builder &b, NodeId root) {
+template <impl::Numeric T>
+[[nodiscard]] constexpr Gradient reverse_gradient(Builder<T> &b, NodeId root) {
   const auto n = static_cast<NodeId>(b.size());
   std::vector<NodeId> adj(n, no_node);
-  adj[root] = b.constant(1.0);
+  adj[root] = b.constant(T{1});
 
-  const auto add_to = [&](NodeId child, const Expr &contribution) {
+  const auto add_to = [&](NodeId child, const RTExpression<T> &contribution) {
     const NodeId c = contribution.id(b);
-    adj[child] =
-        adj[child] == no_node ? c : (Expr{b, adj[child]} + Expr{b, c}).id(b);
+    adj[child] = adj[child] == no_node
+                     ? c
+                     : (RTExpression{b, adj[child]} + RTExpression{b, c}).id(b);
   };
 
   // Explicitly indexed, not a filtered view: the body writes adjoints into
@@ -99,18 +107,18 @@ struct Gradient {
     if (adj[v] == no_node) {
       continue;
     }
-    const Node node = b[v]; // by value: building below may reallocate
+    const auto node = b[v]; // by value: building below may reallocate
     if (is_leaf(node.op)) {
       continue;
     }
-    const Expr a{b, adj[v]};
-    const Expr self{b, v};
+    const RTExpression<T> a{b, adj[v]};
+    const RTExpression<T> self{b, v};
     if (arity_of(node.op) == 1) {
-      const Expr u{b, node.a};
+      const RTExpression<T> u{b, node.a};
       add_to(node.a, a * detail::partial(node.op, u, self));
     } else {
-      const Expr l{b, node.a};
-      const Expr r{b, node.b};
+      const RTExpression<T> l{b, node.a};
+      const RTExpression<T> r{b, node.b};
       const auto [dl, dr] = detail::partials(node.op, l, r, self);
       add_to(node.a, a * dl);
       add_to(node.b, a * dr);
@@ -129,8 +137,163 @@ struct Gradient {
   }
   // A symbol the expression never mentions has no leaf, so no adjoint reached
   // it; those partials are the literal zero.
-  std::ranges::replace(g.partial, no_node, b.constant(0.0));
+  std::ranges::replace(g.partial, no_node, b.constant(T{0}));
   return g;
+}
+
+// Forward accumulation: one pass per symbol, carrying d[v]/dx_s up the graph.
+// The graph analogue of Equation's Symbolic mode, which materialises one
+// partial tree per symbol.
+//
+// This is here to check Reverse against, not to compute with.  Measured on the
+// graph, Reverse produces fewer nodes on everything except a single-variable
+// expression, where it loses by exactly one -- and node count is what both the
+// interpreter and the kernel cost.  README's "Symbolic wins at n=3" is about a
+// different cost model: there Symbolic evaluates pre-folded partial trees
+// against a sweep that pays for a node_cache_t, and on a graph both are simply
+// nodes.  Being an independent implementation of the same derivative is the
+// whole of its value.
+template <impl::Numeric T>
+[[nodiscard]] constexpr Gradient symbolic_gradient(Builder<T> &b, NodeId root) {
+  const auto nsym = b.symbols().size();
+  Gradient g{.value = root, .partial = std::vector<NodeId>(nsym, no_node)};
+
+  for (std::uint32_t s = 0; s < nsym; ++s) {
+    // Snapshot per pass: the previous pass appended nodes, and those are not
+    // part of the function being differentiated.
+    const auto n = static_cast<NodeId>(b.size());
+    std::vector<NodeId> d(n, no_node);
+
+    for (NodeId v = 0; v < n; ++v) {
+      const auto node = b[v]; // by value: building below may reallocate
+      if (is_leaf(node.op)) {
+        d[v] = node.op == OpCode::Var && node.slot == s ? b.constant(T{1})
+                                                        : b.constant(T{0});
+        continue;
+      }
+      const RTExpression<T> self{b, v};
+      if (arity_of(node.op) == 1) {
+        const RTExpression<T> u{b, node.a};
+        d[v] =
+            (detail::partial(node.op, u, self) * RTExpression<T>{b, d[node.a]})
+                .id(b);
+      } else {
+        const RTExpression<T> l{b, node.a};
+        const RTExpression<T> r{b, node.b};
+        const auto [dl, dr] = detail::partials(node.op, l, r, self);
+        d[v] = (dl * RTExpression<T>{b, d[node.a]} +
+                dr * RTExpression<T>{b, d[node.b]})
+                   .id(b);
+      }
+    }
+    g.partial[s] = d[root];
+  }
+  return g;
+}
+
+// A system: m functions over the same symbols, so m sweeps sharing one graph.
+// The partials are row-major by function, matching Equation::jacobian's
+// md_tensor<value_type, extents<m, n>>.
+struct Jacobian {
+  std::vector<NodeId> value;   // m
+  std::vector<NodeId> partial; // m * n, row-major
+  std::size_t rows = 0;
+  std::size_t columns = 0;
+
+  [[nodiscard]] constexpr NodeId at(std::size_t k, std::size_t j) const {
+    return partial[k * columns + j];
+  }
+};
+
+template <impl::Numeric T>
+[[nodiscard]] constexpr Jacobian jacobian(Builder<T> &b,
+                                          std::span<const NodeId> roots) {
+  Jacobian j{.value = {roots.begin(), roots.end()},
+             .partial = {},
+             .rows = roots.size(),
+             .columns = b.symbols().size()};
+  j.partial.reserve(j.rows * j.columns);
+  // Each sweep snapshots a builder that already holds the previous rows' nodes.
+  // Those are unreachable from this root, so their adjoints stay unset and the
+  // sweep skips them; what they do provide is subexpressions to share.
+  for (const NodeId r : roots) {
+    const auto g = reverse_gradient(b, r);
+    j.partial.insert(j.partial.end(), g.partial.begin(), g.partial.end());
+  }
+  return j;
+}
+
+// Pinned: explicit template arguments are required, so this never competes with
+// the plain spelling.  Symbolic exists as an independent implementation to
+// check Reverse against -- measured on the graph, Reverse produces fewer nodes
+// on everything except a single-variable expression, where it loses by one.
+template <impl::DiffMode Mode, impl::Numeric T>
+[[nodiscard]] constexpr Gradient gradient(Builder<T> &b, NodeId root) {
+  if constexpr (Mode == impl::DiffMode::Symbolic) {
+    return symbolic_gradient(b, root);
+  } else {
+    return reverse_gradient(b, root);
+  }
+}
+
+// The default remains one reverse sweep: it is what every existing caller
+// wants, and the facade is where the choice is made.
+template <impl::Numeric T>
+[[nodiscard]] constexpr Gradient gradient(Builder<T> &b, NodeId root) {
+  return reverse_gradient(b, root);
+}
+
+// The Hessian, one sweep per colour rather than one per variable.
+//
+// Colouring normally works because the caller scatters a *numeric* result, and
+// it is not obvious it survives a sweep that builds expressions instead.  It
+// does: sweeping from the sum of a colour's partials gives, for row i,
+// sum over j in colour of d2f/dxi dxj -- and the colouring guarantees at most
+// one term of that sum is not structurally zero.  The rest fold away as the
+// nodes are formed, by the same x*0 -> 0 rewrite that runs everywhere else, so
+// the sum *is* the one second derivative.
+struct Hessian {
+  NodeId value = no_node;
+  std::vector<NodeId> partial;    // n
+  std::vector<NodeId> compressed; // colours * n
+  Coloring coloring;
+  NodeId zero = no_node;
+
+  // Scattered on read, so a caller never sees the compressed form.
+  [[nodiscard]] NodeId at(std::size_t i, std::size_t j) const {
+    const std::size_t c = coloring.color[j];
+    return coloring.target(c, i) == j
+               ? compressed[c * coloring.color.size() + i]
+               : zero;
+  }
+  [[nodiscard]] std::size_t colors() const { return coloring.count; }
+};
+
+template <impl::Numeric T>
+[[nodiscard]] Hessian hessian(Builder<T> &b, NodeId root) {
+  const auto g = reverse_gradient(b, root);
+  const auto rows = coupling_pattern(b, root);
+  Hessian h{.value = g.value,
+            .partial = g.partial,
+            .compressed = {},
+            .coloring = color_columns(rows),
+            .zero = b.constant(T{0})};
+
+  const std::size_t n = h.partial.size();
+  h.compressed.assign(h.coloring.count * n, h.zero);
+  for (std::size_t c = 0; c < h.coloring.count; ++c) {
+    RTExpression<T> seed{0};
+    for (std::size_t j = 0; j < n; ++j) {
+      if (h.coloring.color[j] == c) {
+        seed = seed + RTExpression<T>{b, h.partial[j]};
+      }
+    }
+    const auto row = reverse_gradient(b, seed.id(b));
+    for (std::size_t i = 0; i < n; ++i) {
+      h.compressed[c * n + i] = row.partial[i];
+    }
+  }
+  return h;
 }
 
 } // namespace ddx::rt

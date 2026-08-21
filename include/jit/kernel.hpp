@@ -1,5 +1,7 @@
 #pragma once
 
+#include "expr/expressions.hpp" // ddx::impl::Numeric
+
 #include <cstddef>
 #include <memory>
 #include <span>
@@ -7,8 +9,13 @@
 
 // The JIT's public surface.
 namespace ddx::rt {
-class Graph;
-}
+// The JIT emits machine types, so it compiles graphs over a machine scalar.
+// A graph over anything else -- Numeric admits matrices and quaternions -- is
+// interpretable but not compilable, which is why everything below names
+// Graph<double> rather than the template.  The constraint has to match the
+// definition, hence the one ddx include; it carries no dependency of its own.
+template <impl::Numeric T> class Graph;
+} // namespace ddx::rt
 
 namespace ddx::jit {
 
@@ -29,7 +36,7 @@ struct Options {
   // Never 0: that disables the loop vectoriser
   unsigned opt_level = default_opt_level;
   VecLib veclib = VecLib::Auto;
-  bool contract = default_contract;  // Follows DDX_FP_FLAGS
+  bool contract = default_contract; // Follows DDX_FP_FLAGS
 };
 
 // One compiled graph.  Cheap to copy
@@ -72,11 +79,12 @@ public:
   Compiler(const Compiler &) = delete;
   Compiler &operator=(const Compiler &) = delete;
 
-  [[nodiscard]] Kernel compile(const rt::Graph &g, const Options &opt = {});
+  [[nodiscard]] Kernel compile(const rt::Graph<double> &g,
+                               const Options &opt = {});
 
 private:
   friend class Ir;
-  [[nodiscard]] std::string render_ir(const rt::Graph &g,
+  [[nodiscard]] std::string render_ir(const rt::Graph<double> &g,
                                       const Options &opt) const;
 
   struct Impl;
@@ -86,7 +94,7 @@ private:
 // The optimised IR a graph would compile to
 class Ir {
 public:
-  Ir(const Compiler &c, const rt::Graph &g, Options opt = {}) noexcept
+  Ir(const Compiler &c, const rt::Graph<double> &g, Options opt = {}) noexcept
       : compiler_(&c), graph_(&g), options_(opt) {}
   [[nodiscard]] std::string str() const {
     return compiler_->render_ir(*graph_, options_);
@@ -94,7 +102,7 @@ public:
 
 private:
   const Compiler *compiler_;
-  const rt::Graph *graph_;
+  const rt::Graph<double> *graph_;
   Options options_;
 };
 

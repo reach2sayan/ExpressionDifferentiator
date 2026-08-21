@@ -47,7 +47,7 @@ jobs:
       #
       # include/rt/ is scoped out of that rule and given its own: it is the
       # runtime expression graph, a separate opt-in target (ddx::rt) whose
-      # dependencies are declared, and it may reach for nwgraph and nothing
+      # dependencies are declared, and it may reach for boost and nothing
       # else.  The core must not depend on it in either direction.
       - name: Headers stay dependency-free
         if: runner.os == 'Linux'
@@ -63,9 +63,10 @@ jobs:
                        h=${rest#*\"}; h=${h%%\"*}
                        [ -e "$(dirname "$f")/$h" ] || [ -e "include/$h" ] || echo "$f:$n: $h"
                      done)
-          # ddx::rt's declared dependency is nwgraph; anything else is a leak.
+          # ddx::rt's declared dependencies are Boost.Graph and Boost.DynamicBitset;
+          # anything else is a leak.
           rt=$(grep -rnE '#[[:space:]]*include[[:space:]]*<[^>]*/' include/rt --include='*.hpp' \
-               | grep -vE '<nwgraph/' || true)
+               | grep -vE '<boost/' || true)
           # The dependency-free core must never reach into rt/.
           core=$(grep -rnE '#[[:space:]]*include[[:space:]]*"rt/' include --include='*.hpp' \
                  | grep -v '^include/rt/' || true)
@@ -77,7 +78,7 @@ jobs:
             [ -n "$core" ] && echo "the core must not depend on rt/:" && echo "$core"
             exit 1
           fi
-          echo "include/ depends on the standard library only (rt/: plus nwgraph)"
+          echo "include/ depends on the standard library only (rt/: plus boost)"
 
       - name: Set build directory
         id: strings

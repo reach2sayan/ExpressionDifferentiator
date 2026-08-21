@@ -146,7 +146,8 @@ struct Compiler::Impl {
   }
 
   std::unique_ptr<llvm::Module> build(llvm::LLVMContext &ctx,
-                                      const rt::Graph &g, const Options &opt,
+                                      const rt::Graph<double> &g,
+                                      const Options &opt,
                                       const std::string &name) const {
     auto m = detail::emit_module(ctx, g, opt, name);
     if (!m) {
@@ -165,7 +166,7 @@ Compiler::~Compiler() = default;
 Compiler::Compiler(Compiler &&) noexcept = default;
 Compiler &Compiler::operator=(Compiler &&) noexcept = default;
 
-Kernel Compiler::compile(const rt::Graph &g, const Options &opt) {
+Kernel Compiler::compile(const rt::Graph<double> &g, const Options &opt) {
   const std::string name = "ddx_kernel_" + std::to_string(impl_->counter++);
   auto ctx = std::make_unique<llvm::LLVMContext>();
   auto m = impl_->build(*ctx, g, opt, name);
@@ -184,7 +185,8 @@ Kernel Compiler::compile(const rt::Graph &g, const Options &opt) {
                 outputs};
 }
 
-std::string Compiler::render_ir(const rt::Graph &g, const Options &opt) const {
+std::string Compiler::render_ir(const rt::Graph<double> &g,
+                                const Options &opt) const {
   auto ctx = std::make_unique<llvm::LLVMContext>();
   auto m = impl_->build(*ctx, g, opt, "ddx_kernel_dump");
   std::string out;

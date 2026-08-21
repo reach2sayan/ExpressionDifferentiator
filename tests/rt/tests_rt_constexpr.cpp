@@ -20,10 +20,10 @@
 
 namespace {
 using ddx::rt::Builder;
-using ddx::rt::Expr;
+using ddx::rt::RTExpression;
 
 consteval double build_and_evaluate() {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto f = x * x + y;
@@ -33,18 +33,18 @@ static_assert(build_and_evaluate() == 13.0);
 
 // The rewrites fold at compile time exactly as they do at run time.
 consteval bool rewrites_hold() {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
-  return (x + Expr{0}).id(b) == x.id(b) && (x * Expr{1}).id(b) == x.id(b) &&
-         (-(-x)).id(b) == x.id(b) && ((y / x) * x).id(b) == y.id(b) &&
-         ((x * y)).id(b) == (y * x).id(b);
+  return (x + RTExpression<>{0}).id(b) == x.id(b) &&
+         (x * RTExpression<>{1}).id(b) == x.id(b) && (-(-x)).id(b) == x.id(b) &&
+         ((y / x) * x).id(b) == y.id(b) && ((x * y)).id(b) == (y * x).id(b);
 }
 static_assert(rewrites_hold());
 
 // Interning is a compile-time property too: the same subtree twice is one node.
 consteval std::size_t nodes_for_repeated_subtree() {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto f = exp(x) * sin(y);
@@ -55,7 +55,7 @@ static_assert(nodes_for_repeated_subtree() == 5);
 
 // A gradient, swept and evaluated entirely during constant evaluation.
 consteval double partial_of_product() {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto f = x * y;
@@ -65,7 +65,7 @@ consteval double partial_of_product() {
 static_assert(partial_of_product() == 4.0);
 
 consteval double transcendental_gradient() {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto f = sin(x) * x;
   const auto g = ddx::rt::gradient(b, f.id(b));
@@ -79,7 +79,7 @@ static_assert(transcendental_gradient() == 0.0);
 consteval bool bridge_agrees_with_equation() {
   constexpr auto x = ddx::var<"x">;
   constexpr auto y = ddx::var<"y">;
-  Builder b;
+  Builder<> b;
   const auto root = ddx::rt::to_graph(b, x * y + x);
   const double viaGraph =
       ddx::rt::evaluate(b, root.id(b), std::array{3.0, 4.0});

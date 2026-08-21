@@ -31,14 +31,14 @@ ddx::jit::Compiler &compiler() {
 // interpreter, point by point.
 void expect_matches_interpreter(auto build, std::size_t nvars,
                                 std::size_t n = 64) {
-  Builder b;
-  std::vector<ddx::rt::Expr> vars;
+  Builder<> b;
+  std::vector<ddx::rt::RTExpression<>> vars;
   static constexpr const char *names[] = {"x", "y", "z", "w"};
   for (std::size_t i = 0; i < nvars; ++i) {
     vars.push_back(var(b, names[i]));
   }
   const auto root = build(b, vars);
-  const auto graph = Graph::freeze(b, std::array{root.id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{root.id(b)});
   const auto kernel = compiler().compile(graph);
   ASSERT_TRUE(static_cast<bool>(kernel));
   ASSERT_EQ(kernel.arity(), nvars);
@@ -70,63 +70,70 @@ void expect_matches_interpreter(auto build, std::size_t nvars,
 }
 
 TEST(JitValue, Arithmetic) {
-  expect_matches_interpreter([](Builder &, auto &v) { return v[0] + v[1]; }, 2);
-  expect_matches_interpreter([](Builder &, auto &v) { return v[0] - v[1]; }, 2);
-  expect_matches_interpreter([](Builder &, auto &v) { return v[0] * v[1]; }, 2);
-  expect_matches_interpreter([](Builder &, auto &v) { return v[0] / v[1]; }, 2);
-  expect_matches_interpreter([](Builder &, auto &v) { return -v[0] * v[1]; },
+  expect_matches_interpreter([](Builder<> &, auto &v) { return v[0] + v[1]; },
+                             2);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return v[0] - v[1]; },
+                             2);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return v[0] * v[1]; },
+                             2);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return v[0] / v[1]; },
+                             2);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return -v[0] * v[1]; },
                              2);
 }
 
 // Split across tests so a failure names the op that broke.
 TEST(JitValue, IntrinsicBackedFunctions) {
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return sin(v[0]) + cos(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return sin(v[0]) + cos(v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return tan(v[0]) * exp(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return tan(v[0]) * exp(v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return log(v[0]) - log10(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return log(v[0]) - log10(v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return sqrt(v[0]) + asin(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return sqrt(v[0]) + asin(v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return acos(v[0]) + atan(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return acos(v[0]) + atan(v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return sinh(v[0]) + cosh(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return sinh(v[0]) + cosh(v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return tanh(v[0]) * abs(v[1]); }, 2);
-  expect_matches_interpreter([](Builder &, auto &v) { return pow(v[0], v[1]); },
-                             2);
+      [](Builder<> &, auto &v) { return tanh(v[0]) * abs(v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return atan2(v[0], v[1]); }, 2);
-  expect_matches_interpreter([](Builder &, auto &v) { return max(v[0], v[1]); },
-                             2);
-  expect_matches_interpreter([](Builder &, auto &v) { return min(v[0], v[1]); },
-                             2);
+      [](Builder<> &, auto &v) { return pow(v[0], v[1]); }, 2);
+  expect_matches_interpreter(
+      [](Builder<> &, auto &v) { return atan2(v[0], v[1]); }, 2);
+  expect_matches_interpreter(
+      [](Builder<> &, auto &v) { return max(v[0], v[1]); }, 2);
+  expect_matches_interpreter(
+      [](Builder<> &, auto &v) { return min(v[0], v[1]); }, 2);
 }
 
 // These six have no LLVM intrinsic and go out as libm calls, so they exercise
 // a different path through the emitter.
 TEST(JitValue, LibmBackedFunctions) {
-  expect_matches_interpreter([](Builder &, auto &v) { return cbrt(v[0]); }, 1);
-  expect_matches_interpreter([](Builder &, auto &v) { return asinh(v[0]); }, 1);
-  expect_matches_interpreter([](Builder &, auto &v) { return atanh(v[0]); }, 1);
-  expect_matches_interpreter([](Builder &, auto &v) { return erf(v[0]); }, 1);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return cbrt(v[0]); },
+                             1);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return asinh(v[0]); },
+                             1);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return atanh(v[0]); },
+                             1);
+  expect_matches_interpreter([](Builder<> &, auto &v) { return erf(v[0]); }, 1);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return hypot(v[0], v[1]); }, 2);
+      [](Builder<> &, auto &v) { return hypot(v[0], v[1]); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return acosh(v[0] + 1.0); }, 1);
+      [](Builder<> &, auto &v) { return acosh(v[0] + 1.0); }, 1);
 }
 
 TEST(JitValue, SharedAndNested) {
   expect_matches_interpreter(
-      [](Builder &, auto &v) {
+      [](Builder<> &, auto &v) {
         return (v[0] * v[1]) * (v[0] * v[1]) + sin(v[0] * v[1]);
       },
       2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) { return sin(cos(exp(v[0] * v[1]))); }, 2);
+      [](Builder<> &, auto &v) { return sin(cos(exp(v[0] * v[1]))); }, 2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) {
+      [](Builder<> &, auto &v) {
         auto t = v[0];
         for (int i = 0; i < 6; ++i) {
           t = sin(t * v[1]) + exp(t / 3.0);
@@ -135,7 +142,7 @@ TEST(JitValue, SharedAndNested) {
       },
       2);
   expect_matches_interpreter(
-      [](Builder &, auto &v) {
+      [](Builder<> &, auto &v) {
         return exp(v[0] * v[1]) + log(v[2]) / tanh(v[3]);
       },
       4);
@@ -144,9 +151,9 @@ TEST(JitValue, SharedAndNested) {
 TEST(JitValue, AgreesWithDdxThroughTheBridge) {
   constexpr auto x = ddx::var<"x">;
   constexpr auto y = ddx::var<"y">;
-  Builder b;
+  Builder<> b;
   const auto root = ddx::rt::to_graph(b, exp(x) * sin(y));
-  const auto graph = Graph::freeze(b, std::array{root.id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{root.id(b)});
   const auto kernel = compiler().compile(graph);
 
   const std::array cx{1.0, 0.25, 2.5};
@@ -162,9 +169,9 @@ TEST(JitValue, AgreesWithDdxThroughTheBridge) {
 }
 
 TEST(JitValue, EmptyBatchWritesNothing) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
-  const auto graph = Graph::freeze(b, std::array{sin(x).id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{sin(x).id(b)});
   const auto kernel = compiler().compile(graph);
 
   const double *none = nullptr;
@@ -175,10 +182,10 @@ TEST(JitValue, EmptyBatchWritesNothing) {
 }
 
 TEST(JitValue, ConstantFoldsToAStore) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
-  const auto f = x * ddx::rt::Expr{0} + ddx::rt::Expr{7};
-  const auto graph = Graph::freeze(b, std::array{f.id(b)});
+  const auto f = x * ddx::rt::RTExpression<>{0} + ddx::rt::RTExpression<>{7};
+  const auto graph = Graph<>::freeze(b, std::array{f.id(b)});
   const auto kernel = compiler().compile(graph);
 
   const std::array cx{1.0, 2.0};
@@ -190,15 +197,15 @@ TEST(JitValue, ConstantFoldsToAStore) {
 }
 
 TEST(JitValue, SeparateCompilesCoexist) {
-  Builder b1;
+  Builder<> b1;
   const auto x1 = var(b1, "x");
   const auto k1 =
-      compiler().compile(Graph::freeze(b1, std::array{sin(x1).id(b1)}));
+      compiler().compile(Graph<>::freeze(b1, std::array{sin(x1).id(b1)}));
 
-  Builder b2;
+  Builder<> b2;
   const auto x2 = var(b2, "x");
   const auto k2 =
-      compiler().compile(Graph::freeze(b2, std::array{cos(x2).id(b2)}));
+      compiler().compile(Graph<>::freeze(b2, std::array{cos(x2).id(b2)}));
 
   const std::array c{0.5};
   const std::array<const double *, 1> xs{c.data()};

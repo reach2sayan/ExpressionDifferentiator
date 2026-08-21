@@ -15,14 +15,8 @@ namespace ddx::rt {
   X(constant, Const, "const")                                                  \
   X(var, Var, "var")
 
-// Rows carry, after the spelling / enumerator / label that every consumer
-// needs: the functor that evaluates the op, then its partial derivatives
-// written in terms of the operands and `f`, the node for the result.  A
-// consumer that only wants the first three takes `...` and ignores the rest.
-//
 // The eighteen transcendentals get the same treatment from
 // DDX_UNARY_MATH_TABLE, whose descriptors already carry their own derivatives;
-// these are the ops that would otherwise be hand-written in four places.
 #define DDX_RT_UNARY_TABLE(X)                                                  \
   X(neg, Neg, "-", std::negate<>, T{-1})                                       \
   X(abs, Abs, "abs", impl::detail::abs_impl, u / f)
@@ -95,11 +89,13 @@ inline constexpr std::size_t op_count = [] {
   return 0;
 }
 
-// Operands may be swapped only where the op says so; canonical ordering in the
-// builder uses this to make a*b and b*a intern to one node.
+template <typename T>
 [[nodiscard]] constexpr bool is_commutative(OpCode op) noexcept {
-  return op == OpCode::Add || op == OpCode::Mul || op == OpCode::Max ||
-         op == OpCode::Min || op == OpCode::Hypot;
+  if (op == OpCode::Mul) {
+    return impl::CCommutativeMultiply<T>;
+  }
+  return op == OpCode::Add || op == OpCode::Max || op == OpCode::Min ||
+         op == OpCode::Hypot;
 }
 
 [[nodiscard]] constexpr bool is_leaf(OpCode op) noexcept {

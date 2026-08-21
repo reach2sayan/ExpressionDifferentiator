@@ -9,7 +9,7 @@
 // The frozen graph (rt/graph.hpp)
 //
 // Freezing is what makes the graph static: the builder can still be added to,
-// a Graph cannot.  A CSR row is a set, so the assertions that matter are that
+// a Graph<> cannot.  A CSR row is a set, so the assertions that matter are that
 // operand *position* survives the compression and that nothing reachable is
 // dropped.
 // ===========================================================================
@@ -19,11 +19,11 @@ using ddx::rt::Graph;
 using ddx::rt::NodeId;
 
 TEST(RtGraph, OperandOrderSurvivesCompression) {
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto f = x / y; // not commutative: the slots must not be swapped
-  const auto graph = Graph::freeze(b, std::array{f.id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{f.id(b)});
 
   const auto [lhs, rhs] = graph.operands(f.id(b));
   EXPECT_EQ(lhs, x.id(b));
@@ -31,22 +31,22 @@ TEST(RtGraph, OperandOrderSurvivesCompression) {
 }
 
 TEST(RtGraph, UnaryNodeHasOneOperand) {
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto x = var(b, "x");
   const auto f = sin(x);
-  const auto graph = Graph::freeze(b, std::array{f.id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{f.id(b)});
   const auto [lhs, rhs] = graph.operands(f.id(b));
   EXPECT_EQ(lhs, x.id(b));
   EXPECT_EQ(rhs, ddx::rt::no_node);
 }
 
 TEST(RtGraph, EverythingTheOutputsReachIsLive) {
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto f = exp(x) * sin(y);
   const auto dead = cos(x) + y; // built, never an output
-  const auto graph = Graph::freeze(b, std::array{f.id(b)});
+  const auto graph = Graph<>::freeze(b, std::array{f.id(b)});
 
   EXPECT_TRUE(graph.live(f.id(b)));
   EXPECT_TRUE(graph.live(x.id(b)));
@@ -56,7 +56,7 @@ TEST(RtGraph, EverythingTheOutputsReachIsLive) {
 }
 
 TEST(RtGraph, CarriesSymbolsAndOutputs) {
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto root = ddx::rt::to_graph(b, ddx::var<"x"> * ddx::var<"y">);
   const auto graph = ddx::rt::GraphBuilder{b}.value(root).gradient().build();
 
@@ -65,7 +65,7 @@ TEST(RtGraph, CarriesSymbolsAndOutputs) {
 }
 
 TEST(RtGraph, IdOrderIsTopological) {
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto root = ddx::rt::to_graph(b, sin(ddx::var<"x"> * ddx::var<"y">) +
                                              exp(ddx::var<"x">));
   const auto graph = ddx::rt::GraphBuilder{b}.value(root).gradient().build();

@@ -29,8 +29,8 @@ ddx::jit::Compiler &compiler() {
 
 void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
                                          std::size_t n = 32) {
-  Builder b;
-  std::vector<ddx::rt::Expr> vars;
+  Builder<> b;
+  std::vector<ddx::rt::RTExpression<>> vars;
   static constexpr const char *names[] = {"x", "y", "z"};
   for (std::size_t i = 0; i < nvars; ++i) {
     vars.push_back(var(b, names[i]));
@@ -78,16 +78,16 @@ void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
 
 TEST(JitGradient, MatchesTheInterpreter) {
   expect_gradient_matches_interpreter(
-      [](Builder &, auto &v) { return exp(v[0]) * sin(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return exp(v[0]) * sin(v[1]); }, 2);
   expect_gradient_matches_interpreter(
-      [](Builder &, auto &v) { return v[0] / v[1]; }, 2);
+      [](Builder<> &, auto &v) { return v[0] / v[1]; }, 2);
   expect_gradient_matches_interpreter(
-      [](Builder &, auto &v) { return pow(v[0], v[1]); }, 2);
+      [](Builder<> &, auto &v) { return pow(v[0], v[1]); }, 2);
   expect_gradient_matches_interpreter(
-      [](Builder &, auto &v) { return log(v[0]) * sqrt(v[1]) + tanh(v[2]); },
+      [](Builder<> &, auto &v) { return log(v[0]) * sqrt(v[1]) + tanh(v[2]); },
       3);
   expect_gradient_matches_interpreter(
-      [](Builder &, auto &v) { return erf(v[0]) + cbrt(v[1]); }, 2);
+      [](Builder<> &, auto &v) { return erf(v[0]) + cbrt(v[1]); }, 2);
 }
 
 TEST(JitGradient, MatchesDdxThroughTheBridge) {
@@ -95,7 +95,7 @@ TEST(JitGradient, MatchesDdxThroughTheBridge) {
   constexpr auto y = ddx::var<"y">;
   const auto f = exp(x) * sin(y) + x * y;
 
-  Builder b;
+  Builder<> b;
   const auto root = ddx::rt::to_graph(b, f);
   const auto kernel = compiler().compile(
       ddx::rt::GraphBuilder{b}.value(root).gradient().build());

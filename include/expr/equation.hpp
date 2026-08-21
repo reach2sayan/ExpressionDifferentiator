@@ -29,15 +29,16 @@ constexpr auto eval_all(const Vals &vals, const Es &...es) noexcept {
 namespace detail {
 
 // The expressions are final by the time an Equation is built, so this is where
-// commutative operands get ordered; folding already happened as they were built.
+// commutative operands get ordered; folding already happened as they were
+// built.
 template <CExpression E>
 using canonical_t = decltype(canonicalise(std::declval<const E &>()));
 
 template <CSymbol... Syms, CExpression Expr>
 constexpr auto make_derivatives(mp::mp_list<Syms...>,
                                 const Expr &expr) noexcept {
-  return std::tuple(
-      canonicalise(make_all_constant_except<Syms::value>(expr).derivative())...);
+  return std::tuple(canonicalise(
+      make_all_constant_except<Syms::value>(expr).derivative())...);
 }
 
 template <CSymbol... Syms, CExpression... Exprs>
@@ -188,18 +189,21 @@ public:
     return expressions;
   }
   // Built on demand: storing it would instantiate the whole symbolic Jacobian
-  // every time Equation<E> is named, which the reverse-mode members never touch.
+  // every time Equation<E> is named, which the reverse-mode members never
+  // touch.
   [[nodiscard]] constexpr auto jacobian_rows() const noexcept {
     return detail::make_jac_rows(expressions, symbols{});
   }
 
   // Every numeric member takes a point in any spelling eval() accepts.
   template <Numeric U = value_type>
-  [[nodiscard]] static constexpr auto point(const CEvalArg auto &...args) noexcept {
+  [[nodiscard]] static constexpr auto
+  point(const CEvalArg auto &...args) noexcept {
     return detail::make_point<symbols, U, input_dim>(args...);
   }
 
-  [[nodiscard]] constexpr auto evaluate(const CEvalArg auto &...args) const noexcept {
+  [[nodiscard]] constexpr auto
+  evaluate(const CEvalArg auto &...args) const noexcept {
     const auto vals = point(args...);
     if constexpr (output_dim == 1) {
       return std::get<0>(expressions).template eval_seeded<symbols>(vals);
@@ -214,7 +218,8 @@ public:
 
   // Symbolic evaluates the stored partial trees; Reverse never builds them.
   template <DiffMode Mode = DiffMode::Reverse>
-  [[nodiscard]] constexpr auto gradient(const CEvalArg auto &...args) const noexcept
+  [[nodiscard]] constexpr auto
+  gradient(const CEvalArg auto &...args) const noexcept
     requires(output_dim == 1 && input_dim > 0)
   {
     const auto vals = point(args...);
@@ -234,10 +239,11 @@ public:
   // Slot 0 is the expression itself; slot k>0 is d/d(k-1 th symbol), in
   // canonical symbol order.  Both spellings; see DDX_KEYED_ACCESSORS.
   DDX_KEYED_ACCESSORS(std::size_t N, std::size_t N, N, idx_t<N>,
-                       requires(output_dim == 1 && N <= input_dim))
+                      requires(output_dim == 1 && N <= input_dim))
 
   template <DiffMode Mode = DiffMode::Reverse>
-  [[nodiscard]] constexpr auto jacobian(const CEvalArg auto &...args) const noexcept
+  [[nodiscard]] constexpr auto
+  jacobian(const CEvalArg auto &...args) const noexcept
     requires(input_dim > 0)
   {
     if constexpr (Mode == DiffMode::Symbolic) {
@@ -249,9 +255,12 @@ public:
 
   // The leading output axis only appears with more than one output, here and in
   // derivative_tensor below.
-  template <DiffMode Mode = DiffMode::Reverse>
-  [[nodiscard]] constexpr auto hessian(const CEvalArg auto &...args) const noexcept
-    requires(Mode == DiffMode::Reverse && DualLike<value_type> && input_dim > 0)
+  // No DiffMode: there is only the reverse path.  A symbolic second derivative
+  // would be derivative_tensor<2> with extra steps, and it is the colouring
+  // that makes this worth having over that.
+  [[nodiscard]] constexpr auto
+  hessian(const CEvalArg auto &...args) const noexcept
+    requires(DualLike<value_type> && input_dim > 0)
   {
     const auto vals = point<dual_scalar_t<value_type>>(args...);
     if constexpr (output_dim == 1) {
@@ -318,7 +327,8 @@ struct std::formatter<ddx::impl::Equation<Ts...>, char> {
     return ctx.begin() + static_cast<std::ptrdiff_t>(spec_.size());
   }
 
-  auto format(const ddx::impl::Equation<Ts...> &eq, std::format_context &ctx) const {
+  auto format(const ddx::impl::Equation<Ts...> &eq,
+              std::format_context &ctx) const {
     using Eq = ddx::impl::Equation<Ts...>;
     const std::string one = std::format("{{:{}}}", spec_);
     auto out = ctx.out();
@@ -334,7 +344,8 @@ struct std::formatter<ddx::impl::Equation<Ts...>, char> {
         if constexpr (J > 0) {
           out = std::format_to(out, ", ");
         }
-        out = std::vformat_to(out, one, std::make_format_args(std::get<J>(row)));
+        out =
+            std::vformat_to(out, one, std::make_format_args(std::get<J>(row)));
       });
       out = std::format_to(out, "\n");
     });
@@ -344,5 +355,3 @@ struct std::formatter<ddx::impl::Equation<Ts...>, char> {
 private:
   std::string_view spec_{};
 };
-
-

@@ -22,7 +22,5 @@ target_compile_definitions(ddx_jit PUBLIC
 # Deliberately no -fno-rtti, even against an LLVM built without it.  The flag is
 # only needed by code that derives from an LLVM polymorphic class or applies
 # typeid/dynamic_cast to one; isa<>/cast<> use LLVM's own RTTI, not the
-# language's, and nothing here inherits from LLVM.  It would also break the
-# build outright: this target sees nwgraph through rt/graph.hpp, and
-# edge_list.hpp uses typeid in stream_stats.
+# language's, and nothing here inherits from LLVM.
 ddx_target_flags(ddx_jit)

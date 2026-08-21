@@ -25,7 +25,7 @@ namespace {
 // numbers them in the order they were first seen.
 template <ddx::impl::CExpression E, std::size_t N>
 void expect_agrees_with_ddx(const E &e, std::array<double, N> pt) {
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto root = ddx::rt::to_graph(b, e);
   const auto g = ddx::rt::gradient(b, root.id(b));
   const auto values = ddx::rt::evaluate_all(b, std::span<const double>{pt});
@@ -93,9 +93,9 @@ TEST(RtGradient, SharedAndNested) {
 // are checked against central differences on the interpreter instead.
 TEST(RtGradient, SelectingOpsAgainstFiniteDifferences) {
   using ddx::rt::Builder;
-  using ddx::rt::Expr;
+  using ddx::rt::RTExpression;
   const auto check = [](auto build, std::array<double, 2> pt) {
-    Builder b;
+    Builder<> b;
     const auto vx = var(b, "x");
     const auto vy = var(b, "y");
     const auto f = build(vx, vy);
@@ -112,15 +112,19 @@ TEST(RtGradient, SelectingOpsAgainstFiniteDifferences) {
       EXPECT_NEAR(values[g.partial[i]], fd, 1e-5 * std::max(1.0, std::abs(fd)));
     }
   };
-  check([](Expr a, Expr b2) { return max(a, b2); }, {1.3, 2.1});
-  check([](Expr a, Expr b2) { return min(a, b2); }, {1.3, 2.1});
-  check([](Expr a, Expr b2) { return abs(a * b2); }, {1.3, 2.1});
-  check([](Expr a, Expr b2) { return abs(a * b2); }, {-1.3, 2.1});
+  check([](RTExpression<> a, RTExpression<> b2) { return max(a, b2); },
+        {1.3, 2.1});
+  check([](RTExpression<> a, RTExpression<> b2) { return min(a, b2); },
+        {1.3, 2.1});
+  check([](RTExpression<> a, RTExpression<> b2) { return abs(a * b2); },
+        {1.3, 2.1});
+  check([](RTExpression<> a, RTExpression<> b2) { return abs(a * b2); },
+        {-1.3, 2.1});
 }
 
 TEST(RtGradient, DerivFromValueReusesThePrimalNode) {
   // exp's derivative is the primal, so the sweep must not build a second exp.
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto vx = var(b, "x");
   const auto f = exp(vx);
   const auto g = ddx::rt::gradient(b, f.id(b));
@@ -128,7 +132,7 @@ TEST(RtGradient, DerivFromValueReusesThePrimalNode) {
 }
 
 TEST(RtGradient, UnusedSymbolHasZeroPartial) {
-  ddx::rt::Builder b;
+  ddx::rt::Builder<> b;
   const auto vx = var(b, "x");
   const auto vy = var(b, "y");
   const auto f = vx * vx;

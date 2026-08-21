@@ -47,13 +47,13 @@ DDX_UNARY_MATH_TABLE(DDX_RT_MAP_MATH)
 
 // Sum and Multiply are n-ary in the type but binary in the graph, so a wide
 // node folds left into a chain.
-template <impl::CExpression E>
-[[nodiscard]] constexpr Expr to_graph(Builder &b, const E &e) {
+template <impl::Numeric T, impl::CExpression E>
+[[nodiscard]] constexpr RTExpression<T> to_graph(Builder<T> &b, const E &e) {
   using U = std::remove_cvref_t<E>;
   if constexpr (impl::CVariable<U>) {
     return var(b, U::label.view());
   } else if constexpr (impl::CLit<U>) {
-    return lit(b, static_cast<double>(U::value));
+    return lit(b, static_cast<T>(U::value));
   } else if constexpr (impl::CConstant<U>) {
     return lit(b,
                static_cast<double>(e.template eval_seeded<impl::mp::mp_list<>>(
@@ -65,10 +65,10 @@ template <impl::CExpression E>
           if constexpr (sizeof...(kids) == 1) {
             return make(code, to_graph(b, kids)...);
           } else {
-            Expr acc{};
+            RTExpression<T> acc{};
             bool first = true;
             const auto step = [&](const auto &kid) {
-              const Expr k = to_graph(b, kid);
+              const RTExpression k = to_graph(b, kid);
               acc = first ? k : make(code, acc, k);
               first = false;
             };

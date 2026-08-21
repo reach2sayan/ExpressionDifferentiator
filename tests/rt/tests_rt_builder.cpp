@@ -14,10 +14,10 @@
 
 namespace {
 using ddx::rt::Builder;
-using ddx::rt::Expr;
+using ddx::rt::RTExpression;
 
 TEST(RtBuilder, IdenticalSubtreesInternToOneNode) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto f = exp(x) * sin(y);
@@ -29,7 +29,7 @@ TEST(RtBuilder, IdenticalSubtreesInternToOneNode) {
 }
 
 TEST(RtBuilder, CommutativeOperandsCanonicalise) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   EXPECT_EQ((x * y).id(b), (y * x).id(b));
@@ -38,20 +38,20 @@ TEST(RtBuilder, CommutativeOperandsCanonicalise) {
 }
 
 TEST(RtBuilder, IdentityRewrites) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
 
-  EXPECT_EQ((x + Expr{0}).id(b), x.id(b));
-  EXPECT_EQ((x * Expr{1}).id(b), x.id(b));
-  EXPECT_EQ((x / Expr{1}).id(b), x.id(b));
+  EXPECT_EQ((x + RTExpression<>{0}).id(b), x.id(b));
+  EXPECT_EQ((x * RTExpression<>{1}).id(b), x.id(b));
+  EXPECT_EQ((x / RTExpression<>{1}).id(b), x.id(b));
   EXPECT_EQ((-(-x)).id(b), x.id(b));
-  EXPECT_EQ(pow(x, Expr{1}).id(b), x.id(b));
+  EXPECT_EQ(pow(x, RTExpression<>{1}).id(b), x.id(b));
 
-  EXPECT_TRUE(b.is_constant((x * Expr{0}).id(b), 0.0));
-  EXPECT_TRUE(b.is_constant((Expr{0} / x).id(b), 0.0));
+  EXPECT_TRUE(b.is_constant((x * RTExpression<>{0}).id(b), 0.0));
+  EXPECT_TRUE(b.is_constant((RTExpression<>{0} / x).id(b), 0.0));
   EXPECT_TRUE(b.is_constant((x / x).id(b), 1.0));
-  EXPECT_TRUE(b.is_constant(pow(x, Expr{0}).id(b), 1.0));
+  EXPECT_TRUE(b.is_constant(pow(x, RTExpression<>{0}).id(b), 1.0));
 
   // (n/d)*d -> n, the DAG form of the compile-time rule: on interned nodes the
   // denominator match is an id compare.
@@ -60,20 +60,21 @@ TEST(RtBuilder, IdentityRewrites) {
 }
 
 TEST(RtBuilder, LiteralsFoldBeforeReachingTheGraph) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const std::size_t before = b.size();
-  const auto c = Expr{2} * Expr{3} + Expr{1};
+  const auto c = RTExpression<>{2} * RTExpression<>{3} + RTExpression<>{1};
   EXPECT_TRUE(c.pending());
   EXPECT_DOUBLE_EQ(c.literal(), 7.0);
   EXPECT_EQ(b.size(), before);
 
-  EXPECT_TRUE(b.is_constant((Expr{2} * Expr{3}).id(b), 6.0));
+  EXPECT_TRUE(
+      b.is_constant((RTExpression<>{2} * RTExpression<>{3}).id(b), 6.0));
   (void)x;
 }
 
 TEST(RtBuilder, ConstantOperandsFold) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   EXPECT_TRUE(b.is_constant((lit(b, 2.0) * lit(b, 3.0)).id(b), 6.0));
   EXPECT_TRUE(b.is_constant(sqrt(lit(b, 9.0)).id(b), 3.0));
@@ -81,7 +82,7 @@ TEST(RtBuilder, ConstantOperandsFold) {
 }
 
 TEST(RtBuilder, SymbolsInternByName) {
-  Builder b;
+  Builder<> b;
   EXPECT_EQ(var(b, "x").id(b), var(b, "x").id(b));
   EXPECT_NE(var(b, "x").id(b), var(b, "y").id(b));
   ASSERT_EQ(b.symbols().size(), 2u);
@@ -89,7 +90,7 @@ TEST(RtBuilder, SymbolsInternByName) {
 }
 
 TEST(RtInterpreter, EvaluatesSharedNodesOnce) {
-  Builder b;
+  Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
   const auto f = (x * y) + sin(x * y);

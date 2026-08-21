@@ -353,7 +353,9 @@ ServiceFabricBackup/
 *.rptproj.bak
 
 # SQL Server files
-*.mdf
+*.md
+# ...but contrib/ is prose that has to travel with the patches it explains.
+!contrib/**/*.mdf
 *.ldf
 *.ndf
 
@@ -494,6 +496,7 @@ build/
 .idea
 /cmake-build-debug/
 /cmake-build-release/
+/.deps/
 /cmake-build-rt/
 /cmake-build-jit/
 /build-win
