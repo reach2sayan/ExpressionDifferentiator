@@ -350,8 +350,8 @@ TEST(ConceptTest, AnOpSatisfied) {
 TEST(SymbolTest, SingleVariable) {
   using E = Variable<double, ddx::impl::FixedString{"x"}>;
   using Syms = extract_symbols_from_expr_t<E>;
-  static_assert(ddx::impl::mpl::mp_size(Syms{}) == 1);
-  static_assert(std::is_same_v<ddx::impl::mpl::mp_at_c<Syms, 0>,
+  static_assert(ddx::impl::mp::mp_size<Syms>::value == 1);
+  static_assert(std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 0>,
                                ddx::impl::symbol_type<ddx::impl::FixedString{"x"}>>);
 }
 
@@ -359,11 +359,11 @@ TEST(SymbolTest, TwoVariables) {
   using E = decltype(std::declval<Variable<double, ddx::impl::FixedString{"x"}>>() *
                      std::declval<Variable<double, ddx::impl::FixedString{"y"}>>());
   using Syms = extract_symbols_from_expr_t<E>;
-  static_assert(ddx::impl::mpl::mp_size(Syms{}) == 2);
+  static_assert(ddx::impl::mp::mp_size<Syms>::value == 2);
   // Symbols are sorted lexicographically: "x" < "y"
-  static_assert(std::is_same_v<ddx::impl::mpl::mp_at_c<Syms, 0>,
+  static_assert(std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 0>,
                                ddx::impl::symbol_type<ddx::impl::FixedString{"x"}>>);
-  static_assert(std::is_same_v<ddx::impl::mpl::mp_at_c<Syms, 1>,
+  static_assert(std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 1>,
                                ddx::impl::symbol_type<ddx::impl::FixedString{"y"}>>);
 }
 
@@ -371,7 +371,7 @@ TEST(SymbolTest, DuplicateSymbolsDeduplicated) {
   using E = decltype(std::declval<Variable<double, ddx::impl::FixedString{"x"}>>() *
                      std::declval<Variable<double, ddx::impl::FixedString{"x"}>>());
   using Syms = extract_symbols_from_expr_t<E>;
-  static_assert(ddx::impl::mpl::mp_size(Syms{}) == 1);
+  static_assert(ddx::impl::mp::mp_size<Syms>::value == 1);
 }
 
 TEST(SymbolTest, ThreeVariables) {
@@ -380,7 +380,7 @@ TEST(SymbolTest, ThreeVariables) {
   auto z = var<"z">;
   auto expr = x + y + z;
   using Syms = extract_symbols_from_expr_t<decltype(expr)>;
-  static_assert(ddx::impl::mpl::mp_size(Syms{}) == 3);
+  static_assert(ddx::impl::mp::mp_size<Syms>::value == 3);
 }
 
 // ===========================================================================

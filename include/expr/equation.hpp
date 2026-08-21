@@ -5,7 +5,7 @@
 #include "expr/format.hpp"
 #include "expr/simplify.hpp"
 #include "util/config.hpp"
-#include "util/mpl.hpp"
+#include "expr/symbol.hpp"
 #include "util/scope_guard.hpp"
 #include <algorithm>
 #include <array>
@@ -15,8 +15,6 @@
 #include <utility>
 
 namespace ddx::impl {
-
-namespace mp = ddx::impl::mpl;
 
 namespace detail {
 // Evaluate a tuple of expressions at one point, in canonical symbol order.
@@ -64,7 +62,7 @@ public:
                                  extract_symbols_from_expr_t<TRest>...>>;
 
   static constexpr std::size_t output_dim = 1 + sizeof...(TRest);
-  static constexpr std::size_t input_dim = mp::mp_size(symbols{});
+  static constexpr std::size_t input_dim = mp::mp_size<symbols>::value;
   static constexpr std::size_t number_of_derivatives = input_dim;
 
 private:

@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#include "util/mpl.hpp" // mp_size
+#include "expr/symbol.hpp" // mp_size
 
 namespace ddx::impl {
 
@@ -25,7 +25,7 @@ template <CExpression Expr> class SeededExprEnergy {
 
 public:
   using symbols = detail::expr_symbols_t<std::remove_cvref_t<Expr>>;
-  static constexpr std::size_t arity = mp::mp_size(symbols{});
+  static constexpr std::size_t arity = mp::mp_size<symbols>::value;
 
   static constexpr bool kSeededExprEnergy = true;
 

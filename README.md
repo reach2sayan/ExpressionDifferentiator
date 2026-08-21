@@ -42,7 +42,7 @@ auto g  = Equation{f}.gradient(1.0, 2.0);   // {∂f/∂x, ∂f/∂y}
 
 - A C++23 compiler with a C++23 standard library: **GCC 14+**, or **Clang 17+**
   over libstdc++ 14+ / libc++ 17+. MSVC (VS 2022, `/std:c++latest`) is supported.
-- **CMake 3.20+** if you build through CMake.
+- **CMake 3.21+** if you build through CMake.
 
 C++23 is a hard requirement — the library uses `constexpr std::bitset` inside
 `consteval` functions and the multidimensional subscript `t[i, j, k]`.
@@ -59,6 +59,23 @@ With CMake, link the interface target — it puts `include/` on your include pat
 add_subdirectory(ddx)
 target_link_libraries(my_app PRIVATE ddx::ddx)   # or: ddx
 ```
+
+Or against an installed copy, which is what a built `ddx::jit` wants — a shared
+library is worth installing where a header is only worth including:
+
+```sh
+cmake --install build/release_with_jit --prefix /opt/ddx
+```
+
+```cmake
+find_package(ddx CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE ddx::jit)   # or ddx::rt, or ddx::ddx
+```
+
+The package exports whichever of the three targets the build produced, and
+`ddx-config.cmake` finds Boost and LLVM again where they are needed. An installed
+`ddx::jit` was compiled against one LLVM major version and says so: configuring
+against a different one fails there rather than at link time.
 
 Then include the public header:
 
@@ -225,9 +242,11 @@ in.** For `f(w, x, y, z)` the positional form expects `w` first — and for
 
 The positional and range forms check the count at compile time, so a missing or
 extra value is a compile error. The named form binds by name and is immune to
-ordering entirely — prefer them when the symbol set is large. A
-non-sized range that runs short throws `std::out_of_range` (a compile error
-during constant evaluation).
+ordering entirely — prefer them when the symbol set is large. A non-sized range
+brings its length with it rather than in its type, so a short one is the single
+wrong point that cannot be caught at compile time: it comes back as
+`ddx::errc::short_point` instead (and is a compile error during constant
+evaluation).
 
 ### A compile-time map
 
@@ -648,9 +667,16 @@ Whatever you freeze with is exactly what the kernel computes.
 
 const auto graph = GraphBuilder{b}.value(f).gradient().build();
 
-ddx::jit::Compiler compiler;
-const auto kernel = compiler.compile(graph);
+auto compiler = ddx::jit::Compiler::create();
+const auto kernel = compiler->compile(graph);
 ```
+
+Both steps answer with `std::expected` rather than throwing: bringing up the JIT
+fails on a host with no native target, and a compile fails for whatever LLVM says.
+`Compiler::create()` gives a `result<Compiler>` and `compile` a `result<Kernel>`,
+where `result<T>` is `std::expected<T, ddx::jit::error>` and `error::detail`
+carries LLVM's own text. Neither failure leaves a caller stuck — the runtime graph
+interprets the same graph.
 
 `GraphBuilder` names the outputs one step at a time — `value` is the function and
 what `gradient` differentiates, `output` adds a column of anything else — and `build`
@@ -687,7 +713,7 @@ A kernel's IR prints like anything else in the library — `ddx::jit::Ir` has a
 [`format.hpp`](include/expr/format.hpp):
 
 ```cpp
-std::cout << ddx::jit::Ir{compiler, graph};   // or std::format("{}", ...)
+std::cout << ddx::jit::Ir{*compiler, graph};   // or std::format("{}", ...)
 ```
 
 ### Crossing over from a compile-time expression
@@ -834,8 +860,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Or through the presets, which need CMake 3.21+ (the library itself still only needs
-3.20):
+Or through the presets:
 
 | Preset | Build type | Runtime graph | JIT |
 |---|---|---|---|
@@ -846,6 +871,8 @@ Or through the presets, which need CMake 3.21+ (the library itself still only ne
 | `release_with_rt` | Release | yes, interpreted | — |
 | `debug_with_jit` | Debug | yes | kernels at `-O1` |
 | `release_with_jit` | Release | yes | kernels at `-O3` |
+| `debug_with_jit_static` | Debug | yes | kernels at `-O1`, `ddx::jit` a static archive |
+| `debug_no_exceptions` | Debug | yes | kernels at `-O1`, whole tree `-fno-exceptions` |
 
 The `_with_rt` pair is the runtime graph on the interpreter. It needs only the
 header-only Boost the build fetches, so it configures where the JIT presets do
@@ -906,6 +933,9 @@ from `ddx::ddx`, which remains header-only and standard-library-only.
 | `DDX_DEDUCING_THIS` | `auto` | `auto` / `on` / `off` — accessor spelling (P0847) |
 | `DDX_BUILD_RT` | `OFF` | the runtime expression graph — fetches header-only Boost.Graph and Boost.DynamicBitset |
 | `DDX_BUILD_JIT` | `OFF` | the LLVM JIT backend — implies `DDX_BUILD_RT` |
+| `DDX_JIT_STATIC` | `OFF` | build `ddx::jit` as a static archive rather than a shared library |
+| `DDX_NO_EXCEPTIONS` | `OFF` | build our own targets `-fno-exceptions` |
+| `DDX_INSTALL` | on if top-level | generate the install and `find_package` rules |
 
 `-ffast-math` is not used and is not recommended: it changes derivative values.
 
@@ -966,11 +996,13 @@ Common compile-time messages and what they mean:
 | `Map: key not present (see keys())` | the map has no such key — `keys()` lists the ones it has |
 | `map: duplicate key` / `Map: duplicate key` | two entries name the same key |
 
-At run time the library throws only where a wrong point would otherwise pass
-silently, and always `std::out_of_range`: an input range that supplies fewer
-values than the expression has symbols.
-Nothing on the evaluation path is `noexcept` for that reason — silently
-differentiating at the wrong point is worse than an exception.
+At run time the library throws nothing at all. The cases a wrong point would
+otherwise pass silently through — an input range shorter than the expression has
+symbols, an index that names no symbol — come back as `std::expected` carrying a
+`ddx::errc`, and `ddx::message(code)` turns one into text. Silently
+differentiating at the wrong point is the thing being avoided; an error a caller
+must look at is how, and it costs no allocation and no unwinding, which is what
+lets the whole tree build `-fno-exceptions`.
 
 ---
 

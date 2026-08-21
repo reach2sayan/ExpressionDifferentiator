@@ -3,12 +3,10 @@
 // CFixedString appears only as a constrained-auto NTTP placeholder, which
 // include-cleaner does not count as a reference -- hence the pragma.
 #include "util/fixed_string.hpp" // IWYU pragma: keep
-#include "util/mpl.hpp"
+#include "expr/symbol.hpp"
 #include <type_traits>
 
 namespace ddx::impl {
-
-namespace mp = ddx::impl::mpl;
 
 template <typename T> inline constexpr bool is_variable_v = false;
 template <Numeric T, CFixedString auto C, bool F>
@@ -157,10 +155,13 @@ make_all_constant_except(const Expression<Op, C...> &expr) noexcept
       expr.expressions());
 }
 
-// Canonical symbol order: alphabetical by name.
-inline constexpr auto symbol_less = []<CSymbol A, CSymbol B>() consteval {
-  return A::name < B::name;
-};
+// Canonical symbol order: alphabetical by name.  A metafunction rather than a
+// comparison object because that is what mp_sort takes.
+template <CSymbol A, CSymbol B>
+struct symbol_less : std::bool_constant<(A::name < B::name)> {};
+
+// mp_sort is stable, which is what keeps a tie -- two symbols of the same name,
+// which mp_unique below then collapses -- from reordering the rest.
 template <CSymbolList List> using sort_tuple_t = mp::mp_sort<List, symbol_less>;
 
 template <CSymbolList List>
@@ -195,7 +196,7 @@ template <CExpression Expr>
 using expr_symbols_t = extract_symbols_from_expr_t<std::remove_cvref_t<Expr>>;
 
 template <CExpression Expr>
-inline constexpr std::size_t expr_arity_v = mp::mp_size(expr_symbols_t<Expr>{});
+inline constexpr std::size_t expr_arity_v = mp::mp_size<expr_symbols_t<Expr>>::value;
 
 } // namespace detail
 

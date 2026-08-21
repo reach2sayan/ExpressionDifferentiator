@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 
 # Newest GCC on PATH, unless the caller chose a compiler.  Must precede project().
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR
@@ -10,6 +10,8 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR
 endif ()
 
 project(ddx VERSION 1.1.0 LANGUAGES CXX)
+
+include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -92,11 +94,14 @@ else ()
 endif ()
 
 # --- the library ------------------------------------------------------------
-# Header-only and dependency-free.  CMAKE_CURRENT_SOURCE_DIR, so this works
-# standalone and via add_subdirectory().
+# Header-only, and header-only in what it depends on: Boost.Mp11 below is the
+# whole of it.  CMAKE_CURRENT_SOURCE_DIR, so this works standalone and via
+# add_subdirectory().
 add_library(ddx INTERFACE)
 add_library(ddx::ddx ALIAS ddx)
-target_include_directories(ddx INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(ddx INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 # Each header directory lists its own files onto the target, for IDE visibility;
 # nothing is compiled from there.
@@ -157,23 +162,35 @@ function(ddx_target_flags target)
 endfunction()
 
 # --- optional runtime graph -------------------------------------------------
-# Everything above is header-only and dependency-free, and stays that way.  The
-# runtime graph is what an expression built at run time lives in, and it is
-# opt-in because it pulls third-party code.
+# Everything above is headers, and stays that way.  The runtime graph is what an
+# expression built at run time lives in, and it is opt-in because it pulls code
+# that is compiled and platform-dependent rather than one more header.
 option(DDX_BUILD_RT "Build the runtime expression graph (Boost.Graph)" OFF)
 option(DDX_BUILD_JIT "Build the LLVM JIT backend (implies DDX_BUILD_RT)" OFF)
 if (DDX_BUILD_JIT AND NOT DDX_BUILD_RT)
     set(DDX_BUILD_RT ON)
 endif ()
 
+# ddx::jit is the project's only compiled library, and shared is what it wants
+# to be: LLVM is the bulk of it, and a static ddx::jit puts that bulk into every
+# consumer that links it.  Static remains available for a consumer that would
+# rather have one artefact than two.
+option(DDX_JIT_STATIC "Build ddx::jit as a static archive rather than a shared library" OFF)
+
+# Before include(FetchContent), which defines this itself and would make the
+# guard below a no-op.
+if (NOT DEFINED CACHE{FETCHCONTENT_BASE_DIR})
+    set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.deps" CACHE PATH
+            "Shared download cache for fetched dependencies")
+endif ()
+include(FetchContent)
+
+# Pinned, not floating: "latest" that moves under you is not reproducible.
+# Bump the one line.  Mp11 is fetched at the same release, so the core and the
+# runtime graph never see two versions of the same headers.
+set(DDX_BOOST_VERSION "1.92.0" CACHE STRING "Boost release to fetch")
+
 if (DDX_BUILD_RT)
-    # Before include(FetchContent), which defines this itself and would make the
-    # guard below a no-op.
-    if (NOT DEFINED CACHE{FETCHCONTENT_BASE_DIR})
-        set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.deps" CACHE PATH
-                "Shared download cache for fetched dependencies")
-    endif ()
-    include(FetchContent)
 
     # Boost.Graph for the frozen graph's CSR and the Hessian colouring, and
     # Boost.DynamicBitset for the coupling rows.  Header-only, so the compiled
@@ -184,10 +201,6 @@ if (DDX_BUILD_RT)
     # BOOST_INCLUDE_LIBRARIES names the two used and the modular build resolves
     # their dependencies -- this is not a fetch of all of Boost.
     #
-    # Pinned, not floating: "latest" that moves under you is not reproducible.
-    # Bump the one line.
-    set(DDX_BOOST_VERSION "1.92.0" CACHE STRING "Boost release to fetch")
-
     # The -cmake archive is the whole Boost source (~700 MB extracted);
     # BOOST_INCLUDE_LIBRARIES limits what is *configured*, not what is
     # downloaded.  The shared cache above means one copy per checkout rather
@@ -205,7 +218,15 @@ if (DDX_BUILD_RT)
 
     add_library(ddx_rt INTERFACE)
     add_library(ddx::rt ALIAS ddx_rt)
-    target_link_libraries(ddx_rt INTERFACE ddx Boost::graph Boost::dynamic_bitset)
+    # EXPORT_NAME so an installed ddx spells its targets the way an in-tree one
+    # does: ddx::rt, not ddx::ddx_rt.  Same for ddx::jit below.
+    set_target_properties(ddx_rt PROPERTIES EXPORT_NAME rt)
+    # Boost is fetched for the build and found again at install time -- the
+    # fetched targets belong to no export set of ours, so the installed
+    # interface names them for ddx-config.cmake to resolve instead.
+    target_link_libraries(ddx_rt INTERFACE ddx
+            $<BUILD_INTERFACE:Boost::graph>
+            $<BUILD_INTERFACE:Boost::dynamic_bitset>)
     add_subdirectory(include/rt)
 
     # Boost leaves boost::throw_exception undefined under -fno-exceptions and
@@ -214,11 +235,42 @@ if (DDX_BUILD_RT)
     # only in this configuration.
     if (DDX_NO_EXCEPTIONS)
         add_library(ddx_rt_no_exceptions STATIC src/rt/boost_no_exceptions.cpp)
-        target_link_libraries(ddx_rt_no_exceptions PRIVATE Boost::throw_exception)
+        # ddx_jit links this through ddx_rt and may itself be a shared library,
+        # which cannot absorb a non-PIC archive.
+        set_target_properties(ddx_rt_no_exceptions PROPERTIES
+                POSITION_INDEPENDENT_CODE ON
+                EXPORT_NAME rt_no_exceptions)
+        # BUILD_INTERFACE for the same reason as ddx_rt above: PRIVATE on a static
+        # library still lands in the exported interface as $<LINK_ONLY:>, and the
+        # fetched Boost target is not ours to export.  Nothing is lost -- the
+        # header is needed to compile this object, not to link against it.
+        target_link_libraries(ddx_rt_no_exceptions PRIVATE $<BUILD_INTERFACE:Boost::throw_exception>)
         ddx_target_flags(ddx_rt_no_exceptions)
         target_link_libraries(ddx_rt INTERFACE ddx_rt_no_exceptions)
     endif ()
 endif ()
+
+# --- Boost.Mp11 -------------------------------------------------------------
+# The type-list vocabulary the symbol lists are built out of, and the one
+# third-party thing ddx::ddx itself needs.  Header-only, so this is a fetch and
+# not a link.
+#
+# After the runtime graph rather than before it: Boost.Graph depends on Mp11, so
+# the superproject fetched above has already defined Boost::mp11, and defining a
+# target twice is an error rather than a merge.  The guard is on the target and
+# not on DDX_BUILD_RT so that it holds however Mp11 arrived -- a parent project
+# that brought its own Boost included.
+if (NOT TARGET Boost::mp11)
+    FetchContent_Declare(mp11
+            URL https://github.com/boostorg/mp11/archive/refs/tags/boost-${DDX_BOOST_VERSION}.tar.gz
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            SYSTEM
+    )
+    FetchContent_MakeAvailable(mp11)
+endif ()
+# BUILD_INTERFACE for the same reason as Boost::graph on ddx_rt: the fetched
+# target is not ours to export, so ddx-config.cmake finds Mp11 again instead.
+target_link_libraries(ddx INTERFACE $<BUILD_INTERFACE:Boost::mp11>)
 
 if (DDX_BUILD_JIT)
     # The JIT's defaults follow how the project itself was built.  Contraction
@@ -260,6 +312,67 @@ if (DDX_BUILD_JIT)
     add_subdirectory(src/jit)
 endif ()
 
+# A shared ddx::jit has to be findable at run time.  CMake's build RPATH covers
+# the ELF build tree already; $ORIGIN is what survives the tree being moved, and
+# Windows has no RPATH at all, so there the DLL is copied next to the .exe.
+function(ddx_jit_runtime target)
+    if (NOT DDX_BUILD_JIT OR DDX_JIT_STATIC)
+        return ()
+    endif ()
+    set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "$ORIGIN")
+    if (WIN32)
+        add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${target}> $<TARGET_FILE_DIR:${target}>
+                COMMAND_EXPAND_LISTS)
+    endif ()
+endfunction()
+
+# --- install ----------------------------------------------------------------
+# Consuming ddx by add_subdirectory() stays the documented route; this is what
+# makes a built ddx::jit installable, which a shared library has to be to be
+# worth building.
+option(DDX_INSTALL "Generate install rules" ${PROJECT_IS_TOP_LEVEL})
+if (DDX_INSTALL)
+    include(CMakePackageConfigHelpers)
+
+    set(DDX_EXPORT_TARGETS ddx)
+    if (DDX_BUILD_RT)
+        list(APPEND DDX_EXPORT_TARGETS ddx_rt)
+        if (DDX_NO_EXCEPTIONS)
+            list(APPEND DDX_EXPORT_TARGETS ddx_rt_no_exceptions)
+        endif ()
+    endif ()
+    if (DDX_BUILD_JIT)
+        list(APPEND DDX_EXPORT_TARGETS ddx_jit)
+    endif ()
+
+    install(TARGETS ${DDX_EXPORT_TARGETS}
+            EXPORT ddxTargets
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+            FILES_MATCHING PATTERN "*.hpp")
+    install(EXPORT ddxTargets
+            NAMESPACE ddx::
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ddx)
+
+    configure_package_config_file(
+            cmake/ddx-config.cmake.in
+            "${CMAKE_CURRENT_BINARY_DIR}/ddx-config.cmake"
+            INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ddx)
+    # SameMajorVersion: ddx::jit carries an SOVERSION of the major alone.
+    write_basic_package_version_file(
+            "${CMAKE_CURRENT_BINARY_DIR}/ddx-config-version.cmake"
+            COMPATIBILITY SameMajorVersion
+            ARCH_INDEPENDENT)
+    install(FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/ddx-config.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/ddx-config-version.cmake"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ddx)
+endif ()
+
 # Everything below builds the executables, and only when this is the top-level
 # project.  A consumer that add_subdirectory()s us gets the library and nothing else.
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -276,6 +389,7 @@ FetchContent_Declare(
         SYSTEM
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
@@ -307,6 +421,7 @@ if (DDX_BUILD_RT)
         target_link_libraries(tests_rt PRIVATE gtest_main ddx_rt)
     endif ()
     ddx_target_flags(tests_rt)
+    ddx_jit_runtime(tests_rt)
     gtest_discover_tests(tests_rt)
 endif ()
 
@@ -315,6 +430,7 @@ if (DDX_BUILD_JIT)
     add_executable(tests_jit ${DDX_JIT_TEST_SOURCES})
     target_link_libraries(tests_jit PRIVATE gtest_main ddx_jit)
     ddx_target_flags(tests_jit)
+    ddx_jit_runtime(tests_jit)
     gtest_discover_tests(tests_jit)
 endif ()
 
@@ -337,6 +453,7 @@ if (DDX_BUILD_BENCHMARKS)
         add_executable(benchmarks_jit benchmarks/jit/benchmark_jit.cpp)
         target_link_libraries(benchmarks_jit PRIVATE benchmark::benchmark ddx_jit)
         ddx_target_flags(benchmarks_jit)
+        ddx_jit_runtime(benchmarks_jit)
     endif ()
 
     add_custom_target(benchmark_json

@@ -23,7 +23,7 @@ template <Numeric Scalar, CSymbolList SymList> struct ValueMap {
   using value_type = Scalar;
 
   static constexpr bool kValueMap = true;
-  static constexpr std::size_t arity = mp::mp_size(SymList{});
+  static constexpr std::size_t arity = mp::mp_size<SymList>::value;
 
   std::array<Scalar, arity> slots{};
 
@@ -83,7 +83,7 @@ template <FixedString... Syms, Numeric... Vs>
 [[nodiscard]] constexpr auto values(NamedValue<Syms, Vs>... nv) noexcept {
   using SymList = unique_tuple_t<mp::mp_list<symbol_type<Syms>...>>;
   constexpr std::size_t N = sizeof...(Syms);
-  static_assert(mp::mp_size(SymList{}) == N, "values: duplicate symbol");
+  static_assert(mp::mp_size<SymList>::value == N, "values: duplicate symbol");
 
   using Scalar = std::common_type_t<Vs...>;
   constexpr auto pos =
@@ -104,7 +104,7 @@ template <CExpression Expr, CValueMap Map> struct Bound {
   using symbols = detail::expr_symbols_t<expr_type>;
   using value_type = typename expr_type::value_type;
 
-  static constexpr std::size_t arity = mp::mp_size(symbols{});
+  static constexpr std::size_t arity = mp::mp_size<symbols>::value;
 
   static constexpr auto kPerm =
       detail::symbol_permutation<symbols, typename map_type::symbols, arity>();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "expr/expressions.hpp" // ddx::impl::Numeric
+#include "jit/export.hpp"
 #include "util/error.hpp"
 #include "util/pinned.hpp"
 
@@ -120,22 +121,24 @@ public:
   // build a target machine -- so it happens in a factory rather than a
   // constructor.  A caller that cannot get one is not stuck: the runtime graph
   // interprets instead.
-  [[nodiscard]] static result<Compiler> create();
+  [[nodiscard]] static DDX_JIT_API result<Compiler> create();
 
-  ~Compiler();
-  Compiler(Compiler &&) noexcept;
-  Compiler &operator=(Compiler &&) noexcept;
+  DDX_JIT_API ~Compiler();
+  DDX_JIT_API Compiler(Compiler &&) noexcept;
+  DDX_JIT_API Compiler &operator=(Compiler &&) noexcept;
 
-  [[nodiscard]] result<Kernel> compile(const rt::Graph<double> &g,
-                                       const Options &opt = {});
+  [[nodiscard]] DDX_JIT_API result<Kernel> compile(const rt::Graph<double> &g,
+                                                   const Options &opt = {});
 
 private:
   struct Impl;
-  explicit Compiler(std::shared_ptr<Impl> impl) noexcept;
+  DDX_JIT_API explicit Compiler(std::shared_ptr<Impl> impl) noexcept;
 
+  // Private, but Ir::str() calls it from a consumer's translation unit, so it
+  // crosses the boundary like the public ones and is exported like them.
   friend class Ir;
-  [[nodiscard]] result<std::string> render_ir(const rt::Graph<double> &g,
-                                              const Options &opt) const;
+  [[nodiscard]] DDX_JIT_API result<std::string>
+  render_ir(const rt::Graph<double> &g, const Options &opt) const;
 
   std::shared_ptr<Impl> impl_;
 };

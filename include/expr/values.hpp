@@ -3,7 +3,7 @@
 #include "expr/expressions.hpp"
 #include "expr/operations.hpp"
 #include "expr/simplify.hpp"
-#include "util/mpl.hpp"
+#include "expr/symbol.hpp"
 #include <utility>
 
 namespace ddx::impl {
@@ -20,7 +20,7 @@ concept CompatibleValueTypes =
 
 template <CFixedString auto S, CSymbolList SymList>
 consteval std::size_t find_index_of_symbol() noexcept {
-  return ddx::impl::mpl::mp_find<S>(SymList{});
+  return ddx::impl::mp::mp_find<SymList, symbol_type<S>>::value;
 }
 
 // Promote a bare scalar into value_type as a zero-derivative constant;

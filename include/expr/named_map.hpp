@@ -28,18 +28,22 @@ template <CNamedValue... Entries> struct Map;
 
 namespace detail {
 
-// Keys of different lengths are different types and FixedString's cross-length
-// operator== answers false, so "x" and "xy" never collide.
+// The comparison is on the character views, not on the FixedStrings: gcc 14
+// miscounts a fold over == between class-type NTTPs, and answers 2 for
+// key_count<"n", "n", "x">().  A length difference is a content difference, so
+// views agree with FixedString's own operator== and "x" and "xy" still never
+// collide.
 template <FixedString Key, FixedString... Keys>
 consteval std::size_t key_count() noexcept {
-  return (std::size_t{0} + ... + static_cast<std::size_t>(Keys == Key));
+  return (std::size_t{0} + ... +
+          static_cast<std::size_t>(Keys.view() == Key.view()));
 }
 
 // Position of Key in Keys..., or sizeof...(Keys) when it is absent.
 template <FixedString Key, FixedString... Keys>
 consteval std::size_t key_index() noexcept {
   constexpr std::size_t n = sizeof...(Keys);
-  const std::array<bool, n> hit{(Keys == Key)...};
+  const std::array<bool, n> hit{(Keys.view() == Key.view())...};
   return static_cast<std::size_t>(std::ranges::find(hit, true) - hit.begin());
 }
 
@@ -48,6 +52,10 @@ consteval std::size_t key_index() noexcept {
 template <FixedString... Keys> consteval bool keys_unique() noexcept {
   return (... && (key_count<Keys, Keys...>() == 1));
 }
+
+static_assert(keys_unique<"n", "x">() && keys_unique<"x", "xy">() &&
+                  !keys_unique<"a", "b", "a">(),
+              "keys_unique: miscounting -- see the comparison note above");
 
 template <FixedString Key, CNamedValue E>
 [[nodiscard]] constexpr auto entry_unless(const E &e) {

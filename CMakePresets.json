@@ -104,6 +104,18 @@
       ]
     },
     {
+      "name": "debug_with_jit_static",
+      "displayName": "Debug + JIT, static archive",
+      "description": "ddx::jit as a static archive instead of the default shared library. LLVM ends up inside every consumer, which is the arrangement this preset exists to keep building now that it is not what the plain JIT presets give.",
+      "inherits": [
+        "with-jit",
+        "debug"
+      ],
+      "cacheVariables": {
+        "DDX_JIT_STATIC": "ON"
+      }
+    },
+    {
       "name": "debug_no_exceptions",
       "displayName": "Debug + JIT, no exceptions",
       "description": "The whole tree built -fno-exceptions. Nothing in ddx throws, so this is what keeps that true: the headers, the runtime graph and the LLVM backend all have to compile and pass here.",
@@ -142,6 +154,10 @@
     {
       "name": "release_with_jit",
       "configurePreset": "release_with_jit"
+    },
+    {
+      "name": "debug_with_jit_static",
+      "configurePreset": "debug_with_jit_static"
     },
     {
       "name": "debug_no_exceptions",
@@ -193,6 +209,11 @@
       "name": "release_with_jit",
       "inherits": "base",
       "configurePreset": "release_with_jit"
+    },
+    {
+      "name": "debug_with_jit_static",
+      "inherits": "base",
+      "configurePreset": "debug_with_jit_static"
     },
     {
       "name": "debug_no_exceptions",

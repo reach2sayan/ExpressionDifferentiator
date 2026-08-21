@@ -10,7 +10,7 @@
 #include "expr/traits.hpp"
 #include "md/tensor.hpp"
 #include "util/config.hpp"
-#include "util/mpl.hpp"
+#include "expr/symbol.hpp"
 #include "util/scope_guard.hpp"
 #include <algorithm>
 #include <array>
@@ -22,8 +22,6 @@
 #include <utility>
 
 namespace ddx::impl {
-
-namespace mp = ddx::impl::mpl;
 
 template <CExpression Expr>
 using node_cache_t = std::array<typename std::remove_cvref_t<Expr>::value_type,
@@ -94,7 +92,7 @@ DDX_ALWAYS_INLINE constexpr void color_sweeps(const Expr &expr, const Point &x,
   using T = typename E::value_type;
   using S = dual_scalar_t<T>;
   using Syms = detail::expr_symbols_t<E>;
-  constexpr std::size_t N = mpl::mp_size(Syms{});
+  constexpr std::size_t N = mp::mp_size<Syms>::value;
 
   // Only the seeded tangents move between colours.
   std::array<T, N> seeds{};
@@ -134,7 +132,7 @@ DDX_ALWAYS_INLINE constexpr void color_sweeps(const Expr &expr, const Point &x,
 template <CExpression Expr>
 [[nodiscard]] consteval auto symbol_order() noexcept {
   using SymList = detail::expr_symbols_t<std::remove_cvref_t<Expr>>;
-  constexpr std::size_t N = mp::mp_size(SymList{});
+  constexpr std::size_t N = mp::mp_size<SymList>::value;
   std::array<std::string_view, N> out{};
   static_for<N>(
       [&]<std::size_t I>() { out[I] = mp::mp_at_c<SymList, I>::name; });
@@ -150,11 +148,11 @@ template <CExpression Expr,
 [[nodiscard]] constexpr std::array<Scalar, detail::expr_arity_v<Expr>>
 make_values(NamedValue<Syms, Vs>... nv) noexcept {
   using SymList = detail::expr_symbols_t<std::remove_cvref_t<Expr>>;
-  constexpr std::size_t N = mp::mp_size(SymList{});
+  constexpr std::size_t N = mp::mp_size<SymList>::value;
   static_assert(sizeof...(Syms) == N,
                 "make_values: supply exactly one value per symbol");
   static_assert(
-      mp::mp_size(mp::mp_unique<mp::mp_list<symbol_type<Syms>...>>{}) ==
+      mp::mp_size<mp::mp_unique<mp::mp_list<symbol_type<Syms>...>>>::value ==
           sizeof...(Syms),
       "make_values: duplicate symbol");
   std::array<Scalar, N> out{};
@@ -402,12 +400,12 @@ namespace detail {
 // hessian.hpp decides when it applies.
 template <CExpression Expr>
 constexpr HessianStatic<
-    mpl::mp_size(detail::expr_symbols_t<std::remove_cvref_t<Expr>>{})>
+    mp::mp_size<detail::expr_symbols_t<std::remove_cvref_t<Expr>>>::value>
     hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
   using E = std::remove_cvref_t<Expr>;
   using T = typename E::value_type;
   using Syms = detail::expr_symbols_t<E>;
-  constexpr std::size_t N = mpl::mp_size(Syms{});
+  constexpr std::size_t N = mp::mp_size<Syms>::value;
 
   // Columns sharing no row are seeded in the same sweep.  A dense Hessian
   // colours in N, so the loop degenerates to one sweep per column, never worse.
@@ -458,7 +456,7 @@ std::array<double, NNZ + 1> hessian_values_sparse(const Expr &expr,
   using E = std::remove_cvref_t<Expr>;
   using T = typename E::value_type;
   using Syms = detail::expr_symbols_t<E>;
-  constexpr std::size_t N = mpl::mp_size(Syms{});
+  constexpr std::size_t N = mp::mp_size<Syms>::value;
 
   static constexpr auto kPattern = hessian_pattern<E>();
   static constexpr auto kColors = color_columns<N>(kPattern);
