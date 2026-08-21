@@ -494,6 +494,7 @@ build/
 .idea
 /cmake-build-debug/
 /cmake-build-release/
+/cmake-build-rt/
 /build-win
 /cmake-build-clang-debug/
 /cmake-build-clang-release/

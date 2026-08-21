@@ -109,6 +109,45 @@ if (DEFINED DDX_DEDUCING_THIS_VALUE)
     target_compile_definitions(ddx INTERFACE DDX_DEDUCING_THIS=${DDX_DEDUCING_THIS_VALUE})
 endif ()
 
+# --- optional runtime graph -------------------------------------------------
+# Everything above is header-only and dependency-free, and stays that way.  The
+# runtime graph is what an expression built at run time lives in, and it is
+# opt-in because it pulls third-party code.
+option(DDX_BUILD_RT "Build the runtime expression graph (NWGraph + TBB)" OFF)
+option(DDX_BUILD_JIT "Build the LLVM JIT backend (implies DDX_BUILD_RT)" OFF)
+if (DDX_BUILD_JIT AND NOT DDX_BUILD_RT)
+    set(DDX_BUILD_RT ON)
+endif ()
+
+if (DDX_BUILD_RT)
+    include(FetchContent)
+    find_package(TBB REQUIRED)
+
+    # SOURCE_SUBDIR names no directory on purpose: NWGraph is header-only, and
+    # configuring its own CMakeLists would fetch Catch2 and build its test suite.
+    #
+    # The patch is not optional.  NWGraph's SoA containers derive from
+    # std::tuple, and P2165R4 constrained std::apply to reject that; upstream
+    # never saw it because their CI is C++20, where std::apply was unconstrained.
+    # checkout-then-apply so re-configuring is idempotent.
+    FetchContent_Declare(nwgraph
+            GIT_REPOSITORY https://github.com/pnnl/NWGraph.git
+            GIT_TAG d129b869e1769a8a3658bf6fed817b60822da074
+            PATCH_COMMAND git checkout -- .
+            COMMAND git apply --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/cmake/nwgraph-cxx23.patch"
+            UPDATE_DISCONNECTED TRUE
+            SOURCE_SUBDIR ddx-uses-the-headers-only
+    )
+    FetchContent_MakeAvailable(nwgraph)
+
+    add_library(ddx_rt INTERFACE)
+    add_library(ddx::rt ALIAS ddx_rt)
+    target_link_libraries(ddx_rt INTERFACE ddx TBB::tbb)
+    # SYSTEM: fetched headers are not ours to warn about.
+    target_include_directories(ddx_rt SYSTEM INTERFACE "${nwgraph_SOURCE_DIR}/include")
+    add_subdirectory(include/rt)
+endif ()
+
 # Everything below builds the executables, and only when this is the top-level
 # project.  A consumer that add_subdirectory()s us gets the library and nothing else.
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -171,6 +210,16 @@ ddx_target_flags(tests)
 
 enable_testing()
 gtest_discover_tests(tests)
+
+# The runtime-graph tests live in their own target: they need NWGraph, which
+# the dependency-free suite above must not link.
+if (DDX_BUILD_RT)
+    file(GLOB DDX_RT_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/rt/*.cpp")
+    add_executable(tests_rt ${DDX_RT_TEST_SOURCES})
+    target_link_libraries(tests_rt PRIVATE gtest_main ddx_rt)
+    ddx_target_flags(tests_rt)
+    gtest_discover_tests(tests_rt)
+endif ()
 
 if (DDX_BUILD_BENCHMARKS)
     FetchContent_Declare(
