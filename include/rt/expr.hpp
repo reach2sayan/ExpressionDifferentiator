@@ -3,7 +3,9 @@
 #include "rt/apply.hpp"
 #include "rt/builder.hpp"
 #include "rt/opcode.hpp"
+#include "util/scope_guard.hpp"
 
+#include <stdexcept>
 #include <string_view>
 #include <utility> // std::move
 
@@ -127,6 +129,41 @@ template <impl::Numeric T>
 template <impl::Numeric T>
 [[nodiscard]] constexpr RTExpression<T> lit(Builder<T> &b, const T &v) {
   return RTExpression<T>{b, b.constant(v)};
+}
+
+// The arena var() registers into while an equation() callback runs.
+//
+// Thread-local, so two threads assembling models at once do not share one, and
+// held by the same guard the drivers seed derivatives with: nesting works and
+// an exception escaping a callback still puts the previous arena back, for the
+// same reason it does there.
+namespace detail {
+
+// Spell one type N times in a pack expansion.
+template <std::size_t, impl::Numeric T> using Repeat = RTExpression<T>;
+
+template <impl::Numeric T>
+inline thread_local Builder<T> *current_arena = nullptr;
+
+// Make `b` the arena for the rest of the enclosing scope.  The runtime
+// counterpart of scoped_seed: the arena is not a constant, so it comes in as an
+// argument.
+template <impl::Numeric T>
+[[nodiscard]] auto scoped_arena(Builder<T> &b) noexcept {
+  return impl::scoped_value<Builder<T> *>{current_arena<T>, &b};
+}
+
+} // namespace detail
+
+// Name a symbol.  This is the spelling a model uses; the two-argument form
+// above is the primitive, for code that manages an arena itself.
+template <impl::Numeric T = double>
+[[nodiscard]] RTExpression<T> var(std::string_view name) {
+  if (detail::current_arena<T> == nullptr) {
+    throw std::logic_error(
+        "var: no arena is current -- name symbols inside ddx::rt::equation()");
+  }
+  return var(*detail::current_arena<T>, name);
 }
 
 } // namespace ddx::rt

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "md/md.hpp"
 #include "rt/builder.hpp"
 #include "rt/opcode.hpp"
 
@@ -40,12 +41,22 @@ using CouplingRows = std::vector<SymbolSet>;
 using ConflictGraph =
     boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 
+// Compressed-by-colour storage is always colours-major and n wide -- the
+// scatter table, and every Hessian block harvested against it.  Saying the
+// shape once here is what keeps `c * n + i` from being written out at each of
+// the places that read or fill one.  Constness follows the range's.
+[[nodiscard]] constexpr auto by_color(auto &&flat, std::size_t colors,
+                                      std::size_t n) {
+  return impl::md::mdspan{std::ranges::data(flat),
+                          impl::md::dextents<std::size_t, 2>{colors, n}};
+}
+
 struct Coloring {
   std::vector<std::size_t> color; // per symbol
   std::size_t count = 0;
   std::vector<std::size_t> scatter; // count * n; column a (colour, row) owns
   [[nodiscard]] std::size_t target(std::size_t c, std::size_t row) const {
-    return scatter[c * color.size() + row];
+    return by_color(scatter, count, color.size())[c, row];
   }
 };
 
@@ -79,20 +90,17 @@ template <impl::Numeric T>
 
   // Only what the root reaches: another expression sharing the builder would
   // otherwise contribute couplings this one does not have.
-  std::vector<bool> live(b.size(), false);
-  live[root] = true;
-  for (NodeId v = static_cast<NodeId>(b.size()); v-- > 0;) {
-    if (!live[v]) {
-      continue;
-    }
-    const auto &node = b[v];
-    if (arity_of(node.op) >= 1) {
-      live[node.a] = true;
-    }
-    if (arity_of(node.op) == 2) {
-      live[node.b] = true;
-    }
-  }
+  const auto live =
+      detail::reachable(b.size(), std::span{&root, 1}, [&](NodeId v,
+                                                           auto &&mark) {
+        const auto &node = b[v];
+        if (arity_of(node.op) >= 1) {
+          mark(node.a);
+        }
+        if (arity_of(node.op) == 2) {
+          mark(node.b);
+        }
+      });
 
   std::vector<SymbolSet> support(b.size());
   for (NodeId v = 0; v < b.size(); ++v) {
@@ -174,7 +182,8 @@ template <impl::Numeric T>
   out.scatter.assign(out.count * n, no_column);
   for (std::size_t j = 0; j < n; ++j) {
     detail::for_each_set(
-        rows[j], [&](std::size_t i) { out.scatter[out.color[j] * n + i] = j; });
+        rows[j], [&, scatter = by_color(out.scatter, out.count, n)](
+                     std::size_t i) { scatter[out.color[j], i] = j; });
   }
   return out;
 }

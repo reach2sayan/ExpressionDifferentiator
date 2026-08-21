@@ -134,9 +134,7 @@ template <CExpression Expr>
   using SymList = detail::expr_symbols_t<std::remove_cvref_t<Expr>>;
   constexpr std::size_t N = mp::mp_size(SymList{});
   std::array<std::string_view, N> out{};
-  [&]<std::size_t... I>(std::index_sequence<I...>) {
-    ((out[I] = mp::mp_at_c<SymList, I>::name), ...);
-  }(std::make_index_sequence<N>{});
+  static_for<N>([&]<std::size_t I>() { out[I] = mp::mp_at_c<SymList, I>::name; });
   return out;
 }
 
@@ -252,10 +250,10 @@ constexpr nth_dual_t<S, Depth> make_mixed_seed(S value,
 // The cartesian product of Order copies of [0, N), in layout_right order.
 template <std::size_t N, std::size_t Order>
 [[nodiscard]] constexpr auto index_grid() noexcept {
-  return []<std::size_t... D>(std::index_sequence<D...>) {
+  return index_apply<Order>([]<std::size_t... D>() {
     return std::views::cartesian_product(
         ((void)D, std::views::iota(std::size_t{0}, N))...);
-  }(std::make_index_sequence<Order>{});
+  });
 }
 
 // One canonical representative per permutation class: C(N + Order - 1, Order)
@@ -330,17 +328,14 @@ derivative_tensor_impl(const Expr &expr,
   // passes are straight-line.  The generic loop below costs a runtime index
   // walk plus make_mixed_seed's recursive span walk for nothing.
   if constexpr (Order == 1) {
-    [&]<std::size_t... J>(std::index_sequence<J...>) {
-      const auto sweep = [&]<std::size_t Seeded>() {
-        std::array<U, N> seeds{};
-        for (std::size_t k = 0; k < N; ++k) {
-          seeds[k] = U{values[k], k == Seeded ? S{1} : S{}};
-        }
-        result[Seeded] =
-            expr.template eval_seeded<symbols>(seeds).template get<1>();
-      };
-      (sweep.template operator()<J>(), ...);
-    }(std::make_index_sequence<N>{});
+    static_for<N>([&]<std::size_t Seeded>() {
+      std::array<U, N> seeds{};
+      for (std::size_t k = 0; k < N; ++k) {
+        seeds[k] = U{values[k], k == Seeded ? S{1} : S{}};
+      }
+      result[Seeded] =
+          expr.template eval_seeded<symbols>(seeds).template get<1>();
+    });
     return result;
   }
 
@@ -412,15 +407,15 @@ hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
   static constexpr auto kColors = color_columns<N>(kPattern);
   // Value-initialised is load-bearing: the scatter writes only the pattern.
   HessianStatic<N> res{};
-  auto &res_gradient = std::get<1>(res);
-  auto &res_hessian = std::get<2>(res);
+  auto &res_gradient = res.gradient;
+  auto &res_hessian = res.hessian;
 
   color_sweeps<kColors>(expr, x, [&](std::size_t c, const T &root,
                                      const auto &grads) {
     static constexpr auto kScatter = scatter_targets<N>(kPattern, kColors);
     if (c == 0) {
       // Neither depends on the tangent seeding, so any one sweep yields both.
-      std::get<0>(res) = static_cast<double>(root.template get<0>());
+      res.value = static_cast<double>(root.template get<0>());
       std::ranges::transform(grads, res_gradient.begin(), [](const T &g) {
         return static_cast<double>(g.template get<0>());
       });
@@ -439,7 +434,7 @@ hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
   });
 
   // Independent sweeps, so mirrored entries can differ in the last ULP.
-  detail::symmetrize(res_hessian.data(), N);
+  detail::symmetrize(res_hessian, N);
   return res;
 }
 

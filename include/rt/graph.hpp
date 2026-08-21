@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rt/builder.hpp"
+#include "rt/coupling.hpp"
 #include "rt/derivative.hpp"
 #include "rt/opcode.hpp"
 
@@ -8,6 +9,8 @@
 #include <boost/range/iterator_range_core.hpp>
 
 #include <algorithm>
+#include <initializer_list>
+#include <iterator>
 #include <ranges>
 #include <span>
 #include <string>
@@ -30,6 +33,16 @@ public:
 
   using value_type = T;
 
+  // What the output columns are, in the order they are stored: values first,
+  // then Jacobian entries, then Hessian entries.  Codegen and the caller agree
+  // on the meaning of a column from this rather than from a positional
+  // convention only one of them knows.
+  struct Layout {
+    std::size_t values = 0;   // m
+    std::size_t jacobian = 0; // m * n, row-major by function
+    std::size_t hessian = 0;  // colours * n, compressed
+  };
+
   struct Property {
     OpCode op = OpCode::Const;
     T value{};
@@ -37,8 +50,15 @@ public:
   };
 
   [[nodiscard]] static Graph freeze(const Builder<T> &b,
-                                    std::span<const NodeId> outputs) {
+                                    std::span<const NodeId> outputs,
+                                    Layout layout = {},
+                                    Coloring coloring = {}) {
     Graph g;
+    g.layout_ =
+        layout.values == 0
+            ? Layout{.values = outputs.size(), .jacobian = 0, .hessian = 0}
+            : layout;
+    g.coloring_ = std::move(coloring);
     g.symbols_.assign(b.symbols().begin(), b.symbols().end());
     g.outputs_.assign(outputs.begin(), outputs.end());
     g.properties_.reserve(b.size());
@@ -74,6 +94,8 @@ public:
   }
   [[nodiscard]] const adjacency_type &children() const { return children_; }
   [[nodiscard]] std::span<const NodeId> outputs() const { return outputs_; }
+  [[nodiscard]] const Layout &layout() const { return layout_; }
+  [[nodiscard]] const Coloring &coloring() const { return coloring_; }
   [[nodiscard]] const std::vector<std::string> &symbols() const {
     return symbols_;
   }
@@ -97,6 +119,24 @@ public:
     return static_cast<std::size_t>(std::ranges::distance(live_nodes()));
   }
 
+  // The three column blocks of outputs(), in the order the layout names them.
+  // Codegen, the interpreter and the ABI size checks all need the same split;
+  // deriving it here is what keeps them from each carrying a running counter
+  // over one flat list and having to agree on where the boundaries fall.
+  struct Blocks {
+    std::span<const NodeId> values;
+    std::span<const NodeId> jacobian;
+    std::span<const NodeId> hessian;
+  };
+
+  [[nodiscard]] Blocks output_blocks() const {
+    const std::span<const NodeId> all{outputs_};
+    return {.values = all.first(layout_.values),
+            .jacobian = all.subspan(layout_.values, layout_.jacobian),
+            .hessian = all.subspan(layout_.values + layout_.jacobian,
+                                   layout_.hessian)};
+  }
+
   // Properties in id order, for a caller that wants to walk them itself.
   [[nodiscard]] std::span<const Property> properties() const {
     return properties_;
@@ -116,71 +156,108 @@ public:
   }
 
 private:
-  // Nothing but the outputs and what they reach needs to be emitted.  Ids are
-  // topological, so one descending pass settles reachability.
+  // Nothing but the outputs and what they reach needs to be emitted.
   void mark_live() {
-    live_.assign(properties_.size(), false);
-    std::ranges::for_each(outputs_, [this](NodeId o) { live_[o] = true; });
-    // Explicitly indexed, not a filtered view: the body marks entries this
-    // descent has not reached yet, and a lazy filter would be reading the
-    // state the loop is still changing.
-    for (NodeId v = static_cast<NodeId>(properties_.size()); v-- > 0;) {
-      if (!live_[v]) {
-        continue;
-      }
-      for (const auto &edge : operand_edges(v)) {
-        live_[static_cast<NodeId>(boost::target(edge, children_))] = true;
-      }
-    }
+    live_ = detail::reachable(
+        properties_.size(), outputs_, [this](NodeId v, auto &&mark) {
+          for (const auto &edge : operand_edges(v)) {
+            mark(static_cast<NodeId>(boost::target(edge, children_)));
+          }
+        });
   }
 
   std::vector<Property> properties_;
   adjacency_type children_;
   std::vector<NodeId> outputs_;
+  Layout layout_;
+  Coloring coloring_;
   std::vector<std::string> symbols_;
   std::vector<bool> live_;
 };
 
-// Assembling what a Graph is frozen with.  Freezing takes a list of output
-// nodes, and building that list by hand is the same four lines everywhere --
-// sweep, take the value, append the partials, freeze.  Each step here names one
-// of those, and `build` is the only thing that produces a Graph.
+// Assembling what a Graph is frozen with.  Each step names one block of output
+// columns, and `build` is the only thing that produces a Graph.
 //
-//   const auto graph = GraphBuilder{b}.value(f).gradient().build();
+//   GraphBuilder{b}.value(f).gradient().build()
+//   GraphBuilder{b}.values({f0, f1}).jacobian().build()
+//   GraphBuilder{b}.value(f).gradient().hessian().build()
 //
 // The class template argument is deduced from the builder.
 template <impl::Numeric T = double> class GraphBuilder {
 public:
   explicit constexpr GraphBuilder(Builder<T> &b) noexcept : builder_(&b) {}
 
-  // The function the kernel computes
+  // The function the kernel computes.
   constexpr GraphBuilder &value(const RTExpression<T> &root) {
-    root_ = root.id(*builder_);
-    outputs_.assign(1, root_);
+    return values({root});
+  }
+
+  // A system: m functions over the same symbols.
+  constexpr GraphBuilder &values(std::initializer_list<RTExpression<T>> roots) {
+    roots_ = roots |
+             std::views::transform([&](const auto &e) {
+               return e.id(*builder_);
+             }) |
+             std::ranges::to<std::vector<NodeId>>();
+    outputs_ = roots_;
+    layout_.values = roots_.size();
     return *this;
   }
 
-  // Every partial, in symbol order, one output each.  One reverse sweep.
-  constexpr GraphBuilder &gradient() {
-    const auto g = rt::gradient(*builder_, root_);
-    outputs_.insert(outputs_.end(), g.partial.begin(), g.partial.end());
+  // Reuse nodes a caller already has, rather than sweeping again: Equation
+  // builds its derivative in the constructor and freezes only when a batch call
+  // arrives.
+  constexpr GraphBuilder &values_from(std::span<const NodeId> roots) {
+    roots_.assign(roots.begin(), roots.end());
+    outputs_.assign(roots.begin(), roots.end());
+    layout_.values = roots_.size();
     return *this;
   }
 
-  // Anything else worth a column of its own.
+  constexpr GraphBuilder &jacobian_from(std::span<const NodeId> partials) {
+    outputs_.insert(outputs_.end(), partials.begin(), partials.end());
+    layout_.jacobian = partials.size();
+    return *this;
+  }
+
+  // Every partial, in symbol order.  One reverse sweep per function.
+  constexpr GraphBuilder &jacobian() {
+    const auto j = rt::jacobian(*builder_, roots_);
+    outputs_.insert(outputs_.end(), j.partial.begin(), j.partial.end());
+    layout_.jacobian = j.partial.size();
+    return *this;
+  }
+
+  // The scalar spelling of the same thing.
+  constexpr GraphBuilder &gradient() { return jacobian(); }
+
+  // Compressed by colour, not n x n: for a banded coupling that is a handful of
+  // columns rather than hundreds.
+  GraphBuilder &hessian() {
+    const auto h = rt::hessian(*builder_, roots_.front());
+    outputs_.insert(outputs_.end(), h.compressed.begin(), h.compressed.end());
+    layout_.hessian = h.compressed.size();
+    coloring_ = h.coloring;
+    return *this;
+  }
+
+  // Anything else worth a column of its own; counted as a value.
   constexpr GraphBuilder &output(const RTExpression<T> &e) {
     outputs_.push_back(e.id(*builder_));
+    ++layout_.values;
     return *this;
   }
 
   [[nodiscard]] Graph<T> build() const {
-    return Graph<T>::freeze(*builder_, outputs_);
+    return Graph<T>::freeze(*builder_, outputs_, layout_, coloring_);
   }
 
 private:
   Builder<T> *builder_;
-  NodeId root_ = no_node;
+  std::vector<NodeId> roots_;
   std::vector<NodeId> outputs_;
+  typename Graph<T>::Layout layout_;
+  Coloring coloring_;
 };
 
 template <impl::Numeric T> GraphBuilder(Builder<T> &) -> GraphBuilder<T>;

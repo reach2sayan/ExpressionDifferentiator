@@ -10,14 +10,6 @@ namespace ddx::impl {
 
 namespace mp = ddx::impl::mpl;
 
-template <std::size_t N, typename F>
-  requires detail::index_invocable_v<F, std::make_index_sequence<N>>
-constexpr void static_for(F &&f) noexcept {
-  [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-    (std::forward<F>(f).template operator()<Is>(), ...);
-  }(std::make_index_sequence<N>{});
-}
-
 template <typename T> inline constexpr bool is_variable_v = false;
 template <Numeric T, CFixedString auto C, bool F>
 inline constexpr bool is_variable_v<Variable<T, C, F>> = true;

@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <numeric>
+#include <type_traits>
 #include <vector>
 
 // ===========================================================================
@@ -56,7 +57,8 @@ void expect_matches_interpreter(auto build, std::size_t nvars,
   }
 
   std::vector<double> got(n, std::numeric_limits<double>::quiet_NaN());
-  kernel(xs, got.data(), nullptr, n);
+  double *const value_columns[]{got.data()};
+  kernel(xs, value_columns, {}, {}, n);
 
   for (std::size_t i = 0; i < n; ++i) {
     std::vector<double> point(nvars);
@@ -67,6 +69,17 @@ void expect_matches_interpreter(auto build, std::size_t nvars,
     ASSERT_NEAR(got[i], want, 1e-12 * std::max(1.0, std::abs(want)))
         << "at point " << i;
   }
+}
+
+// A Compiler is the LLJIT, and a Kernel is a pointer into code it owns: there
+// is one owner, but it has to be able to move -- Equation keeps one in a static
+// and hands compilers around.
+TEST(JitValue, CompilerIsMovableButNotCopyable) {
+  static_assert(!std::is_copy_constructible_v<ddx::jit::Compiler>);
+  static_assert(!std::is_copy_assignable_v<ddx::jit::Compiler>);
+  static_assert(std::is_move_constructible_v<ddx::jit::Compiler>);
+  static_assert(std::is_move_assignable_v<ddx::jit::Compiler>);
+  SUCCEED();
 }
 
 TEST(JitValue, Arithmetic) {
@@ -160,7 +173,8 @@ TEST(JitValue, AgreesWithDdxThroughTheBridge) {
   const std::array cy{2.0, 1.75, 0.5};
   const std::array<const double *, 2> xs{cx.data(), cy.data()};
   std::array<double, 3> got{};
-  kernel(xs, got.data(), nullptr, got.size());
+  double *const value_columns[]{got.data()};
+  kernel(xs, value_columns, {}, {}, got.size());
 
   for (std::size_t i = 0; i < got.size(); ++i) {
     EXPECT_NEAR(got[i], ddx::Equation{exp(x) * sin(y)}.evaluate(cx[i], cy[i]),
@@ -177,7 +191,8 @@ TEST(JitValue, EmptyBatchWritesNothing) {
   const double *none = nullptr;
   const std::array<const double *, 1> xs{none};
   double sentinel = 42.0;
-  kernel(xs, &sentinel, nullptr, 0);
+  double *const value_columns[]{&sentinel};
+  kernel(xs, value_columns, {}, {}, 0);
   EXPECT_DOUBLE_EQ(sentinel, 42.0);
 }
 
@@ -191,7 +206,8 @@ TEST(JitValue, ConstantFoldsToAStore) {
   const std::array cx{1.0, 2.0};
   const std::array<const double *, 1> xs{cx.data()};
   std::array<double, 2> got{};
-  kernel(xs, got.data(), nullptr, got.size());
+  double *const value_columns[]{got.data()};
+  kernel(xs, value_columns, {}, {}, got.size());
   EXPECT_DOUBLE_EQ(got[0], 7.0);
   EXPECT_DOUBLE_EQ(got[1], 7.0);
 }
@@ -210,8 +226,10 @@ TEST(JitValue, SeparateCompilesCoexist) {
   const std::array c{0.5};
   const std::array<const double *, 1> xs{c.data()};
   double a = 0, bb = 0;
-  k1(xs, &a, nullptr, 1);
-  k2(xs, &bb, nullptr, 1);
+  double *const first[]{&a};
+  double *const second[]{&bb};
+  k1(xs, first, {}, {}, 1);
+  k2(xs, second, {}, {}, 1);
   EXPECT_NEAR(a, std::sin(0.5), 1e-15);
   EXPECT_NEAR(bb, std::cos(0.5), 1e-15);
 }

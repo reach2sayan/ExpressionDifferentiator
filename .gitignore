@@ -353,9 +353,7 @@ ServiceFabricBackup/
 *.rptproj.bak
 
 # SQL Server files
-*.md
-# ...but contrib/ is prose that has to travel with the patches it explains.
-!contrib/**/*.mdf
+*.mdf
 *.ldf
 *.ndf
 

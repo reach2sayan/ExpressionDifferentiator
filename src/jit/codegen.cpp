@@ -6,6 +6,7 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Verifier.h>
 
+#include <algorithm>
 #include <array>
 #include <ranges>
 #include <span>
@@ -84,12 +85,10 @@ public:
   Emitter(llvm::Module &m, llvm::IRBuilder<> &b) : m_(m), b_(b) {}
 
   llvm::Value *unary(rt::OpCode op, llvm::Value *u) const {
-    return (op == rt::OpCode::Neg) ? b_.CreateFNeg(u)
-           : (intrinsic_for(op) != llvm::Intrinsic::not_intrinsic)
-               ? b_.CreateCall(llvm::Intrinsic::getOrInsertDeclaration(
-                                   &m_, intrinsic_for(op), {b_.getDoubleTy()}),
-                               {u})
-               : b_.CreateCall(libm_decl(m_, rt::label_of(op), 1), {u});
+    if (op == rt::OpCode::Neg) {
+      return b_.CreateFNeg(u);
+    }
+    return call(op, {u});
   }
 
   llvm::Value *binary(rt::OpCode op, llvm::Value *l, llvm::Value *r) const {
@@ -101,16 +100,25 @@ public:
     case rt::OpCode::Div:
       return b_.CreateFDiv(l, r);
     default:
-      break;
+      return call(op, {l, r});
     }
-    return intrinsic_for(op) != llvm::Intrinsic::not_intrinsic
-               ? b_.CreateCall(llvm::Intrinsic::getOrInsertDeclaration(
-                                   &m_, intrinsic_for(op), {b_.getDoubleTy()}),
-                               {l, r})
-               : b_.CreateCall(libm_decl(m_, rt::label_of(op), 2), {l, r});
   }
 
 private:
+  // Intrinsic where LLVM has one, libm call where it does not; the arity is the
+  // argument count, so the two callers need not repeat the choice.
+  llvm::Value *call(rt::OpCode op, llvm::ArrayRef<llvm::Value *> args) const {
+    const llvm::Intrinsic::ID id = intrinsic_for(op);
+    if (id != llvm::Intrinsic::not_intrinsic) {
+      return b_.CreateCall(llvm::Intrinsic::getOrInsertDeclaration(
+                               &m_, id, {b_.getDoubleTy()}),
+                           args);
+    }
+    return b_.CreateCall(
+        libm_decl(m_, rt::label_of(op), static_cast<unsigned>(args.size())),
+        args);
+  }
+
   llvm::Module &m_;
   llvm::IRBuilder<> &b_;
 };
@@ -121,18 +129,19 @@ llvm::Function *declare_kernel(llvm::Module &m, llvm::StringRef name) {
   llvm::LLVMContext &ctx = m.getContext();
   llvm::Type *const i64 = llvm::Type::getInt64Ty(ctx);
   llvm::PointerType *const ptr = llvm::PointerType::getUnqual(ctx);
+  // xs, f, g, h, n -- four column arrays and the batch length.
   auto *const fty = llvm::FunctionType::get(llvm::Type::getVoidTy(ctx),
-                                            {ptr, ptr, ptr, i64}, false);
+                                            {ptr, ptr, ptr, ptr, i64}, false);
   auto *const fn =
       llvm::Function::Create(fty, llvm::Function::ExternalLinkage, name, m);
 
-  static constexpr std::array names{"xs", "f", "g", "n"};
-  for (const auto [i, arg_name] : std::views::enumerate(names)) {
+  static constexpr std::array names{"xs", "f", "g", "h", "n"};
+  for (const auto [i, arg_name] : names | std::views::enumerate) {
     fn->getArg(static_cast<unsigned>(i))->setName(arg_name);
   }
   // The columns never alias the outputs; saying so is what lets the vectoriser
   // skip the runtime overlap check it would otherwise need.
-  for (const unsigned i : {0u, 1u, 2u}) {
+  for (const unsigned i : std::views::iota(0u, 4u)) {
     fn->addParamAttr(i, llvm::Attribute::NoAlias);
     fn->addParamAttr(i, llvm::Attribute::NoCapture);
   }
@@ -155,33 +164,31 @@ llvm::FastMathFlags flags_for(const Options &opt) {
 // the entry block is what makes them loop-invariant.
 struct Columns {
   std::vector<llvm::Value *> inputs;
-  std::vector<llvm::Value *> partial_outputs;
+  std::vector<llvm::Value *> values;   // f[k]
+  std::vector<llvm::Value *> jacobian; // g[k*n + j]
+  std::vector<llvm::Value *> hessian;  // h[c*n + i]
 };
 
 Columns hoist_columns(llvm::IRBuilder<> &b, llvm::Function &fn,
                       const rt::Graph<double> &g) {
   llvm::PointerType *const ptr = llvm::PointerType::getUnqual(fn.getContext());
-  llvm::Argument *const xs = fn.getArg(0);
-  llvm::Argument *const out_g = fn.getArg(2);
 
-  const auto load_slot = [&](llvm::Argument *base, std::size_t j,
-                             const char *stem) {
-    llvm::Value *const slot = b.CreateConstInBoundsGEP1_64(ptr, base, j);
-    return b.CreateLoad(ptr, slot, stem + std::to_string(j));
+  const auto load_columns = [&](unsigned arg, std::size_t count,
+                                const char *stem) {
+    return std::views::iota(0uz, count) |
+           std::views::transform([&](std::size_t j) {
+             llvm::Value *const slot =
+                 b.CreateConstInBoundsGEP1_64(ptr, fn.getArg(arg), j);
+             return b.CreateLoad(ptr, slot, stem + std::to_string(j));
+           }) |
+           std::ranges::to<std::vector<llvm::Value *>>();
   };
 
-  Columns cols;
-  cols.inputs.reserve(g.symbols().size());
-  for (std::size_t j = 0; j < g.symbols().size(); ++j) {
-    cols.inputs.push_back(load_slot(xs, j, "col"));
-  }
-  // outputs()[0] is the value and goes to `f`; the rest are partials.
-  const std::size_t partials = g.outputs().size() - 1;
-  cols.partial_outputs.reserve(partials);
-  for (std::size_t j = 0; j < partials; ++j) {
-    cols.partial_outputs.push_back(load_slot(out_g, j, "g"));
-  }
-  return cols;
+  const auto &layout = g.layout();
+  return {.inputs = load_columns(0, g.symbols().size(), "col"),
+          .values = load_columns(1, layout.values, "f"),
+          .jacobian = load_columns(2, layout.jacobian, "g"),
+          .hessian = load_columns(3, layout.hessian, "h")};
 }
 
 // One value per node, in id order.  Ids are topological, so a single pass needs
@@ -214,18 +221,21 @@ std::vector<llvm::Value *> emit_nodes(const Emitter &emit, llvm::IRBuilder<> &b,
   return value;
 }
 
-void emit_stores(llvm::IRBuilder<> &b, llvm::Function &fn,
-                 const rt::Graph<double> &g, const Columns &cols,
-                 std::span<llvm::Value *const> value, llvm::Value *index) {
+void emit_stores(llvm::IRBuilder<> &b, const rt::Graph<double> &g,
+                 const Columns &cols, std::span<llvm::Value *const> value,
+                 llvm::Value *index) {
   llvm::Type *const f64 = b.getDoubleTy();
-  const auto outputs = g.outputs();
-  const auto store = [&](llvm::Value *column, rt::NodeId node) {
-    b.CreateStore(value[node], b.CreateInBoundsGEP(f64, column, index));
+  const auto blocks = g.output_blocks();
+
+  const auto store_block = [&](const std::vector<llvm::Value *> &columns,
+                               std::span<const rt::NodeId> block) {
+    for (const auto [column, o] : std::views::zip(columns, block)) {
+      b.CreateStore(value[o], b.CreateInBoundsGEP(f64, column, index));
+    }
   };
-  store(fn.getArg(1), outputs[0]);
-  for (const auto [j, column] : std::views::enumerate(cols.partial_outputs)) {
-    store(column, outputs[static_cast<std::size_t>(j) + 1]);
-  }
+  store_block(cols.values, blocks.values);
+  store_block(cols.jacobian, blocks.jacobian);
+  store_block(cols.hessian, blocks.hessian);
 }
 
 } // namespace
@@ -237,7 +247,7 @@ std::unique_ptr<llvm::Module> emit_module(llvm::LLVMContext &ctx,
   auto m = std::make_unique<llvm::Module>("ddx.jit", ctx);
   llvm::Function *const fn = declare_kernel(*m, name);
   llvm::Type *const i64 = llvm::Type::getInt64Ty(ctx);
-  llvm::Argument *const count = fn->getArg(3);
+  llvm::Argument *const count = fn->getArg(4);
 
   auto *const entry = llvm::BasicBlock::Create(ctx, "entry", fn);
   auto *const loop = llvm::BasicBlock::Create(ctx, "loop", fn);
@@ -257,7 +267,7 @@ std::unique_ptr<llvm::Module> emit_module(llvm::LLVMContext &ctx,
 
   const Emitter emit(*m, b);
   const std::vector<llvm::Value *> value = emit_nodes(emit, b, g, cols, index);
-  emit_stores(b, *fn, g, cols, value, index);
+  emit_stores(b, g, cols, value, index);
 
   llvm::Value *const next =
       b.CreateAdd(index, llvm::ConstantInt::get(i64, 1), "i.next");

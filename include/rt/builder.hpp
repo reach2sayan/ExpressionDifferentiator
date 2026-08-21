@@ -3,9 +3,11 @@
 #include "rt/apply.hpp"
 #include "rt/opcode.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
@@ -15,6 +17,29 @@ namespace ddx::rt {
 
 using NodeId = std::uint32_t;
 inline constexpr NodeId no_node = ~NodeId{0};
+
+namespace detail {
+
+// What `roots` reach, over a node set whose ids are topological.  One
+// descending pass settles it, and the pass is the subtle part: the body marks
+// entries it has not visited yet, so this cannot be a filtered view -- a lazy
+// filter would be reading the state the loop is still writing.
+//
+// The operand access is the caller's, because the two callers hold different
+// things: a Builder has `a`/`b` on the node, a frozen Graph has a CSR row.
+[[nodiscard]] inline std::vector<bool>
+reachable(std::size_t n, std::span<const NodeId> roots, auto &&operands_of) {
+  std::vector<bool> live(n, false);
+  std::ranges::for_each(roots, [&](NodeId r) { live[r] = true; });
+  for (NodeId v = static_cast<NodeId>(n); v-- > 0;) {
+    if (live[v]) {
+      operands_of(v, [&](NodeId u) { live[u] = true; });
+    }
+  }
+  return live;
+}
+
+} // namespace detail
 
 template <impl::Numeric T> struct Node {
   OpCode op = OpCode::Const;

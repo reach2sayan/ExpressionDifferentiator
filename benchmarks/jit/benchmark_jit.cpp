@@ -42,7 +42,7 @@ ddx::jit::Kernel compile_gradient(ddx::jit::Compiler &c, const auto &expr,
   return c.compile(ddx::rt::GraphBuilder{b}.value(root).gradient().build());
 }
 
-template <typename E> void aot_gradient(benchmark::State &state, E expr) {
+template <ddx::impl::CExpression E> void aot_gradient(benchmark::State &state, E expr) {
   const auto n = static_cast<std::size_t>(state.range(0));
   Batch data(n);
   // Store the results rather than discarding them: the kernel has to write its
@@ -62,7 +62,7 @@ template <typename E> void aot_gradient(benchmark::State &state, E expr) {
   state.SetItemsProcessed(static_cast<std::int64_t>(n) * state.iterations());
 }
 
-template <typename E> void jit_gradient(benchmark::State &state, E expr) {
+template <ddx::impl::CExpression E> void jit_gradient(benchmark::State &state, E expr) {
   const auto n = static_cast<std::size_t>(state.range(0));
   Batch data(n);
   ddx::jit::Compiler compiler;
@@ -71,8 +71,9 @@ template <typename E> void jit_gradient(benchmark::State &state, E expr) {
 
   const std::array<const double *, 2> xs{data.x.data(), data.y.data()};
   std::array<double *, 2> gp{data.dx.data(), data.dy.data()};
+  double *const value_columns[]{data.f.data()};
   for (auto _ : state) {
-    kernel(xs, data.f.data(), gp.data(), n);
+    kernel(xs, value_columns, gp, {}, n);
     benchmark::ClobberMemory();
   }
   state.SetItemsProcessed(static_cast<std::int64_t>(n) * state.iterations());

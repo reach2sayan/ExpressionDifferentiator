@@ -193,7 +193,7 @@ TEST(Ownership, ResultOwnsItsBuffersAndTransfersThem) {
   auto moved = std::move(H);
   EXPECT_EQ(hess_ptr(moved), before) << "move must not copy the buffer";
   EXPECT_DOUBLE_EQ(hess_at(moved, 0, 1), 4.0);
-  EXPECT_EQ(std::get<2>(H).get(), nullptr) << "moved-from must have released";
+  EXPECT_EQ(H.hessian.get(), nullptr) << "moved-from must have released";
 
   // The extent travels with the buffers rather than being recoverable from
   // them -- a unique_ptr<double[]> does not know its own length.

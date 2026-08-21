@@ -5,5 +5,6 @@ target_sources(ddx INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/version.hpp
         ${CMAKE_CURRENT_LIST_DIR}/fixed_string.hpp
         ${CMAKE_CURRENT_LIST_DIR}/mpl.hpp
+        ${CMAKE_CURRENT_LIST_DIR}/pinned.hpp
         ${CMAKE_CURRENT_LIST_DIR}/scope_guard.hpp
 )

@@ -58,7 +58,34 @@ template <typename F, std::size_t... Is>
 inline constexpr bool index_invocable_v<F, std::index_sequence<Is...>> =
     (requires(F &&f) { static_cast<F &&>(f).template operator()<Is>(); } &&
      ...);
+
+template <typename F, typename Seq>
+inline constexpr bool pack_invocable_v = false;
+template <typename F, std::size_t... Is>
+inline constexpr bool pack_invocable_v<F, std::index_sequence<Is...>> =
+    requires(F &&f) { static_cast<F &&>(f).template operator()<Is...>(); };
 } // namespace detail
+
+// The two shapes every 0..N expansion in this library takes.  static_for hands
+// over one index at a time, for a fold of statements; index_apply hands over
+// the whole pack at once, for the far commoner case of building one expression
+// out of it.  Both exist so that `std::make_index_sequence<N>{}` is not spelled
+// at each of them.
+template <std::size_t N, typename F>
+  requires detail::index_invocable_v<F, std::make_index_sequence<N>>
+constexpr void static_for(F &&f) noexcept {
+  [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+    (static_cast<F &&>(f).template operator()<Is>(), ...);
+  }(std::make_index_sequence<N>{});
+}
+
+template <std::size_t N, typename F>
+  requires detail::pack_invocable_v<F, std::make_index_sequence<N>>
+[[nodiscard]] constexpr decltype(auto) index_apply(F &&f) {
+  return [&]<std::size_t... Is>(std::index_sequence<Is...>) -> decltype(auto) {
+    return static_cast<F &&>(f).template operator()<Is...>();
+  }(std::make_index_sequence<N>{});
+}
 
 template <typename O>
 concept COperation =
@@ -180,9 +207,8 @@ inline constexpr std::size_t node_count_v =
 template <std::size_t Base, CTupleLike Kids, std::size_t I>
 consteval std::size_t child_base_at() {
   std::size_t off = Base + 1;
-  [&]<std::size_t... K>(std::index_sequence<K...>) {
-    ((off += node_count_v<std::tuple_element_t<K, Kids>>), ...);
-  }(std::make_index_sequence<I>{});
+  static_for<I>(
+      [&]<std::size_t K>() { off += node_count_v<std::tuple_element_t<K, Kids>>; });
   return off;
 }
 
@@ -246,7 +272,7 @@ public:
   constexpr void backward(const auto &syms, value_type adj, auto &grads,
                           const auto &cache) const noexcept {
     using Kids = typename Derived::children_t;
-    [&]<std::size_t... I>(std::index_sequence<I...>) noexcept {
+    index_apply<std::tuple_size_v<Kids>>([&]<std::size_t... I>() noexcept {
       auto child_adj =
           Op::template adjoints<Base, child_base_at<Base, Kids, I>()...>(adj,
                                                                          cache);
@@ -254,7 +280,7 @@ public:
            .template backward<child_base_at<Base, Kids, I>()>(
                syms, std::move(child_adj[I]), grads, cache),
        ...);
-    }(std::make_index_sequence<std::tuple_size_v<Kids>>{});
+    });
   }
 };
 

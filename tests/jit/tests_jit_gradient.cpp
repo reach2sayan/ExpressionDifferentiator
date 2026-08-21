@@ -7,6 +7,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <ranges>
+#include <iterator>
 #include <vector>
 
 // ===========================================================================
@@ -59,7 +62,8 @@ void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
   for (std::size_t j = 0; j < nvars; ++j) {
     gp[j] = grad[j].data();
   }
-  kernel(xs, value.data(), gp.data(), n);
+  double *const value_columns[]{value.data()};
+  kernel(xs, value_columns, gp, {}, n);
 
   for (std::size_t i = 0; i < n; ++i) {
     std::vector<double> point(nvars);
@@ -107,7 +111,8 @@ TEST(JitGradient, MatchesDdxThroughTheBridge) {
   std::array<double, 3> dx{};
   std::array<double, 3> dy{};
   std::array<double *, 2> gp{dx.data(), dy.data()};
-  kernel(xs, value.data(), gp.data(), value.size());
+  double *const value_columns[]{value.data()};
+  kernel(xs, value_columns, gp, {}, value.size());
 
   for (std::size_t i = 0; i < value.size(); ++i) {
     const auto expected = ddx::Equation{f}.gradient(cx[i], cy[i]);
@@ -115,6 +120,66 @@ TEST(JitGradient, MatchesDdxThroughTheBridge) {
     EXPECT_NEAR(dx[i], expected[0], 1e-12);
     EXPECT_NEAR(dy[i], expected[1], 1e-12);
   }
+}
+
+} // namespace
+
+namespace {
+
+// The block the four-pointer signature exists for.  The Hessian arrives
+// compressed by colour, which is why the kernel reports its column count
+// rather than leaving the caller to work it out from n.
+TEST(JitHessian, ThirdBlockCarriesTheColouredHessian) {
+  Builder<> b;
+  const auto x = var(b, "x");
+  const auto y = var(b, "y");
+  const auto f = exp(x) * sin(y) + x * x * y;
+
+  const auto graph =
+      ddx::rt::GraphBuilder{b}.value(f).gradient().hessian().build();
+  const auto kernel = compiler().compile(graph);
+
+  ASSERT_EQ(kernel.values(), 1u);
+  ASSERT_EQ(kernel.jacobian_columns(), 2u);
+  ASSERT_EQ(kernel.hessian_columns(), graph.layout().hessian);
+  ASSERT_GT(kernel.hessian_columns(), 0u);
+
+  constexpr std::size_t n = 4;
+  std::array<double, n> cx{0.7, 0.8, 0.9, 1.0};
+  std::array<double, n> cy{1.1, 1.2, 1.3, 1.4};
+  const std::array<const double *, 2> xs{cx.data(), cy.data()};
+
+  std::array<double, n> value{};
+  std::vector<std::vector<double>> jac(2, std::vector<double>(n));
+  std::vector<std::vector<double>> hess(kernel.hessian_columns(),
+                                        std::vector<double>(n));
+  double *const values[]{value.data()};
+  const auto columns_of = [](auto &blocks) {
+    return blocks | std::views::transform([](auto &c) { return c.data(); }) |
+           std::ranges::to<std::vector<double *>>();
+  };
+  auto jp = columns_of(jac);
+  auto hp = columns_of(hess);
+
+  kernel(xs, values, jp, hp, n);
+
+  // Against the interpreter over the same graph, scattered the same way.
+  const auto &coloring = graph.coloring();
+  for (std::size_t point = 0; point < n; ++point) {
+    const std::array<double, 2> at{cx[point], cy[point]};
+    const auto reference = ddx::rt::evaluate_all(b, at);
+    const auto outputs = graph.outputs();
+
+    EXPECT_NEAR(value[point], reference[outputs[0]], 1e-12);
+    for (std::size_t j = 0; j < 2; ++j) {
+      EXPECT_NEAR(jac[j][point], reference[outputs[1 + j]], 1e-12);
+    }
+    for (std::size_t c = 0; c < kernel.hessian_columns(); ++c) {
+      EXPECT_NEAR(hess[c][point], reference[outputs[3 + c]], 1e-12)
+          << "compressed Hessian column " << c;
+    }
+  }
+  EXPECT_EQ(coloring.count * 2, kernel.hessian_columns());
 }
 
 } // namespace

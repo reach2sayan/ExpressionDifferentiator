@@ -152,4 +152,22 @@ inline RE bonded_chain(const std::vector<RE> &r) {
   return e;
 }
 
+// Regular-solution free energy of a binary mixture: an enthalpy of mixing that
+// favours demixing against an entropy that favours mixing.
+//
+//   f(x) = c x(1-x) + k( x ln x + (1-x) ln(1-x) )
+//
+// f is symmetric about x = 1/2, so f'(1/2) is exactly zero whatever c and k
+// are, and f''(x) = -2c + k/(x(1-x)) in closed form -- which makes it a sharp
+// check on a Hessian rather than a plausible one.
+//
+// With k > 0 (k = RT) the entropy term is convex and diverges at the ends, so
+// the curve is convex at the edges and, once c > 2k, concave in the middle:
+// x = 1/2 becomes a maximum flanked by two symmetric minima, which is a
+// miscibility gap.  With k < 0 that is inverted -- concave at the edges -- and
+// no interior double well exists for any c.
+inline RE regular_solution(const RE &x, double c, double k) {
+  return c * x * (RE{1} - x) + k * (x * log(x) + (RE{1} - x) * log(RE{1} - x));
+}
+
 } // namespace models

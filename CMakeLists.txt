@@ -267,12 +267,19 @@ ddx_target_flags(tests)
 enable_testing()
 gtest_discover_tests(tests)
 
-# The runtime-graph tests live in their own target: they need NWGraph, which
+# The runtime-graph tests live in their own target: they need Boost.Graph, which
 # the dependency-free suite above must not link.
 if (DDX_BUILD_RT)
     file(GLOB DDX_RT_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/rt/*.cpp")
     add_executable(tests_rt ${DDX_RT_TEST_SOURCES})
-    target_link_libraries(tests_rt PRIVATE gtest_main ddx_rt)
+    # Against the JIT where it is built, the interpreter where it is not: the
+    # batch tests are written once and have to give the same answers either way,
+    # which is only checked if they actually run both.
+    if (DDX_BUILD_JIT)
+        target_link_libraries(tests_rt PRIVATE gtest_main ddx_jit)
+    else ()
+        target_link_libraries(tests_rt PRIVATE gtest_main ddx_rt)
+    endif ()
     ddx_target_flags(tests_rt)
     gtest_discover_tests(tests_rt)
 endif ()

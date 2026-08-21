@@ -27,7 +27,7 @@
 using namespace ddx::impl;
 
 // <format> plus a stream, so this does not gate on libstdc++ shipping <print>.
-template <typename... Args>
+template <std::formattable<char>... Args>
 static void println(std::format_string<Args...> fmt, Args &&...args) {
   std::cout << std::format(fmt, std::forward<Args>(args)...) << '\n';
 }
@@ -180,19 +180,17 @@ int main() {
   // allocate, the symbolic one returns a packed md_tensor on the stack.
   println("\nHESSIAN            H(0,2)");
   row("lambda  hessian(f, xs)",
-      std::get<2>(ddx::impl::hessian(lambda, xs))[0 * xs.size() + 2],
+      ddx::impl::hessian(lambda, xs).hessian[0 * xs.size() + 2],
       bench_ns(
           [&] {
-            return std::get<2>(
-                ddx::impl::hessian(lambda, xs))[0 * xs.size() + 2];
+            return ddx::impl::hessian(lambda, xs).hessian[0 * xs.size() + 2];
           },
           1000));
   row("graph   hessian(expr, xs)",
-      std::get<2>(ddx::impl::hessian(graph, xs))[0 * xs.size() + 2],
+      ddx::impl::hessian(graph, xs).hessian[0 * xs.size() + 2],
       bench_ns(
           [&] {
-            return std::get<2>(
-                ddx::impl::hessian(graph, xs))[0 * xs.size() + 2];
+            return ddx::impl::hessian(graph, xs).hessian[0 * xs.size() + 2];
           },
           1000));
   {
@@ -266,14 +264,12 @@ int main() {
 
     const double t_lambda = bench_ns(
         [&] {
-          return std::get<2>(
-              ddx::impl::hessian(chain_lambda, qs))[0 * qs.size() + 7];
+          return ddx::impl::hessian(chain_lambda, qs).hessian[0 * qs.size() + 7];
         },
         400);
     const double t_graph = bench_ns(
         [&] {
-          return std::get<2>(
-              ddx::impl::hessian(chain_graph, qs))[0 * qs.size() + 7];
+          return ddx::impl::hessian(chain_graph, qs).hessian[0 * qs.size() + 7];
         },
         400);
 

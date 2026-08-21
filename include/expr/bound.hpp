@@ -70,10 +70,9 @@ consteval std::array<std::size_t, N> arg_of_canonical() noexcept {
 template <CSymbolList ExprSyms, CSymbolList MapSyms, std::size_t N>
 consteval std::array<std::size_t, N> symbol_permutation() noexcept {
   std::array<std::size_t, N> p{};
-  [&]<std::size_t... I>(std::index_sequence<I...>) {
-    ((p[I] = find_index_of_symbol<mp::mp_at_c<ExprSyms, I>::value, MapSyms>()),
-     ...);
-  }(std::make_index_sequence<N>{});
+  static_for<N>([&]<std::size_t I>() {
+    p[I] = find_index_of_symbol<mp::mp_at_c<ExprSyms, I>::value, MapSyms>();
+  });
   return p;
 }
 
@@ -90,10 +89,10 @@ template <FixedString... Syms, Numeric... Vs>
   constexpr auto pos =
       detail::arg_of_canonical<SymList, N, symbol_type<Syms>...>();
   const auto args = std::tuple<Vs...>{nv.value...};
-  return [&]<std::size_t... I>(std::index_sequence<I...>) {
+  return index_apply<N>([&]<std::size_t... I>() {
     return ValueMap<Scalar, SymList>{
         std::array<Scalar, N>{static_cast<Scalar>(std::get<pos[I]>(args))...}};
-  }(std::make_index_sequence<N>{});
+  });
 }
 
 // An expression paired with a point; the expression is empty.

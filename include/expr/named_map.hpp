@@ -14,6 +14,7 @@
 #include "util/config.hpp" // DDX_KEYED_ACCESSORS
 #include "util/fixed_string.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <string_view>
@@ -39,12 +40,7 @@ template <FixedString Key, FixedString... Keys>
 consteval std::size_t key_index() noexcept {
   constexpr std::size_t n = sizeof...(Keys);
   const std::array<bool, n> hit{(Keys == Key)...};
-  for (std::size_t i = 0; i < n; ++i) {
-    if (hit[i]) {
-      return i;
-    }
-  }
-  return n;
+  return static_cast<std::size_t>(std::ranges::find(hit, true) - hit.begin());
 }
 
 // The inner Keys... is expanded where it stands, so the outer fold walks the
@@ -65,9 +61,7 @@ template <FixedString Key, CNamedValue E>
 template <CNamedValue... Es>
 [[nodiscard]] constexpr Map<Es...>
 map_from_entries(const std::tuple<Es...> &es) {
-  return [&]<std::size_t... I>(std::index_sequence<I...>) {
-    return Map<Es...>{std::get<I>(es)...};
-  }(std::make_index_sequence<sizeof...(Es)>{});
+  return std::apply([](const Es &...e) { return Map<Es...>{e...}; }, es);
 }
 
 } // namespace detail
@@ -149,6 +143,11 @@ template <CNamedValue... Entries> struct Map : Entries... {
 
   // f(key, value) in entry order; the key is a symbol_type, so key.name is the
   // label and it can be fed straight back to operator[].
+  // Unconstrained on purpose.  The natural argument is a generic lambda with a
+  // deduced return type, and std::invocable has to deduce that return type --
+  // which instantiates the body.  Constraining the const overload would then
+  // hard-error on any `f` that writes through its second parameter, before
+  // overload resolution ever got to prefer the non-const one.
   template <typename F> constexpr void for_each(F &&f) const {
     (f(sym<Entries::symbol>, static_cast<const Entries &>(*this).value), ...);
   }

@@ -2316,14 +2316,43 @@ TEST(ScopedValue, RestoresWhenTheGuardedScopeThrows) {
   EXPECT_DOUBLE_EQ(slot, 0.0);
 }
 
-TEST(ScopedValue, SeedValueIsPartOfTheType) {
-  // The NTTP form: two seeds are two types, and the guard carries only the
-  // reference plus the saved scalar — nothing for the value.
-  static_assert(!std::is_same_v<decltype(scoped_seed<1.0>(std::declval<double &>())),
-                                decltype(scoped_seed<2.0>(std::declval<double &>()))>);
+TEST(ScopedValue, IsPinnedByItsBase) {
+  // A guard restores in its destructor, so exactly one of them may exist per
+  // slot: moving one would leave a second destructor writing back a value that
+  // has been carried off.  The four deletes are `private pinned`, not four
+  // lines here -- this is what they are for.
+  using Guard = decltype(scoped_seed<1.0>(std::declval<double &>()));
+  static_assert(!std::is_copy_constructible_v<Guard>);
+  static_assert(!std::is_move_constructible_v<Guard>);
+  static_assert(!std::is_copy_assignable_v<Guard>);
+  static_assert(!std::is_move_assignable_v<Guard>);
+  SUCCEED();
+}
+
+TEST(ScopedValue, CarriesNothingForTheNewValue) {
+  // The guard is the reference plus the saved scalar: the new value is moved
+  // into the slot by the constructor and never stored beside it.
   static_assert(sizeof(decltype(scoped_seed<1.0>(std::declval<double &>()))) ==
                 sizeof(double *) + sizeof(double));
   SUCCEED();
+}
+
+TEST(ScopedValue, HoldsARuntimeValueToo) {
+  // The same guard rt::equation() makes an arena current with -- a pointer
+  // slot and a value that is not a constant.
+  int a = 1;
+  int b = 2;
+  int *slot = &a;
+  {
+    const ddx::impl::scoped_value hold{slot, &b};
+    EXPECT_EQ(slot, &b);
+    {
+      const ddx::impl::scoped_value inner{slot, &a};
+      EXPECT_EQ(slot, &a); // nesting, the way equation() nests
+    }
+    EXPECT_EQ(slot, &b);
+  }
+  EXPECT_EQ(slot, &a);
 }
 
 TEST(ScopedValue, UsableDuringConstantEvaluation) {

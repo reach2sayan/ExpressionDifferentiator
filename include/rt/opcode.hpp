@@ -89,7 +89,7 @@ inline constexpr std::size_t op_count = [] {
   return 0;
 }
 
-template <typename T>
+template <impl::Numeric T>
 [[nodiscard]] constexpr bool is_commutative(OpCode op) noexcept {
   if (op == OpCode::Mul) {
     return impl::CCommutativeMultiply<T>;

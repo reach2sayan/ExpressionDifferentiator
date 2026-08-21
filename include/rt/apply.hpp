@@ -48,7 +48,7 @@ inline constexpr bool probes_Abs =
     impl::CArithmetic<T> || requires(const T &u) { abs(u); };
 template <impl::Numeric T> inline constexpr bool probes_Neg = true;
 
-template <typename Fn, impl::Numeric T, bool Ok, typename... Args>
+template <typename Fn, impl::Numeric T, bool Ok, impl::Numeric... Args>
 [[nodiscard]] constexpr T supported(const Args &...args) noexcept {
   if constexpr (Ok || is_field_op_v<Fn>) {
     return T{Fn{}(args...)};

@@ -52,9 +52,8 @@ std::string ir_for(auto build, std::size_t nvars, ddx::jit::Options opt = {}) {
     vars.push_back(var(b, names[i]));
   }
   const auto root = build(vars);
-  return std::format(
-      "{}", ddx::jit::Ir{compiler(), Graph<>::freeze(b, std::array{root.id(b)}),
-                         opt});
+  const auto graph = Graph<>::freeze(b, std::array{root.id(b)});
+  return std::format("{}", ddx::jit::Ir{compiler(), graph, opt});
 }
 
 constexpr bool host_has_libmvec =
@@ -124,7 +123,8 @@ TEST(JitVectorize, EveryVectorSymbolResolves) {
   const std::array col{0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
   const std::array<const double *, 1> xs{col.data()};
   std::array<double, 8> got{};
-  kernel(xs, got.data(), nullptr, got.size());
+  double *const value_columns[]{got.data()};
+  kernel(xs, value_columns, {}, {}, got.size());
   for (const double v : got) {
     EXPECT_TRUE(std::isfinite(v));
   }

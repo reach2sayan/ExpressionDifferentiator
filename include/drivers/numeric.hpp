@@ -115,9 +115,8 @@ HessianStatic<N> hessian_static(F &&f, const std::span<const double> x) {
   std::ranges::transform(x | std::views::take(N), dof.begin(),
                          [](const double v) { return dual2nd{v}; });
   HessianStatic<N> out{};
-  std::get<0>(out) =
-      hessian_into(static_cast<F &&>(f), dof.data(), all_indices(N),
-                          std::get<1>(out).data(), std::get<2>(out).data());
+  out.value = hessian_into(static_cast<F &&>(f), dof.data(), all_indices(N),
+                           out.gradient.data(), out.hessian.data());
   return out;
 }
 
@@ -132,7 +131,10 @@ HessianOwned hessian(F &&f, const std::span<const double> x,
   const double value = hessian_into(
       static_cast<F &&>(f), ws.seed(x),
       static_cast<decltype(active) &&>(active), grad.get(), hess.get());
-  return {value, std::move(grad), std::move(hess), m};
+  return {.value = value,
+          .gradient = std::move(grad),
+          .hessian = std::move(hess),
+          .arity = m};
 }
 
 // Convenience: differentiate every variable.

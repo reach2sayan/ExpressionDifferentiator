@@ -35,9 +35,8 @@ public:
   [[nodiscard]] constexpr auto operator()(const Dof *dof) const noexcept {
     using T = std::remove_cvref_t<Dof>;
     // Built by copy: zeroing first would double the writes per probe.
-    const auto s = [&]<std::size_t... I>(std::index_sequence<I...>) {
-      return std::array<T, arity>{dof[I]...};
-    }(std::make_index_sequence<arity>{});
+    const auto s = index_apply<arity>(
+        [&]<std::size_t... I>() { return std::array<T, arity>{dof[I]...}; });
     return expr_.template eval_seeded<symbols>(s);
   }
 };

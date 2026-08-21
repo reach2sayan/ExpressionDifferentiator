@@ -4,7 +4,6 @@
 #include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
-#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/TargetSelect.h>
@@ -13,6 +12,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace ddx::jit {
 namespace {
@@ -31,6 +31,17 @@ void init_native_target_once() {
 
 [[noreturn]] void fail(const llvm::Twine &what, llvm::Error e) {
   throw std::runtime_error((what + ": " + llvm::toString(std::move(e))).str());
+}
+
+// llvm::Expected or the error as an exception.  Every step of bringing up the
+// JIT returns one, and unwrapping each with its own if/else nests the whole
+// constructor five deep for no gain.
+template <typename T>
+[[nodiscard]] T must(llvm::Expected<T> e, const llvm::Twine &what) {
+  if (!e) {
+    fail(what, e.takeError());
+  }
+  return std::move(*e);
 }
 
 llvm::TargetLibraryInfoImpl target_library_info(const llvm::Triple &triple,
@@ -97,42 +108,27 @@ struct Compiler::Impl {
   Impl() {
     init_native_target_once();
 
-    if (auto jtmb = llvm::orc::JITTargetMachineBuilder::detectHost(); !jtmb) {
-      fail("detecting the host", jtmb.takeError());
-    } else {
-      // Parity with the project's -march=native.
-      jtmb->setCPU(llvm::sys::getHostCPUName().str());
-      for (const auto &[feature, enabled] : llvm::sys::getHostCPUFeatures()) {
-        jtmb->getFeatures().AddFeature(feature, enabled);
-      }
-
-      if (auto machine = jtmb->createTargetMachine(); !machine) {
-        fail("creating a target machine", machine.takeError());
-      } else {
-        tm = std::move(*machine);
-      }
-
-      if (auto built = llvm::orc::LLJITBuilder()
-                           .setJITTargetMachineBuilder(std::move(*jtmb))
-                           .create();
-          !built) {
-        fail("creating the JIT", built.takeError());
-      } else {
-        jit = std::move(*built);
-      }
+    auto jtmb = must(llvm::orc::JITTargetMachineBuilder::detectHost(),
+                     "detecting the host");
+    // Parity with the project's -march=native.
+    jtmb.setCPU(llvm::sys::getHostCPUName().str());
+    for (const auto &[feature, enabled] : llvm::sys::getHostCPUFeatures()) {
+      jtmb.getFeatures().AddFeature(feature, enabled);
     }
+
+    tm = must(jtmb.createTargetMachine(), "creating a target machine");
+    jit = must(llvm::orc::LLJITBuilder()
+                   .setJITTargetMachineBuilder(std::move(jtmb))
+                   .create(),
+               "creating the JIT");
 
     llvm::orc::JITDylib &jd = jit->getMainJITDylib();
     const char prefix = jit->getDataLayout().getGlobalPrefix();
 
-    if (auto process =
-            llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
-                prefix);
-        !process) {
-      fail("opening the process symbols", process.takeError());
-    } else {
-      jd.addGenerator(std::move(*process));
-    }
+    jd.addGenerator(
+        must(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+                 prefix),
+             "opening the process symbols"));
 
     // GetForCurrentProcess only sees what is already loaded, and libmvec is not
     // linked into a program that never called it; without this the vector
@@ -175,14 +171,11 @@ Kernel Compiler::compile(const rt::Graph<double> &g, const Options &opt) {
           llvm::orc::ThreadSafeModule(std::move(m), std::move(ctx)))) {
     fail("adding the module", std::move(e));
   }
-  auto sym = impl_->jit->lookup(name);
-  if (!sym) {
-    fail("looking up " + name, sym.takeError());
-  }
+  const auto sym = must(impl_->jit->lookup(name), "looking up " + name);
 
-  const std::size_t outputs = g.outputs().size();
-  return Kernel{sym->toPtr<Kernel::function_type>(), g.symbols().size(),
-                outputs};
+  const auto &layout = g.layout();
+  return Kernel{sym.toPtr<Kernel::function_type>(), g.symbols().size(),
+                layout.values, layout.jacobian, layout.hessian};
 }
 
 std::string Compiler::render_ir(const rt::Graph<double> &g,

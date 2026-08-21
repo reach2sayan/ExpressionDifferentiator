@@ -5,6 +5,8 @@
 #include "rt/expr.hpp"
 
 #include <algorithm>
+#include <cstddef>
+#include <functional>
 #include <ranges>
 #include <utility>
 #include <vector>
@@ -263,7 +265,8 @@ struct Hessian {
   [[nodiscard]] NodeId at(std::size_t i, std::size_t j) const {
     const std::size_t c = coloring.color[j];
     return coloring.target(c, i) == j
-               ? compressed[c * coloring.color.size() + i]
+               ? by_color(compressed, coloring.count,
+                          coloring.color.size())[c, i]
                : zero;
   }
   [[nodiscard]] std::size_t colors() const { return coloring.count; }
@@ -281,16 +284,21 @@ template <impl::Numeric T>
 
   const std::size_t n = h.partial.size();
   h.compressed.assign(h.coloring.count * n, h.zero);
-  for (std::size_t c = 0; c < h.coloring.count; ++c) {
-    RTExpression<T> seed{0};
-    for (std::size_t j = 0; j < n; ++j) {
-      if (h.coloring.color[j] == c) {
-        seed = seed + RTExpression<T>{b, h.partial[j]};
-      }
-    }
+  for (const std::size_t c : std::views::iota(0uz, h.coloring.count)) {
+    // Summing a colour's partials before the sweep is what makes one sweep do
+    // the work of |colour| of them; the folding order is the loop's order, so
+    // the node the builder interns is the same one either spelling produces.
+    const auto seed = std::ranges::fold_left(
+        std::views::iota(0uz, n) | std::views::filter([&](std::size_t j) {
+          return h.coloring.color[j] == c;
+        }) | std::views::transform([&](std::size_t j) {
+          return RTExpression<T>{b, h.partial[j]};
+        }),
+        RTExpression<T>{0}, std::plus<>{});
     const auto row = reverse_gradient(b, seed.id(b));
-    for (std::size_t i = 0; i < n; ++i) {
-      h.compressed[c * n + i] = row.partial[i];
+    const auto out = by_color(h.compressed, h.coloring.count, n);
+    for (const auto [i, p] : std::views::enumerate(row.partial)) {
+      out[c, static_cast<std::size_t>(i)] = p;
     }
   }
   return h;

@@ -9,8 +9,16 @@
       "binaryDir": "${sourceDir}/build/${presetName}"
     },
     {
+      "name": "with-rt",
+      "hidden": true,
+      "cacheVariables": {
+        "DDX_BUILD_RT": "ON"
+      }
+    },
+    {
       "name": "with-jit",
       "hidden": true,
+      "inherits": "with-rt",
       "cacheVariables": {
         "DDX_BUILD_JIT": "ON",
         "LLVM_DIR": "/usr/lib/llvm-20/lib/cmake/llvm"
@@ -44,6 +52,18 @@
       "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
     },
     {
+      "name": "debug_with_rt",
+      "displayName": "Debug + RT",
+      "description": "Runtime graph on the interpreter. Header-only Boost and no LLVM, so it configures anywhere the JIT presets do not.",
+      "inherits": [ "with-rt", "debug" ]
+    },
+    {
+      "name": "release_with_rt",
+      "displayName": "Release + RT",
+      "description": "Runtime graph on the interpreter, optimised. The reference the JIT is checked against, and the only path for a graph over a scalar the JIT cannot emit.",
+      "inherits": [ "with-rt", "release" ]
+    },
+    {
       "name": "debug_with_jit",
       "displayName": "Debug + JIT",
       "description": "Runtime graph and LLVM backend. Kernels compile at -O1, which still vectorises.",
@@ -60,6 +80,8 @@
     { "name": "debug", "configurePreset": "debug" },
     { "name": "release", "configurePreset": "release" },
     { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo" },
+    { "name": "debug_with_rt", "configurePreset": "debug_with_rt" },
+    { "name": "release_with_rt", "configurePreset": "release_with_rt" },
     { "name": "debug_with_jit", "configurePreset": "debug_with_jit" },
     { "name": "release_with_jit", "configurePreset": "release_with_jit" }
   ],
@@ -73,6 +95,8 @@
     { "name": "debug", "inherits": "base", "configurePreset": "debug" },
     { "name": "release", "inherits": "base", "configurePreset": "release" },
     { "name": "relwithdebinfo", "inherits": "base", "configurePreset": "relwithdebinfo" },
+    { "name": "debug_with_rt", "inherits": "base", "configurePreset": "debug_with_rt" },
+    { "name": "release_with_rt", "inherits": "base", "configurePreset": "release_with_rt" },
     { "name": "debug_with_jit", "inherits": "base", "configurePreset": "debug_with_jit" },
     { "name": "release_with_jit", "inherits": "base", "configurePreset": "release_with_jit" }
   ]

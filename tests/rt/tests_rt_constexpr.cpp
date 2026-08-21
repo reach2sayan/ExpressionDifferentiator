@@ -14,7 +14,7 @@
 // library.  Everything here is a static_assert; the TEST bodies exist only so
 // the file reports.
 //
-// The frozen graph is the boundary: nwgraph's containers are not constexpr, and
+// The frozen graph is the boundary: Boost.Graph's containers are not constexpr, and
 // neither is the JIT.
 // ===========================================================================
 

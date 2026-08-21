@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dual/dual.hpp"
+#include "md/md.hpp"
 
 #include <algorithm>
 #include <concepts>
@@ -36,35 +37,63 @@ namespace detail {
 
 // What a second-order sweep hands back: f(x), n gradient entries, and n*n
 // row-major Hessian entries -- (i, j) is hessian[i * n + j].
-using HessianOwned = std::tuple<double, std::unique_ptr<double[]>,
-                                std::unique_ptr<double[]>, std::size_t>;
+//
+// Named members rather than a tuple: `arity` is the only thing telling a caller
+// how to index `hessian`, and std::get<3> is not a spelling that says so.  The
+// two shapes carry the same names so that code generic over both -- the tests
+// are -- reads one way.
+struct HessianOwned {
+  double value = 0.0;
+  std::unique_ptr<double[]> gradient;
+  std::unique_ptr<double[]> hessian;
+  std::size_t arity = 0;
+};
 
 // Compile-time extent: no allocation, and constant-evaluable.
-template <std::size_t N>
-using HessianStatic =
-    std::tuple<double, std::array<double, N>, std::array<double, N * N>>;
+template <std::size_t N> struct HessianStatic {
+  double value = 0.0;
+  std::array<double, N> gradient{};
+  std::array<double, N * N> hessian{};
+  static constexpr std::size_t arity = N;
+};
 
 namespace detail {
 // Average each mirrored pair: independent sweeps differ in the last ULP.
-constexpr void symmetrize(double *const h, const std::size_t n) noexcept {
+//
+// An mdspan rather than a pointer and a stride: the caller's buffer is square
+// and row-major, and saying so once is what keeps `h[i, j]` from being an index
+// expression the reader has to check.
+constexpr void symmetrize(std::span<double> h, const std::size_t n) noexcept {
+  const md::mdspan m{h.data(), md::dextents<std::size_t, 2>{n, n}};
   for (std::size_t i = 0; i < n; ++i) {
     for (std::size_t j = i + 1; j < n; ++j) {
-      const double s = 0.5 * (h[i * n + j] + h[j * n + i]);
-      h[i * n + j] = s;
-      h[j * n + i] = s;
+      const double s = 0.5 * (m[i, j] + m[j, i]);
+      m[i, j] = s;
+      m[j, i] = s;
     }
   }
 }
 
 // Only for the subset-taking hessian(), which can reach both shapes.
+//
+// A free function, not a conversion: the coupling runs one way only.  A
+// converting constructor would cost HessianOwned its aggregate-ness and with it
+// the designated initialisers that build it, and a conversion operator would
+// teach the deliberately allocation-free type about the allocating one -- for
+// a widening that only the router in drivers/hessian.hpp ever wants.
+//
+// By const reference: the arrays are copied into fresh buffers, so an rvalue
+// parameter would promise a move that does not happen.
 template <std::size_t N>
-[[nodiscard]] inline HessianOwned to_owned(HessianStatic<N> &&h) {
+[[nodiscard]] inline HessianOwned to_owned(const HessianStatic<N> &h) {
   auto grad = std::make_unique_for_overwrite<double[]>(N);
   auto hess = std::make_unique_for_overwrite<double[]>(N * N);
-  const auto& [value, grad_calc, hess_calc] = h;
-  std::ranges::copy(grad_calc, grad.get());
-  std::ranges::copy(hess_calc, hess.get());
-  return {value, std::move(grad), std::move(hess), N};
+  std::ranges::copy(h.gradient, grad.get());
+  std::ranges::copy(h.hessian, hess.get());
+  return {.value = h.value,
+          .gradient = std::move(grad),
+          .hessian = std::move(hess),
+          .arity = N};
 }
 
 // Uninitialised: the sweep writes every cell.
@@ -107,11 +136,11 @@ template <Numeric D> struct SweepWorkspace {
   [[nodiscard]] D *seed_with(const std::span<const double> x, Make make) {
     if constexpr (inline_capacity > 0) {
       if (x.size() <= inline_capacity) {
-        // Raw storage: each seed constructs rather than assigns.
+        // Raw storage: each seed constructs rather than assigns, which is
+        // what uninitialized_ means here -- there is no D to assign over.
         D *const dof = reinterpret_cast<D *>(block.storage);
-        for (std::size_t k = 0; k < x.size(); ++k) {
-          std::construct_at(dof + k, make(x[k]));
-        }
+        std::ranges::uninitialized_copy(x | std::views::transform(make),
+                                        std::span{dof, x.size()});
         return dof;
       }
     }

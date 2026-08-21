@@ -78,11 +78,9 @@ consteval coupling_info<N> coupling_of() noexcept {
     using Kids = typename U::children_t;
     constexpr std::size_t K = std::tuple_size_v<Kids>;
 
-    const std::array kids =
-        [&]<std::size_t... I>(std::index_sequence<I...>) {
-          return std::array{coupling_of<std::tuple_element_t<I, Kids>, Syms,
-                                        N>()...};
-        }(std::make_index_sequence<K>{});
+    const std::array kids = index_apply<K>([]<std::size_t... I>() {
+      return std::array{coupling_of<std::tuple_element_t<I, Kids>, Syms, N>()...};
+    });
 
     for (const auto &kid : kids) {
       info.symbols |= kid.symbols;
