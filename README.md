@@ -47,9 +47,14 @@ auto g  = Equation{f}.gradient(1.0, 2.0);   // {∂f/∂x, ∂f/∂y}
 C++23 is a hard requirement — the library uses `constexpr std::bitset` inside
 `consteval` functions and the multidimensional subscript `t[i, j, k]`.
 
-The library is header-only and has no third-party dependencies. A reference
-implementation of `std::mdspan` is vendored under `include/md/third_party/` and
-is used automatically when your toolchain has no complete `<mdspan>`.
+The library is header-only, and so is what it depends on: Boost.Mp11, which the
+build fetches at a pinned version, and nothing else. Mp11 is the type-list
+vocabulary the symbol lists are built out of — header-only and standalone, so
+this is a fetch and not a link, and no other part of Boost comes with it.
+Configuring therefore wants a network the first time, or a warm `.deps`. A
+reference implementation of `std::mdspan` is vendored under
+`include/md/third_party/` and is used automatically when your toolchain has no
+complete `<mdspan>`.
 
 ### Using it
 
@@ -60,7 +65,13 @@ add_subdirectory(ddx)
 target_link_libraries(my_app PRIVATE ddx::ddx)   # or: ddx
 ```
 
-Or against an installed copy, which is what a built `ddx::jit` wants — a shared
+Three targets exist, and which one you link decides how much of the library you get:
+`ddx::ddx` is the header-only core, `ddx::rt` adds
+[runtime expressions](#runtime-expressions), and `ddx::jit` is `ddx::rt` with the
+batch calls compiled rather than interpreted. `ddx::jit` is the only one that is a
+library rather than a set of headers.
+
+An installed copy works the same way, and is what a built `ddx::jit` wants — a shared
 library is worth installing where a header is only worth including:
 
 ```sh
@@ -72,10 +83,10 @@ find_package(ddx CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE ddx::jit)   # or ddx::rt, or ddx::ddx
 ```
 
-The package exports whichever of the three targets the build produced, and
-`ddx-config.cmake` finds Boost and LLVM again where they are needed. An installed
-`ddx::jit` was compiled against one LLVM major version and says so: configuring
-against a different one fails there rather than at link time.
+The package exports whichever of the three the build produced, and `ddx-config.cmake`
+finds Boost and LLVM again where they are needed. An installed `ddx::jit` was compiled
+against one LLVM major version and says so: configuring against a different one fails
+there rather than at link time.
 
 Then include the public header:
 
@@ -119,8 +130,8 @@ Everything that deduces a type from a value — `constant(v)`, `var_of<"x">(v)`,
 `dual_var_of<"x">(v)` — is an ordinary function template, and obeys namespaces
 like the rest.
 
-`ddx::rt` and `ddx::jit` are deliberately not among them: they are opt-in, they
-carry dependencies, and `ddx.hpp` does not reach for either. See
+`ddx::rt` is deliberately not among them. Its one public name is `equation`, it is
+opt-in, it carries dependencies, and `ddx.hpp` does not reach for it. See
 [Runtime expressions](#runtime-expressions).
 
 ---
@@ -516,23 +527,21 @@ everything else on this page put together.
 | the K-th derivative of one variable | `univariate_derivative<K>(x0)` | one Taylor sweep, O(K²) |
 | all K-th partials of n variables | `derivative_tensor<K>(pt)` | one sweep per distinct K-index |
 
-Reverse is the default for a reason, but it is not a clean win at every size: on
-a three-symbol system here, `jacobian<DiffMode::Symbolic>` runs in 7.7 ns against
-12.5 ns for `jacobian<DiffMode::Reverse>`, because at that width the folded
-partial trees are cheaper than a sweep. Reverse pulls away as n grows. If n is
-small and the call is hot, measure both — it is a one-word change.
+Reverse is the default for a reason, but it is not a clean win at every size: on a
+system of two or three symbols the folded partial trees are cheaper than a sweep, and
+symbolic wins. Reverse pulls away as n grows. If n is small and the call is hot,
+measure both — it is a one-word change.
 
 **`hessian()` reads your problem's sparsity off the type, for free.** Two
 variables that never appear in the same second-derivative term can be seeded in
 the *same* backward sweep, so the cost is one sweep per *colour* of the coupling
 pattern rather than one per variable — and the pattern is computed from the
 expression type at compile time, so there is nothing to switch on and nothing to
-pay at run time. On an 8-variable chain (each variable coupled only to its
-neighbours, plus one long-range term) that is 5 sweeps instead of 8, measured
-here at **1.7–1.9x** faster end to end. A dense problem colours in n and costs
-exactly what it always did. The wider and more structured the problem, the more
-this wins — so prefer `hessian()` over `derivative_tensor<2>()` whenever you can
-declare the symbols `dual`.
+pay at run time. A chain in which each variable couples only to its neighbours
+colours in far fewer sweeps than it has variables; a dense problem colours in n, which
+is one sweep per variable and no saving at all. The wider and more structured the
+problem, the more this wins — so prefer `hessian()` over `derivative_tensor<2>()`
+whenever you can declare the symbols `dual`.
 
 **Prefer `univariate_derivative<K>` whenever the function really has one
 variable.** `derivative_tensor<K>` builds a rank-K tensor to hold a single
@@ -554,8 +563,8 @@ arguments cost exactly the same — the reordering is resolved at compile time.
 
 **Compile with the flags the project already sets.** `-ffp-contract=fast` and
 `-fno-math-errno` (`DDX_FP_FLAGS=ON`, the default) are both worth having.
-`-ffast-math` is **not**: it was measured at 19% *slower* here, and it changes
-derivative values. `-march=native` (`ENABLE_NATIVE_ARCH=ON`) is on by default.
+`-ffast-math` is **not**: it changes derivative values, and it does not buy speed
+here either. `-march=native` (`ENABLE_NATIVE_ARCH=ON`) is on by default.
 
 **Know where the time actually goes.** For a gradient of anything with `exp`,
 `log`, `sin` or `pow` in it, the libm call dominates — around three quarters of
@@ -566,8 +575,10 @@ not.
 **Many points at once is a different question.** Everything above is one point per
 call. If what you have is thousands of them, the libm call that dominates can be
 vectorised, which the compile-time path cannot do for you — see
-[Runtime expressions](#runtime-expressions) for the batch kernel and what it
-measures at.
+[Runtime expressions](#runtime-expressions) for the batch calls.
+
+The measurements behind all of this, and the workloads they were taken on, are in
+[BENCHMARKS.md](benchmarks/BENCHMARKS.md).
 
 **Move it to compile time if the point is known.** Every entry point is
 `constexpr`; see the next section.
@@ -600,195 +611,126 @@ and a value read from a file at run time.
 ## Runtime expressions
 
 Everything above needs the expression written in source, because the tree lives in
-the type. An expression assembled at run time — terms looped over from a data file,
-a coupling read from a configuration — has no type to live in, so it lives in a
-graph instead.
+the type. An expression assembled while the program runs — terms looped over from a
+data file, a coupling read from a configuration — has no type to live in, so it is
+built into a graph instead.
 
-`ddx::rt` is that graph and `ddx::jit` compiles it to native code. Both are opt-in;
-the core stays header-only and dependency-free either way.
+This half is opt-in: build with `DDX_BUILD_RT` (or `DDX_BUILD_JIT`, which implies it)
+and link `ddx::rt` or `ddx::jit`. `ddx::rt::equation` is then the entry point, and what
+it hands back is an `Equation` — the same class, the same member names, the same
+canonical symbol order.
 
 ```cpp
-#include "rt/derivative.hpp"
-using namespace ddx::rt;
+#include "rt/equation.hpp"
 
-Builder b;
-auto x = var(b, "x");
-auto y = var(b, "y");
-auto f = exp(x) * sin(y);        // the same operators, resolved at run time
+const auto eq = *ddx::rt::equation([] {
+  const auto x = ddx::rt::var("x");
+  const auto y = ddx::rt::var("y");
+  return exp(x) * sin(y);
+});
 
-auto g = gradient(b, f.id(b));   // ∂f/∂x and ∂f/∂y, as more graph nodes
-                                 // (or let GraphBuilder do it, below)
+eq.arity();                   // 2
+eq.symbols();                 // {"x", "y"}
+*eq.evaluate(1.0, 2.0);       // f(1, 2)
+*eq.gradient(1.0, 2.0);       // {∂f/∂x, ∂f/∂y}, as a std::vector
 ```
 
-`Expr` is a handle onto one node. The operators and the eighteen unary functions are
-the ones you already have, and the derivative rules are literally the same rules:
-`unary_math.hpp` writes them against `Numeric`, so instantiating them at `Expr`
-builds nodes instead of computing numbers. Adding a row to `DDX_UNARY_MATH_TABLE`
-gives the runtime path the function and its derivative at once.
-
-"Runtime" names when the *structure* is decided, not when the arithmetic runs. Every
-one of these calls is `constexpr`, so a graph assembled from values a constant
-expression can see is itself a constant expression:
+Symbols are named inside the callback, with `ddx::rt::var(name)` taking a string
+rather than a template argument — that is the whole point of the runtime path, since
+a name read from a file is not a template argument. The callback returns the
+expression; return several and you get a system, exactly as passing several
+expressions to `Equation` does:
 
 ```cpp
-consteval double slope() {
-  Builder b;
-  const auto x = var(b, "x");
-  const auto g = gradient(b, (x * x).id(b));
-  return evaluate_all(b, std::array{3.0})[g.partial[0]];
+const auto sys = *ddx::rt::equation([] {
+  const auto x = ddx::rt::var("x");
+  const auto y = ddx::rt::var("y");
+  return std::array{x * y + sin(x), exp(x) - y * y};
+});
+
+*sys.jacobian(1.3, 0.7);      // row-major, m × n
+```
+
+The arena those symbols live in is owned by the `Equation`, so one built this way can
+be returned from a function and stored:
+
+```cpp
+auto make = [](double c) {
+  return *ddx::rt::equation([c] {
+    const auto x = ddx::rt::var("x");
+    return c * x * x;
+  });
+};
+const auto eq = make(3.0);    // still valid; it owns everything it needs
+```
+
+### Every call answers with `result`
+
+The symbol list of a runtime equation exists only while the program runs, so the
+count of a point cannot be checked while it compiles. Every call therefore answers
+with `result<T>` — `std::expected<T, ddx::error>` — including the positional
+spelling, and including `equation()` itself:
+
+```cpp
+const auto eq = ddx::rt::equation([] { return ddx::rt::var("x") * 2.0; });
+if (!eq) {
+  std::println("{}", ddx::message(eq.error().code));
 }
-static_assert(slope() == 6.0);
+
+const auto g = eq->gradient(1.0, 2.0);   // two values for one symbol
+if (!g) {
+  // ddx::errc::wrong_arity
+}
 ```
 
-Freezing is where that stops: `Graph` and the JIT are run-time only.
+The `*` in the examples above is that check skipped, which is fine in a program that
+built the expression itself and wrong in one that read it from a file.
 
-### The graph folds as it is built
-
-`Builder` interns: forming a subexpression that already exists returns the existing
-node, so `exp(x) * sin(y)` written twice is one subgraph and structural identity is a
-`std::uint32_t` compare. The rewrites of [`simplify.hpp`](include/expr/simplify.hpp)
-run on the way in, exactly as the operator factories run them at compile time — `x+0`,
-`x*1`, `x*0`, `x/1`, `-(-x)`, `(n/d)*d → n`, and constant folding. Literals fold before
-they ever reach a graph, so `Expr{2} * Expr{3} + Expr{1}` costs no nodes at all.
-
-`gradient` is one reverse sweep over the whole graph, accumulating *nodes* rather than
-values — the structural analogue of the sweep in
-[`drivers/symbolic.hpp`](include/drivers/symbolic.hpp). One sweep produces every
-partial, and they share every subexpression they can. Partials come back in
-`Builder::symbols()` order, which is the order the symbols were first seen.
-
-### Freezing and compiling
-
-Freezing gives the static graph: a `Builder` can still be added to, a `Graph` cannot.
-Whatever you freeze with is exactly what the kernel computes.
+Points come in the same three spellings as everywhere else, and the named form is
+worth more here than anywhere: a runtime symbol list is exactly the case where
+positional order is easy to get wrong.
 
 ```cpp
-#include "jit/kernel.hpp"
-
-const auto graph = GraphBuilder{b}.value(f).gradient().build();
-
-auto compiler = ddx::jit::Compiler::create();
-const auto kernel = compiler->compile(graph);
+*eq.gradient(1.3, 0.7);                                  // positional, canonical order
+*eq.gradient(std::array{1.3, 0.7});                      // any input range
+*eq.gradient(named<"y">(0.7), named<"x">(1.3));          // by name
 ```
 
-Both steps answer with `std::expected` rather than throwing: bringing up the JIT
-fails on a host with no native target, and a compile fails for whatever LLVM says.
-`Compiler::create()` gives a `result<Compiler>` and `compile` a `result<Kernel>`,
-where `result<T>` is `std::expected<T, ddx::jit::error>` and `error::detail`
-carries LLVM's own text. Neither failure leaves a caller stuck — the runtime graph
-interprets the same graph.
+### Batches
 
-`GraphBuilder` names the outputs one step at a time — `value` is the function and
-what `gradient` differentiates, `output` adds a column of anything else — and `build`
-is the only thing that produces a `Graph`. `.value(f).build()` alone gives a kernel
-that computes just the value.
-
-The kernel takes columns, not points:
+The reason to build a graph rather than a tree is that a graph can be compiled, and
+the shape that pays for compiling is a batch. The batch calls take columns — one
+pointer per symbol, one per output, each `n` long — and fill them in one pass:
 
 ```cpp
-const std::array<const double *, 2> xs{x_column, y_column};
-const std::array<double *, 1> values{f_column};
-const std::array<double *, 2> partials{dx_column, dy_column};
-kernel(xs, values, partials, {}, n);
+const std::size_t n = points.size();
+const std::vector<const double *> xs{x_column, y_column};
+const std::vector<double *> values{f_column};
+const std::vector<double *> partials{dx_column, dy_column};
+
+const auto ok = eq.gradient(xs, values, partials, n);
 ```
 
-`xs[j]` is the column for symbol `j` and `partials[j]` the column for the partial in
-it, each of length `n`. The four blocks are the symbols, the values, the Jacobian and
-the Hessian; a block the graph was not frozen with is `{}` here rather than a null
-pointer whose length the kernel would have to infer, and it is never read.
+`value_columns()`, `jacobian_columns()` and `hessian_columns()` say how many columns
+each block wants, which is what a caller sizes its buffers by. A count that does not
+match comes back as `ddx::errc::wrong_column_count` rather than reaching the loop —
+an unchecked mismatch there is silent memory corruption.
 
-A `Kernel` is a function pointer plus a share of the `Compiler` that emitted it, so it
-may outlive that `Compiler` and still be called; a copy costs one atomic increment and
-a call costs nothing. The flip side is that one surviving `Kernel` holds the whole
-LLJIT — the target machine, the symbol generators, every module compiled through it —
-so dropping a `Compiler` reclaims that memory only once the last kernel from it is
-gone.
-
-For a graph without the JIT there is `evaluate(b, root, point)`, a plain walk in node
-order. It is the reference the compiled kernels are tested against, and it is what you
-get when `DDX_BUILD_JIT` is off.
-
-A kernel's IR prints like anything else in the library — `ddx::jit::Ir` has a
-`std::formatter` and an `operator<<`, next to the one for expressions in
-[`format.hpp`](include/expr/format.hpp):
+`hessian` takes a fourth block:
 
 ```cpp
-std::cout << ddx::jit::Ir{*compiler, graph};   // or std::format("{}", ...)
+const auto ok = eq.hessian(xs, values, partials, hessians, n);
 ```
 
-### Crossing over from a compile-time expression
+**Where the JIT comes in.** Built with `DDX_BUILD_JIT`, the batch calls compile the
+graph to native code on first use and vectorise the libm calls that dominate a
+gradient. Built without it, the same calls run the graph through an interpreter,
+under the same signatures and to the same answers. It is a build option, not an API:
+nothing above changes spelling either way, and there is no compiler, kernel or module
+for a caller to hold.
 
-`to_graph` lowers a typed tree into a graph, which is useful when the shape is known
-but the *use* is a batch, and is how the two paths are tested against each other:
-
-```cpp
-constexpr auto x = ddx::var<"x">;
-Builder b;
-auto root = to_graph(b, exp(x) * sin(ddx::var<"y">));
-```
-
-### What this is worth
-
-Per point the JIT does not beat the compile-time path and is not meant to: there the
-expression is already inlined straight-line code, and a JIT'd call has the same libm
-calls plus an indirect call. The batch kernel wins by vectorising, and the thing worth
-vectorising is the libm call that
-[dominates a gradient](#getting-the-most-speed-out-of-it).
-
-Gradient of `exp(x) * sin(y)`, one machine, `-march=native`, medians of five runs:
-
-| n | `Equation::gradient` | batch kernel | |
-|---|---|---|---|
-| 1 | 13.2 ns | 16.3 ns | compile-time path 1.2x |
-| 1 000 | 13.5 µs | 3.44 µs | **kernel 3.9x** |
-| 1 000 000 | 13.6 ms | 4.53 ms | **kernel 3.0x** |
-
-Compiling a gradient kernel costs about 9.3 ms, paid once.
-
-That advantage is specific to transcendentals. A polynomial gradient runs *slower*
-through the kernel — around 1.4x at a thousand points and 1.3x at a million — and not
-because it failed to vectorise: it vectorises four wide as well. It writes three columns
-an iteration where the loop writes two, and at that size the work is memory-bound, so
-the extra column is most of the difference. Cheap arithmetic in bulk is a memory
-problem, and a better code generator does not help with those. Those two figures are
-also the least stable in the suite, at around 10% run-to-run against 2-3% elsewhere,
-for the same reason.
-
-The real reason to reach for any of this is the first paragraph: an expression that is
-not known until the program runs. The speed is why the batch shape is the one on offer.
-
-### Vector math library
-
-The loop vectoriser only vectorises `sin`, `exp` and the rest if it is told there are
-vector forms to call. `Options::veclib` defaults to `Auto`, which uses glibc's libmvec
-on x86-64 Linux; glibc 2.35 and later covers every function in
-`DDX_UNARY_MATH_TABLE` plus `pow`, `atan2` and `hypot`. `VecLib::None` turns it off,
-which is the escape hatch if a mapping ever names a symbol the host's glibc lacks —
-the loop still compiles and still gives the same answers, it simply stays scalar
-through those calls.
-
-Nothing enables reassociation. `-ffast-math` is no more welcome here than anywhere
-else in the project, for the same reason: it changes derivative values.
-
-### Options follow how the project was built
-
-`Options` starts from the build rather than from a fixed constant, so a kernel agrees
-with the compile-time path by default:
-
-| Field | Default |
-|---|---|
-| `contract` | `DDX_FP_FLAGS` — a kernel that contracts where `Equation` does not would give different derivative values for the same expression |
-| `opt_level` | `1` for a `Debug` build, `3` for `Release`, `2` otherwise |
-
-`ddx::jit::default_opt_level` and `default_contract` name those, and both fields are
-still ordinary members you can set per compile.
-
-The optimisation level is never `0`. No predefined macro carries the level — GCC and
-Clang define only `__OPTIMIZE__`, and only as a yes/no — so CMake is the one place that
-knows it, and a debug build is mapped to `1` rather than `0` deliberately: `-O0` turns
-the loop vectoriser off, and vectorising is the only reason a batch kernel is worth
-compiling. Debugging your own program should make the JIT cheaper to invoke, not
-pointless.
+Compiling happens once per equation, on the first batch call that needs it, and the
+result is kept for the rest of that equation's life.
 
 ---
 
@@ -800,43 +742,40 @@ call is nanoseconds of work, which no thread pool can pay for, and a batch of th
 is the caller's loop and the caller's pool. What the library owes that caller is a
 statement of what may be shared. Here it is.
 
-**The compile-time path is pure.** An `Equation` is an empty type and every entry point
-on it reads only its argument, so `evaluate`, `gradient`, `hessian`,
-`derivative_tensor<K>` and `univariate_derivative<K>` may be called from any number of
-threads on the same expression. There is nothing to synchronise because there is
-nothing shared to begin with.
+**The compile-time path is pure.** An `Equation` over `var<"x">` is an empty type and
+every entry point on it reads only its argument, so `evaluate`, `gradient`, `jacobian`,
+`hessian`, `derivative_tensor<K>` and `univariate_derivative<K>` may be called from any
+number of threads on the same expression. There is nothing to synchronise because
+there is nothing shared to begin with.
 
-**A runtime model belongs to one thread while it is being built.** `equation()` makes
-its arena current through a thread-local, so two threads assembling models at the same
-time never see each other's; that is what the arena is thread-local *for*. A `Builder`
-is not itself synchronised, so one `Builder` is one thread's until it is frozen.
+**Two threads may build runtime equations at once.** `ddx::rt::equation` makes its
+arena current through a thread-local for the duration of the callback, so two threads
+assembling models at the same time never see each other's symbols.
 
-**A frozen `Graph` is immutable.** `freeze` copies out of the builder and a `Graph` has
-no mutating operation, so it may be read, printed, and compiled from any number of
-threads at once.
+**A runtime `Equation` fills a cache on first use.** The graph it compiles and the
+Hessian workspace it keeps are filled by the first call that needs them, from inside a
+`const` member. So one runtime `Equation` is one thread's unless it has been warmed:
+make the first call of each kind before handing it to several threads, or give each
+thread its own. Warming it is one call, and it is what the first call of a batch does
+anyway.
 
-**One `Compiler` may compile from several threads.** LLJIT synchronises its own tables
-and the name each module is added under is handed out atomically, so concurrent
-`compile()` calls on one `Compiler` are well defined. They are not, however, fast:
-compiling is a single-threaded LLVM pipeline of a few milliseconds, and several at once
-contend inside LLVM. One `Compiler` per thread avoids that, at the cost of one LLJIT
-and one set of host-symbol generators each.
-
-**A `Kernel` is reentrant, and the batch is where parallelism belongs.** The emitted
-code reads no global and writes no static: every intermediate is a register, and the
-only memory it touches is the columns handed to it. So a batch splits by slicing the
-columns, with no synchronisation of any kind:
+**A warmed batch is reentrant, and the batch is where parallelism belongs.** The
+compiled code reads no global and writes no static: every intermediate is a register,
+and the only memory it touches is the columns handed to it. So a batch splits by
+slicing the columns, with no synchronisation of any kind:
 
 ```cpp
+*eq.gradient(xs, values, partials, 1);   // warm it once, on one thread
+
 const std::size_t chunk = (n + threads - 1) / threads;
 std::vector<std::jthread> pool;
 for (std::size_t t = 0; t < n; t += chunk) {
   const std::size_t m = std::min(chunk, n - t);
   pool.emplace_back([&, t, m] {
-    const std::array<const double *, 2> xs{x.data() + t, y.data() + t};
-    const std::array<double *, 1> values{f.data() + t};
-    const std::array<double *, 2> partials{dx.data() + t, dy.data() + t};
-    kernel(xs, values, partials, {}, m);
+    const std::vector<const double *> xs{x.data() + t, y.data() + t};
+    const std::vector<double *> values{f.data() + t};
+    const std::vector<double *> partials{dx.data() + t, dy.data() + t};
+    (void)eq.gradient(xs, values, partials, m);
   });
 }
 ```
@@ -844,11 +783,10 @@ for (std::size_t t = 0; t < n; t += chunk) {
 Slice on the vector width if the difference matters; the tail of a chunk is a scalar
 remainder, and one per thread rather than one per batch is the only cost of splitting.
 
-**Lifetime needs no rule.** A `Kernel` shares ownership of the JIT its code lives in,
-so a `Compiler` that goes out of scope while threads are still calling kernels frees
-nothing they are using — the last `Kernel` to go frees the code. There is no pool to
-join before the `Compiler` leaves scope, and no way to spell the bug where a thread
-calls into an unmapped page.
+**Lifetime needs no rule.** A runtime `Equation` owns the arena its symbols live in and
+the code its batch calls run, so there is nothing to keep alive alongside it and no
+order to destroy things in. It owns that arena rather than sharing it, so it is
+move-only: move it, return it from a function, store it — what it owns goes with it.
 
 ---
 
@@ -909,18 +847,18 @@ See [BENCHMARKS.md](benchmarks/BENCHMARKS.md) for the suite description and
 results, and `src/main.cpp` for a runnable tour of every entry point.
 
 [Runtime expressions](#runtime-expressions) are off by default, because they are the
-one part of the library with third-party dependencies:
+one part of the library whose dependencies are compiled rather than fetched headers:
 
 ```sh
 cmake -S . -B build -DDDX_BUILD_JIT=ON -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm
 cmake --build build --target tests_rt tests_jit
 ```
 
-`ddx::rt` needs Boost.Graph and Boost.DynamicBitset, fetched at a pinned version during
-configuration. Both are header-only, so no compiled Boost library is linked and a
-system Boost is not consulted. `ddx::jit` adds LLVM 18–20 — the ORC API is not stable
-across releases, so the range is checked rather than assumed. Neither is reachable
-from `ddx::ddx`, which remains header-only and standard-library-only.
+`ddx::rt` needs Boost.Graph and Boost.DynamicBitset, fetched at the same pinned
+release as the Mp11 the core already uses. All three are header-only, so no compiled
+Boost library is linked and a system Boost is not consulted. `ddx::jit` adds LLVM
+18–20 — the ORC API is not stable across releases, so the range is checked rather
+than assumed — and is the only part of ddx that produces a library to link.
 
 ### CMake options
 
@@ -980,6 +918,15 @@ sys.derivative_tensor<2>(1.0, 2.0);            // per-output Hessians
 
 // single expression → Equation, implicitly
 Equation eq2 = x * y;                          // no braces needed
+
+// an expression whose shape is not known until the program runs.
+// Same Equation, same members; every call answers with result<T>.
+const auto rt = *ddx::rt::equation([] {
+  const auto a = ddx::rt::var("x");
+  return exp(a) * a;
+});
+*rt.gradient(1.0);                             // std::vector<double>
+(void)rt.gradient(xs, values, partials, n);    // a whole batch in one pass
 ```
 
 ---

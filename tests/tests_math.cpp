@@ -1,6 +1,5 @@
 #include "tests_common.hpp"
 
-
 // ===========================================================================
 // New math functions: log10, cbrt, asinh, acosh,
 // atanh, erf (unary) and pow, atan2, hypot, min, max (binary), exercised
@@ -97,7 +96,7 @@ TEST(NewMathFunctions, ReverseBinaryPartials) {
     auto x = var<"x">;
     auto y = var<"y">;
     auto g = Equation{pow(x, y)}.gradient(2.0, 3.0);
-    EXPECT_DOUBLE_EQ(g[0], 3.0 * std::pow(2.0, 2.0));      // y*x^(y-1)
+    EXPECT_DOUBLE_EQ(g[0], 3.0 * std::pow(2.0, 2.0));           // y*x^(y-1)
     EXPECT_DOUBLE_EQ(g[1], std::pow(2.0, 3.0) * std::log(2.0)); // x^y*ln x
   }
   {
@@ -186,8 +185,8 @@ TEST(NewMathFunctions, DualDirect) {
 
   Dual<double> a{1.0, 1.0}, b{2.0, 0.0}, c{2.0, 0.0};
   Dual<double> h = hypot(a, b, c);
-  EXPECT_DOUBLE_EQ(h.get<0>(), 3.0);          // sqrt(1+4+4)
-  EXPECT_DOUBLE_EQ(h.get<1>(), 1.0 / 3.0);    // a/h
+  EXPECT_DOUBLE_EQ(h.get<0>(), 3.0);       // sqrt(1+4+4)
+  EXPECT_DOUBLE_EQ(h.get<1>(), 1.0 / 3.0); // a/h
 }
 
 // ---- Taylor higher-order (value coeff drives expr + Taylor together) -------
@@ -201,48 +200,62 @@ TEST(NewMathFunctions, TaylorFirstAndSecondDerivative) {
 
   {
     double x0 = 0.7; // asinh'' = -x/(1+x²)^{3/2}
-    EXPECT_NEAR(Equation{asinh(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
-                -x0 / std::pow(1.0 + x0 * x0, 1.5), 1e-10);
+    EXPECT_NEAR(
+        Equation{asinh(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
+        -x0 / std::pow(1.0 + x0 * x0, 1.5), 1e-10);
   }
   {
     double x0 = 0.5; // erf'' = -2x * 2/√π * e^{-x²}
-    EXPECT_NEAR(Equation{erf(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
-                -2.0 * x0 * k2OverSqrtPi * std::exp(-x0 * x0), 1e-10);
+    EXPECT_NEAR(
+        Equation{erf(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
+        -2.0 * x0 * k2OverSqrtPi * std::exp(-x0 * x0), 1e-10);
   }
   {
     double x0 = 0.3; // atanh'' = 2x/(1-x²)²
-    EXPECT_NEAR(Equation{atanh(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
-                2.0 * x0 / std::pow(1.0 - x0 * x0, 2.0), 1e-10);
+    EXPECT_NEAR(
+        Equation{atanh(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
+        2.0 * x0 / std::pow(1.0 - x0 * x0, 2.0), 1e-10);
   }
   {
     double x0 = 3.0; // log10'' = -1/(x² ln10)
-    EXPECT_NEAR(Equation{log10(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
-                -1.0 / (x0 * x0 * kLn10), 1e-10);
+    EXPECT_NEAR(
+        Equation{log10(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
+        -1.0 / (x0 * x0 * kLn10), 1e-10);
   }
   {
     double x0 = 2.0; // cbrt'' = -2/9 x^{-5/3}
-    EXPECT_NEAR(Equation{cbrt(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
-                -2.0 / 9.0 * std::pow(x0, -5.0 / 3.0), 1e-10);
+    EXPECT_NEAR(
+        Equation{cbrt(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
+        -2.0 / 9.0 * std::pow(x0, -5.0 / 3.0), 1e-10);
   }
   {
     double x0 = 2.0; // acosh'' = -x/(x²-1)^{3/2}
-    EXPECT_NEAR(Equation{acosh(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
-                -x0 / std::pow(x0 * x0 - 1.0, 1.5), 1e-10);
+    EXPECT_NEAR(
+        Equation{acosh(var_of<"x">(x0))}.template univariate_derivative<2>(x0),
+        -x0 / std::pow(x0 * x0 - 1.0, 1.5), 1e-10);
   }
 }
 
 TEST(NewMathFunctions, TaylorBinaryUnivariate) {
-  EXPECT_NEAR(Equation{pow(var<"x">, 3.0)}.template univariate_derivative<1>(2.0), 12.0, 1e-10);
-  EXPECT_NEAR(Equation{pow(var<"x">, 3.0)}.template univariate_derivative<2>(2.0), 12.0, 1e-10);
+  EXPECT_NEAR(
+      Equation{pow(var<"x">, 3.0)}.template univariate_derivative<1>(2.0), 12.0,
+      1e-10);
+  EXPECT_NEAR(
+      Equation{pow(var<"x">, 3.0)}.template univariate_derivative<2>(2.0), 12.0,
+      1e-10);
   {
     double x0 = 3.0, h = std::sqrt(x0 * x0 + 4.0);
-    EXPECT_NEAR(Equation{hypot(var_of<"x">(x0), 2.0)}.template univariate_derivative<1>(x0), x0 / h,
-                1e-10);
+    EXPECT_NEAR(
+        Equation{hypot(var_of<"x">(x0), 2.0)}.template univariate_derivative<1>(
+            x0),
+        x0 / h, 1e-10);
   }
   {
     double x0 = 2.0;
-    EXPECT_NEAR(Equation{atan2(var_of<"x">(x0), 2.0)}.template univariate_derivative<1>(x0),
-                2.0 / (4.0 + x0 * x0), 1e-10);
+    EXPECT_NEAR(
+        Equation{atan2(var_of<"x">(x0), 2.0)}.template univariate_derivative<1>(
+            x0),
+        2.0 / (4.0 + x0 * x0), 1e-10);
   }
 }
 
@@ -252,39 +265,48 @@ TEST(NewMathFunctions, TaylorCompositeArguments) {
   {
     double x0 = 0.6, x4 = x0 * x0 * x0 * x0, d = 1.0 + x4;
     auto x = var_of<"x">(x0);
-    EXPECT_NEAR(Equation{atan(x * x)}.template univariate_derivative<1>(x0), 2.0 * x0 / d, 1e-10);
-    EXPECT_NEAR(Equation{atan(x * x)}.template univariate_derivative<2>(x0), (2.0 - 6.0 * x4) / (d * d),
-                1e-10);
+    EXPECT_NEAR(Equation{atan(x * x)}.template univariate_derivative<1>(x0),
+                2.0 * x0 / d, 1e-10);
+    EXPECT_NEAR(Equation{atan(x * x)}.template univariate_derivative<2>(x0),
+                (2.0 - 6.0 * x4) / (d * d), 1e-10);
   }
   {
     double x0 = 1.0, a = 0.5, r = 1.0 - a * a * x0 * x0;
     auto x = var_of<"x">(x0);
-    EXPECT_NEAR(Equation{asin(0.5 * x)}.template univariate_derivative<1>(x0), a / std::sqrt(r),
-                1e-10);
+    EXPECT_NEAR(Equation{asin(0.5 * x)}.template univariate_derivative<1>(x0),
+                a / std::sqrt(r), 1e-10);
     EXPECT_NEAR(Equation{asin(0.5 * x)}.template univariate_derivative<2>(x0),
                 a * a * a * x0 * std::pow(r, -1.5), 1e-10);
   }
   {
     double x0 = 0.3, a = 2.0, r = 1.0 + a * a * x0 * x0;
     auto x = var_of<"x">(x0);
-    EXPECT_NEAR(Equation{asinh(2.0 * x)}.template univariate_derivative<1>(x0), a / std::sqrt(r),
-                1e-10);
+    EXPECT_NEAR(Equation{asinh(2.0 * x)}.template univariate_derivative<1>(x0),
+                a / std::sqrt(r), 1e-10);
     EXPECT_NEAR(Equation{asinh(2.0 * x)}.template univariate_derivative<2>(x0),
                 -a * a * a * x0 * std::pow(r, -1.5), 1e-10);
   }
   {
     auto x = var<"x">;
-    EXPECT_NEAR(Equation{atan2(sin(x), cos(x))}.template univariate_derivative<1>(0.7), 1.0, 1e-10);
-    EXPECT_NEAR(Equation{atan2(sin(x), cos(x))}.template univariate_derivative<2>(0.7), 0.0, 1e-10);
-    EXPECT_NEAR(Equation{atan2(sin(x), cos(x))}.template univariate_derivative<3>(0.7), 0.0, 1e-10);
+    EXPECT_NEAR(
+        Equation{atan2(sin(x), cos(x))}.template univariate_derivative<1>(0.7),
+        1.0, 1e-10);
+    EXPECT_NEAR(
+        Equation{atan2(sin(x), cos(x))}.template univariate_derivative<2>(0.7),
+        0.0, 1e-10);
+    EXPECT_NEAR(
+        Equation{atan2(sin(x), cos(x))}.template univariate_derivative<3>(0.7),
+        0.0, 1e-10);
   }
   {
     double x0 = 0.5;
     auto x = var_of<"x">(x0);
-    EXPECT_NEAR(Equation{pow(sin(x), 2.0)}.template univariate_derivative<1>(x0), std::sin(2.0 * x0),
-                1e-10);
-    EXPECT_NEAR(Equation{pow(sin(x), 2.0)}.template univariate_derivative<2>(x0),
-                2.0 * std::cos(2.0 * x0), 1e-10);
+    EXPECT_NEAR(
+        Equation{pow(sin(x), 2.0)}.template univariate_derivative<1>(x0),
+        std::sin(2.0 * x0), 1e-10);
+    EXPECT_NEAR(
+        Equation{pow(sin(x), 2.0)}.template univariate_derivative<2>(x0),
+        2.0 * std::cos(2.0 * x0), 1e-10);
   }
 }
 
@@ -310,8 +332,8 @@ TEST(NewMathFunctions, TaylorCompositeArguments) {
     const auto e_ = (expr_);                                                   \
     const std::array<double, 1> pt_{xv_};                                      \
     const auto t_ = e_.template eval_with_tangent<"x">(xv_);                   \
-    EXPECT_DOUBLE_EQ(t_.value(), e_.eval(xv_));                                  \
-    EXPECT_NEAR(t_.deriv(), Equation{e_}.gradient(pt_)[0], 1e-12);               \
+    EXPECT_DOUBLE_EQ(t_.value(), e_.eval(xv_));                                \
+    EXPECT_NEAR(t_.deriv(), Equation{e_}.gradient(pt_)[0], 1e-12);             \
   } while (0)
 
 TEST(ForwardTangentSweep, LeafSeeding) {
@@ -329,7 +351,7 @@ TEST(ForwardTangentSweep, LeafSeeding) {
   EXPECT_DOUBLE_EQ(ty.deriv(), 0.0);
   EXPECT_DOUBLE_EQ(x.eval_with_tangent<"xx">(2.0).deriv(), 0.0);
 
-  const auto tc = constant(5.0).eval_with_tangent<"x">();  // no symbols
+  const auto tc = constant(5.0).eval_with_tangent<"x">(); // no symbols
   EXPECT_DOUBLE_EQ(tc.value(), 5.0);
   EXPECT_DOUBLE_EQ(tc.deriv(), 0.0);
 }
@@ -338,16 +360,18 @@ TEST(ForwardTangentSweep, ArithmeticRules) {
   double x0 = 1.7;
   auto x = var_of<"x">(x0);
 
-  EXPECT_TANGENT_MATCHES_REVERSE(x + x * x, 0.7);         // sum + product
-  EXPECT_TANGENT_MATCHES_REVERSE(x - 3.0 * x * x, 0.7);   // negate (a - b => a + -b)
-  EXPECT_TANGENT_MATCHES_REVERSE((x + 1.0) / x, 0.7);     // quotient
+  EXPECT_TANGENT_MATCHES_REVERSE(x + x * x, 0.7); // sum + product
+  EXPECT_TANGENT_MATCHES_REVERSE(x - 3.0 * x * x,
+                                 0.7); // negate (a - b => a + -b)
+  EXPECT_TANGENT_MATCHES_REVERSE((x + 1.0) / x, 0.7); // quotient
   EXPECT_TANGENT_MATCHES_REVERSE(-(x / (x * x + 2.0)), 0.7);
 
   // Cross-check the same sweep against the symbolic derivative tree, which is a
   // third independent path (derivative() is a total derivative, so this is only
   // meaningful for a single-variable expression).
   const auto e = (x * x + 1.0) / (x + 2.0);
-  EXPECT_DOUBLE_EQ(e.eval_with_tangent<"x">(x0).deriv(), e.derivative().eval(x0));
+  EXPECT_DOUBLE_EQ(e.eval_with_tangent<"x">(x0).deriv(),
+                   e.derivative().eval(x0));
 }
 
 TEST(ForwardTangentSweep, UnaryMathRules) {
@@ -394,7 +418,8 @@ TEST(ForwardTangentSweep, BinaryMathRules) {
   };
 
   check(hypot(x, y), x0 / 5.0, y0 / 5.0);
-  check(pow(x, y), y0 * std::pow(x0, y0 - 1.0), std::pow(x0, y0) * std::log(x0));
+  check(pow(x, y), y0 * std::pow(x0, y0 - 1.0),
+        std::pow(x0, y0) * std::log(x0));
   // atan2(y, x) — first operand is the numerator.
   const double q = x0 * x0 + y0 * y0;
   check(atan2(y, x), -y0 / q, x0 / q);
@@ -439,8 +464,8 @@ TEST(ForwardTangentSweep, IsConstexpr) {
 // engines have to say so — the seeded sweep that the drivers use, the forward
 // tangent sweep, and the symbolic derivative tree.
 TEST(FrozenVariable, EveryEngineSeesZeroDerivative) {
-  auto e = make_const_variable<ddx::impl::FixedString{"x"}>(var<"x"> *
-                                                       var<"y">);
+  auto e =
+      make_const_variable<ddx::impl::FixedString{"x"}>(var<"x"> * var<"y">);
   const std::array<double, 2> pt{2.0, 3.0};
 
   EXPECT_DOUBLE_EQ(e.eval(2.0, 3.0), 6.0);
@@ -495,9 +520,9 @@ TEST(ValueMapTest, SubscriptReadsTheSameSlotAsGet) {
   EXPECT_DOUBLE_EQ(m[sym<"w">], m.get<"w">());
   EXPECT_DOUBLE_EQ(m["x"_s], 2.0);
   EXPECT_DOUBLE_EQ(m["y"_s], 3.0);
-  static_assert(std::is_same_v<decltype(sym<"x">), const symbol_type<
-                                                      FixedString{"x"}>>,
-                R"("x"_s and sym<"x"> must name the same key type)");
+  static_assert(
+      std::is_same_v<decltype(sym<"x">), const symbol_type<FixedString{"x"}>>,
+      R"("x"_s and sym<"x"> must name the same key type)");
 }
 
 TEST(ValueMapTest, SubscriptAssignsIntoTheNamedSlot) {
@@ -517,17 +542,18 @@ TEST(ValueMapTest, SubscriptOwnershipMatchesGet) {
                 "subscript on a const lvalue map borrows");
   static_assert(std::is_same_v<decltype(mut["x"_s]), double &>,
                 "subscript on a mutable lvalue map hands out the slot");
-  static_assert(std::is_same_v<decltype(values(named<"x">(2.0))["x"_s]), double>,
-                "subscript on a temporary map must return by value");
+  static_assert(
+      std::is_same_v<decltype(values(named<"x">(2.0))["x"_s]), double>,
+      "subscript on a temporary map must return by value");
   EXPECT_DOUBLE_EQ(values(named<"x">(2.0))["x"_s], 2.0);
 
   // get<S>() reaches the same body, so it owns its result exactly as the
   // subscript does - on either side of the __cpp_explicit_this_parameter split.
   static_assert(std::is_same_v<decltype(m.get<"x">()), const double &>);
   static_assert(std::is_same_v<decltype(mut.get<"x">()), double &>);
-  static_assert(std::is_same_v<decltype(values(named<"x">(2.0)).get<"x">()),
-                               double>,
-                "get on a temporary map must return by value");
+  static_assert(
+      std::is_same_v<decltype(values(named<"x">(2.0)).get<"x">()), double>,
+      "get on a temporary map must return by value");
   EXPECT_DOUBLE_EQ(values(named<"x">(2.0)).get<"x">(), 2.0);
 }
 
@@ -563,8 +589,8 @@ TEST(BoundTest, ArgumentOrderIsIrrelevantAndSupersetsAreAllowed) {
 
   // A map carrying extra symbols still binds; the permutation picks the ones
   // the expression actually uses.
-  const auto wide =
-      values(named<"z">(9.0), named<"x">(2.0), named<"y">(3.0), named<"a">(9.0));
+  const auto wide = values(named<"z">(9.0), named<"x">(2.0), named<"y">(3.0),
+                           named<"a">(9.0));
   EXPECT_DOUBLE_EQ(bind(e, wide).eval(), 10.0);
 }
 
@@ -591,11 +617,10 @@ TEST(BoundTest, SubscriptForwardsToTheMap) {
   const auto &cb = b;
   static_assert(std::is_same_v<decltype(cb["x"_s]), const double &>,
                 "subscript on a const lvalue Bound borrows");
-  static_assert(
-      std::is_same_v<decltype(bind(x * y, named<"x">(1.0), named<"y">(1.0))
-                                  ["x"_s]),
-                     double>,
-      "subscript on a temporary Bound must return by value");
+  static_assert(std::is_same_v<decltype(bind(x * y, named<"x">(1.0),
+                                             named<"y">(1.0))["x"_s]),
+                               double>,
+                "subscript on a temporary Bound must return by value");
   EXPECT_DOUBLE_EQ(bind(x * y, named<"x">(6.0), named<"y">(1.0))["x"_s], 6.0);
 
   // Same body, other spelling - see the note in ValueMapTest.
@@ -685,8 +710,8 @@ TEST(ForwardGradient, CoversEveryUnaryMathFunction) {
 #define EXPECT_FASTPATH_MATCHES_REVERSE(expr_)                                 \
   do {                                                                         \
     const auto e_ = (expr_) + y * z;                                           \
-    const auto fwd_ = Equation{e_}.template derivative_tensor<1>(pt);                      \
-    const auto rev_ = Equation{e_}.gradient(pt);               \
+    const auto fwd_ = Equation{e_}.template derivative_tensor<1>(pt);          \
+    const auto rev_ = Equation{e_}.gradient(pt);                               \
     EXPECT_NEAR(fwd_.data()[0], rev_[0], 1e-12);                               \
     EXPECT_NEAR(fwd_.data()[1], rev_[1], 1e-12);                               \
     EXPECT_NEAR(fwd_.data()[2], rev_[2], 1e-12);                               \
@@ -728,8 +753,8 @@ TEST(ForwardGradient, CoversEveryUnaryMathFunction) {
 #define EXPECT_BINARY_FASTPATH(expr_)                                          \
   do {                                                                         \
     const auto e_ = (expr_);                                                   \
-    const auto fwd_ = Equation{e_}.template derivative_tensor<1>(q);                       \
-    const auto rev_ = Equation{e_}.gradient(q);                \
+    const auto fwd_ = Equation{e_}.template derivative_tensor<1>(q);           \
+    const auto rev_ = Equation{e_}.gradient(q);                                \
     for (std::size_t k_ = 0; k_ < 3; ++k_) {                                   \
       EXPECT_NEAR(fwd_.data()[k_], rev_[k_], 1e-12);                           \
     }                                                                          \

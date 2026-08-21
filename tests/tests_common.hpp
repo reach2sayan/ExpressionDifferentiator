@@ -1,13 +1,13 @@
 #pragma once
 #include "ddx.hpp"
 
+#include "drivers/hessian.hpp"
+#include "drivers/numeric.hpp"
+#include "drivers/seeded_energy.hpp"
+#include "drivers/symbolic.hpp"
 #include "dual/dual.hpp"
 #include "dual/taylor_dual.hpp"
 #include "expr/bound.hpp"
-#include "drivers/numeric.hpp"
-#include "drivers/symbolic.hpp"
-#include "drivers/seeded_energy.hpp"
-#include "drivers/hessian.hpp"
 #include "expr/equation.hpp"
 #include "expr/format.hpp"
 #include "expr/operations.hpp"
@@ -23,13 +23,13 @@
 #include <cstring>
 #include <format>
 #include <gtest/gtest.h>
-#include <tuple>
 #include <numbers>
 #include <random>
 #include <ranges>
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 
 using namespace ddx::impl;
 using namespace ddx::literals; // "x"_s
@@ -60,12 +60,15 @@ template <typename T>
   return *r;
 }
 
-[[nodiscard]] constexpr const double *raw(const double *p) noexcept { return p; }
+[[nodiscard]] constexpr const double *raw(const double *p) noexcept {
+  return p;
+}
 template <std::ranges::contiguous_range R>
 [[nodiscard]] constexpr const double *raw(const R &r) noexcept {
   return std::ranges::data(r);
 }
-[[nodiscard]] inline const double *raw(const std::unique_ptr<double[]> &p) noexcept {
+[[nodiscard]] inline const double *
+raw(const std::unique_ptr<double[]> &p) noexcept {
   return p.get();
 }
 
@@ -93,4 +96,3 @@ template <std::ranges::contiguous_range R>
 [[nodiscard]] constexpr double val_of(const auto &h) noexcept {
   return deref(h).value;
 }
-

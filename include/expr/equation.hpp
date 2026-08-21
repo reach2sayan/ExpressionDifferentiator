@@ -4,8 +4,8 @@
 #include "expr/bound.hpp"
 #include "expr/format.hpp"
 #include "expr/simplify.hpp"
-#include "util/config.hpp"
 #include "expr/symbol.hpp"
+#include "util/config.hpp"
 #include "util/scope_guard.hpp"
 #include <algorithm>
 #include <array>

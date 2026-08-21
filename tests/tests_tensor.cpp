@@ -1,6 +1,5 @@
 #include "tests_common.hpp"
 
-
 // ---------------------------------------------------------------------------
 // Bit-exactness gate.
 //
@@ -16,8 +15,8 @@
 //
 // The pinned value is necessarily per-toolchain: where a compiler forms an FMA
 // changes the last bit, so GCC, clang and MSVC each have their own answer and
-// none is wrong.  The constant is therefore checked only when the build asks for
-// it with -DDDX_PIN_BIT_HASH=<value>; the hash is always reported.
+// none is wrong.  The constant is therefore checked only when the build asks
+// for it with -DDDX_PIN_BIT_HASH=<value>; the hash is always reported.
 //
 // The way to use it is a same-compiler A/B, which is the question it answers:
 //
@@ -53,14 +52,17 @@ TEST(BitExactness, EveryDriverIsBitStableAcrossBuilds) {
   for (int i = 1; i <= 120; ++i) {
     const double a = 0.01 * i, b = 0.02 * i + 0.3, c = 0.015 * i + 0.5;
     const std::array<double, 3> p{a, b, c};
-    for (double v : Equation{e}.gradient(p)) feed(v);
+    for (double v : Equation{e}.gradient(p))
+      feed(v);
     const auto g1 = Equation{e}.template derivative_tensor<1>(p);
-    for (std::size_t k = 0; k < 3; ++k) feed(g1.data()[k]);
+    for (std::size_t k = 0; k < 3; ++k)
+      feed(g1.data()[k]);
     // Packed symmetric storage -- a 3x3 second-order tensor stores 6 elements,
     // not 9 -- so walk the index space, not the buffer.
     const auto g2 = Equation{e}.template derivative_tensor<2>(p);
     for (std::size_t r = 0; r < 3; ++r)
-      for (std::size_t cc = 0; cc < 3; ++cc) feed(g2[r, cc]);
+      for (std::size_t cc = 0; cc < 3; ++cc)
+        feed(g2[r, cc]);
     feed(e.eval(a, b, c));
     feed(e.eval_with_tangent<"x">(a, b, c).deriv());
 
@@ -71,10 +73,13 @@ TEST(BitExactness, EveryDriverIsBitStableAcrossBuilds) {
     };
     const auto H = ddx::impl::hessian(fn, std::span<const double>{xs});
     feed(val_of(H));
-    for (std::size_t k = 0; k < hess_n(H); ++k) feed(grad_at(H, k));
+    for (std::size_t k = 0; k < hess_n(H); ++k)
+      feed(grad_at(H, k));
     for (std::size_t r = 0; r < 3; ++r)
-      for (std::size_t cc = 0; cc < 3; ++cc) feed(hess_at(H, r, cc));
-    for (auto v : ddx::impl::gradient(fn, std::span<const double>{xs})) feed(v);
+      for (std::size_t cc = 0; cc < 3; ++cc)
+        feed(hess_at(H, r, cc));
+    for (auto v : ddx::impl::gradient(fn, std::span<const double>{xs}))
+      feed(v);
 
     const auto u = sin(x * x) + exp(x) + atan(x) + asinh(x);
     feed(Equation{u}.template univariate_derivative<1>(a));
@@ -94,9 +99,12 @@ TEST(BitExactness, EveryDriverIsBitStableAcrossBuilds) {
 // through max or min needs TaylorDual to be ordered.
 TEST(UnivariateDerivative, MaxAndMinAreDifferentiable) {
   auto x = var<"x">;
-  EXPECT_DOUBLE_EQ(Equation{max(x * x, 1.0)}.template univariate_derivative<1>(2.0), 4.0);
-  EXPECT_DOUBLE_EQ(Equation{min(x * x, 1.0)}.template univariate_derivative<1>(2.0), 0.0);
-  EXPECT_DOUBLE_EQ(Equation{max(x * x, 1.0)}.template univariate_derivative<2>(2.0), 2.0);
+  EXPECT_DOUBLE_EQ(
+      Equation{max(x * x, 1.0)}.template univariate_derivative<1>(2.0), 4.0);
+  EXPECT_DOUBLE_EQ(
+      Equation{min(x * x, 1.0)}.template univariate_derivative<1>(2.0), 0.0);
+  EXPECT_DOUBLE_EQ(
+      Equation{max(x * x, 1.0)}.template univariate_derivative<2>(2.0), 2.0);
 }
 
 // The guard on "everything is constexpr", differentiation entry points
@@ -110,22 +118,25 @@ TEST(ConstexprContract, DifferentiationEntryPointsAreConstantEvaluated) {
   constexpr auto g = Equation{x * y}.gradient(std::array{3.0, 4.0});
   static_assert(g[0] == 4.0 && g[1] == 3.0, "reverse gradient of x*y");
 
-  constexpr auto gf = Equation{x * y}.template derivative_tensor<1>(std::array{3.0, 4.0});
+  constexpr auto gf =
+      Equation{x * y}.template derivative_tensor<1>(std::array{3.0, 4.0});
   static_assert(gf[0] == 4.0 && gf[1] == 3.0, "forward gradient of x*y");
 
-  constexpr auto H = Equation{x * y}.template derivative_tensor<2>(std::array{3.0, 4.0});
+  constexpr auto H =
+      Equation{x * y}.template derivative_tensor<2>(std::array{3.0, 4.0});
   static_assert(H[0][1] == 1.0 && H[1][0] == 1.0 && H[0][0] == 0.0,
                 "d2(x*y)/dxdy == 1");
 
   // TaylorDual path: multiply-only, so it stays within the constexpr subset.
-  constexpr auto d2 = Equation{x * x * x}.template univariate_derivative<2>(2.0);
+  constexpr auto d2 =
+      Equation{x * x * x}.template univariate_derivative<2>(2.0);
   static_assert(d2 == 12.0, "d2(x^3)/dx2 at x=2");
 
   // A three-variable gradient, which also has to be usable in constant
   // evaluation.
   constexpr Variable<double, FixedString{"z"}> z;
-  constexpr auto g3 =
-      Equation{x * y * z}.template derivative_tensor<1>(std::array{2.0, 3.0, 4.0});
+  constexpr auto g3 = Equation{x * y * z}.template derivative_tensor<1>(
+      std::array{2.0, 3.0, 4.0});
   static_assert(g3[0] == 12.0 && g3[1] == 8.0 && g3[2] == 6.0,
                 "forward gradient path is constexpr");
 
@@ -164,7 +175,7 @@ TEST(BoundTest, EvalAsCarriesDualsThroughTheGraph) {
 
 TEST(MdLayout, SimplexPackedIsABijectionOnSortedMultiIndices) {
   using T = ddx::impl::md_tensor<double, ddx::impl::uniform_extents_t<4, 3>,
-                            ddx::impl::layout_simplex_packed>;
+                                 ddx::impl::layout_simplex_packed>;
   EXPECT_EQ(T::size(), 20u); // C(4 + 3 - 1, 3) = C(6, 3) = 20
 
   const auto m = T::mapping();
@@ -189,7 +200,7 @@ TEST(MdLayout, SimplexPackedIsABijectionOnSortedMultiIndices) {
 TEST(MdLayout, LeadingSimplexKeepsOutputsApart) {
   // Two outputs, each a symmetric 3x3 Hessian: 2 * 6 cells, not 2 * 9.
   using T = ddx::impl::md_tensor<double, ddx::impl::stacked_extents_t<2, 3, 2>,
-                            ddx::impl::layout_leading_simplex<1>>;
+                                 ddx::impl::layout_leading_simplex<1>>;
   EXPECT_EQ(T::size(), 12u);
 
   T t{};
@@ -208,19 +219,21 @@ TEST(MdLayout, SparsePatternSendsStructuralZerosToTheSink) {
   using E = decltype(x * y + z * z);
   using L = ddx::impl::layout_sparse_pattern<E>;
 
-  const typename L::template mapping<ddx::impl::md::extents<std::size_t, 3, 3>> m{};
+  const typename L::template mapping<ddx::impl::md::extents<std::size_t, 3, 3>>
+      m{};
   EXPECT_EQ(static_cast<std::size_t>(m.required_span_size()), L::kNnz + 1);
 
   // Symbols are alphabetical: x=0, y=1, z=2.
-  EXPECT_TRUE(m.contains(0, 1)); // d2/dx dy is in the pattern
-  EXPECT_TRUE(m.contains(2, 2)); // d2/dz2 too
+  EXPECT_TRUE(m.contains(0, 1));  // d2/dx dy is in the pattern
+  EXPECT_TRUE(m.contains(2, 2));  // d2/dz2 too
   EXPECT_FALSE(m.contains(0, 2)); // x and z never meet
   EXPECT_FALSE(m.contains(1, 2));
   // Every structural zero shares the one sink cell.
   EXPECT_EQ(static_cast<std::size_t>(m(0, 2)), L::kNnz);
   EXPECT_EQ(static_cast<std::size_t>(m(1, 2)), L::kNnz);
   // ...and every nonzero has its own slot.
-  EXPECT_NE(static_cast<std::size_t>(m(0, 1)), static_cast<std::size_t>(m(2, 2)));
+  EXPECT_NE(static_cast<std::size_t>(m(0, 1)),
+            static_cast<std::size_t>(m(2, 2)));
 }
 
 TEST(DerivativeTensorTest, ForwardAndReverseHessiansAgree) {
@@ -230,32 +243,40 @@ TEST(DerivativeTensorTest, ForwardAndReverseHessiansAgree) {
   using D = ddx::impl::Dual<double>;
   using ddx::impl::FixedString;
   {
-    Variable<D, FixedString{"a"}> a; Variable<D, FixedString{"b"}> b;
-    Variable<D, FixedString{"c"}> c; Variable<D, FixedString{"d"}> d;
+    Variable<D, FixedString{"a"}> a;
+    Variable<D, FixedString{"b"}> b;
+    Variable<D, FixedString{"c"}> c;
+    Variable<D, FixedString{"d"}> d;
     auto e = a * log(a) + b * log(b) + c * c * d + exp(a * d);
     const std::array<double, 4> p{0.3, 0.4, 0.5, 0.6};
     const auto T = Equation{e}.template derivative_tensor<2>(p);
     const auto R = ddx::impl::detail::reverse_mode_hessian(e, p);
     for (std::size_t i = 0; i < 4; ++i) {
       for (std::size_t j = 0; j < 4; ++j) {
-        EXPECT_NEAR((T[i, j]), (R[i, j]), 1e-12) << "N=4 at (" << i << "," << j << ")";
+        EXPECT_NEAR((T[i, j]), (R[i, j]), 1e-12)
+            << "N=4 at (" << i << "," << j << ")";
       }
     }
   }
   {
-    Variable<D, FixedString{"a"}> a; Variable<D, FixedString{"b"}> b;
-    Variable<D, FixedString{"c"}> c; Variable<D, FixedString{"d"}> d;
+    Variable<D, FixedString{"a"}> a;
+    Variable<D, FixedString{"b"}> b;
+    Variable<D, FixedString{"c"}> c;
+    Variable<D, FixedString{"d"}> d;
     Variable<D, FixedString{"e"}> e5;
     auto e = a * log(a) + b * log(b) + c * c * d + exp(a * d) + e5 * e5 * b;
     const std::array<double, 5> p{0.3, 0.4, 0.5, 0.6, 0.7};
     const std::span<const double> xs{p.data(), p.size()};
     const auto T = Equation{e}.template derivative_tensor<2>(p);
     const auto R = ddx::impl::detail::reverse_mode_hessian(e, p);
-    const auto H = ddx::impl::hessian(e, xs);  // independent driver, as a cross-check
+    const auto H =
+        ddx::impl::hessian(e, xs); // independent driver, as a cross-check
     for (std::size_t i = 0; i < 5; ++i) {
       for (std::size_t j = 0; j < 5; ++j) {
-        EXPECT_NEAR((T[i, j]), (R[i, j]), 1e-12) << "N=5 at (" << i << "," << j << ")";
-        EXPECT_NEAR((T[i, j]), hess_at(H, i, j), 1e-9) << "N=5 vs driver at (" << i << "," << j << ")";
+        EXPECT_NEAR((T[i, j]), (R[i, j]), 1e-12)
+            << "N=5 at (" << i << "," << j << ")";
+        EXPECT_NEAR((T[i, j]), hess_at(H, i, j), 1e-9)
+            << "N=5 vs driver at (" << i << "," << j << ")";
       }
     }
   }
@@ -270,8 +291,8 @@ TEST(ForwardDriver, DriverHessianAgreesWithEquationHessian) {
   const std::array<double, 2> p{0.7, 1.3};
   const std::span<const double> xs{p.data(), p.size()};
 
-  const auto H = ddx::impl::hessian(expr, xs);   // tuple {value, grad, hess}
-  const auto T = Equation{expr}.hessian(p); // md_tensor
+  const auto H = ddx::impl::hessian(expr, xs); // tuple {value, grad, hess}
+  const auto T = Equation{expr}.hessian(p);    // md_tensor
 
   for (std::size_t i = 0; i < 2; ++i) {
     for (std::size_t j = 0; j < 2; ++j) {
@@ -321,7 +342,8 @@ void ExpectPackedMatchesDense(const Expr &expr, const Values &values) {
         [](auto... i) { return std::array<std::size_t, Order>{i...}; }, multi);
     std::array<U, N> seeds{};
     for (std::size_t k = 0; k < N; ++k) {
-      seeds[k] = ddx::impl::detail::make_mixed_seed<S, Order>(values[k], idx, k);
+      seeds[k] =
+          ddx::impl::detail::make_mixed_seed<S, Order>(values[k], idx, k);
     }
     const U val = expr.template eval_seeded<symbols>(seeds);
     const double dense = ddx::impl::detail::extract_nth<Order>(val);

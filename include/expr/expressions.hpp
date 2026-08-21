@@ -1,7 +1,7 @@
 #pragma once
 
-#include "util/fixed_string.hpp" // FixedString, CFixedString
 #include "expr/symbol.hpp"       // CSymbol, CSymbolList
+#include "util/fixed_string.hpp" // FixedString, CFixedString
 
 #include <concepts>
 #include <ranges>

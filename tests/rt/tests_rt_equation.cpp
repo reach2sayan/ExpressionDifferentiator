@@ -5,10 +5,10 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <ranges>
 #include <cmath>
 #include <iterator>
 #include <numbers>
+#include <ranges>
 #include <span>
 #include <vector>
 
@@ -287,7 +287,8 @@ TEST(RtEquation, BatchTakesAnyContiguousRange) {
   *eq.gradient(as_array, outputs, partials, n);
   EXPECT_DOUBLE_EQ(f[0], 6.0);
 
-  *eq.gradient(std::span{as_vector}, std::span{outputs}, std::span{partials}, n);
+  *eq.gradient(std::span{as_vector}, std::span{outputs}, std::span{partials},
+               n);
   EXPECT_DOUBLE_EQ(f[0], 6.0);
 }
 

@@ -177,9 +177,9 @@ namespace detail {
 // single range that is not tuple-like.  Every other spelling is counted by a
 // static_assert, so this is the only one that can answer with an error.
 template <typename... Args>
-concept CDynamicPoint = sizeof...(Args) == 1 &&
-                        (std::ranges::input_range<Args> && ...) &&
-                        !(CTupleLike<Args> && ...);
+concept CDynamicPoint =
+    sizeof...(Args) == 1 && (std::ranges::input_range<Args> && ...) &&
+    !(CTupleLike<Args> && ...);
 
 // Every spelling of "a point" reduced to an array of N values in canonical
 // symbol order.  Written against a symbol list, not an expression, because

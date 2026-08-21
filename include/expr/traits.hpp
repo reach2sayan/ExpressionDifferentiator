@@ -2,8 +2,8 @@
 #include "expr/values.hpp"
 // CFixedString appears only as a constrained-auto NTTP placeholder, which
 // include-cleaner does not count as a reference -- hence the pragma.
-#include "util/fixed_string.hpp" // IWYU pragma: keep
 #include "expr/symbol.hpp"
+#include "util/fixed_string.hpp" // IWYU pragma: keep
 #include <type_traits>
 
 namespace ddx::impl {
@@ -196,7 +196,8 @@ template <CExpression Expr>
 using expr_symbols_t = extract_symbols_from_expr_t<std::remove_cvref_t<Expr>>;
 
 template <CExpression Expr>
-inline constexpr std::size_t expr_arity_v = mp::mp_size<expr_symbols_t<Expr>>::value;
+inline constexpr std::size_t expr_arity_v =
+    mp::mp_size<expr_symbols_t<Expr>>::value;
 
 } // namespace detail
 

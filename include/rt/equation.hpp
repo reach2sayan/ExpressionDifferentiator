@@ -59,8 +59,8 @@ public:
   // while no arena was current -- so construction goes through here.  The
   // constructors below take the graph as a precondition and are private for
   // that reason.
-  [[nodiscard]] static constexpr result<Equation> create(
-      rt::RTExpression<T> first, Rest... rest) {
+  [[nodiscard]] static constexpr result<Equation>
+  create(rt::RTExpression<T> first, Rest... rest) {
     if (const auto bad = why_not(first, rest...)) {
       return std::unexpected{*bad};
     }
@@ -397,12 +397,10 @@ private:
     return std::span<Ptr const>{std::ranges::data(r), std::ranges::size(r)};
   }
 
-  [[nodiscard]] result<void> dispatch(const Compiled &c,
-                                      std::span<const T *const> xs,
-                                      std::span<T *const> f,
-                                      std::span<T *const> g,
-                                      std::span<T *const> h,
-                                      std::size_t n) const {
+  [[nodiscard]] result<void>
+  dispatch(const Compiled &c, std::span<const T *const> xs,
+           std::span<T *const> f, std::span<T *const> g, std::span<T *const> h,
+           std::size_t n) const {
     const auto blocks = c.graph.output_blocks();
     if (xs.size() != arity() || f.size() != blocks.values.size() ||
         g.size() != blocks.jacobian.size() ||
@@ -489,10 +487,8 @@ template <impl::Numeric T = double, std::invocable Assemble>
     static_assert(outputs > 0,
                   "equation: a system needs at least one function");
     return impl::index_apply<outputs - 1>([&]<std::size_t... Rest>() {
-      return impl::Equation<RTExpression<T>,
-                            detail::Repeat<Rest, T>...>::create(std::move(arena),
-                                                                built[0],
-                                                                built[Rest + 1]...);
+      return impl::Equation<RTExpression<T>, detail::Repeat<Rest, T>...>::
+          create(std::move(arena), built[0], built[Rest + 1]...);
     });
   }
 }

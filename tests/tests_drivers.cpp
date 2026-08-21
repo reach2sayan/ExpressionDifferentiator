@@ -1,10 +1,9 @@
 #include "tests_common.hpp"
 
-
 // ===========================================================================
-// The public hessian() router on a raw callable.  It has one answer — the scalar
-// O(m^2) probe driver — and this pins that across a spread of m, on an energy
-// exercising +,-,*,/,log,exp and scalar*dual.
+// The public hessian() router on a raw callable.  It has one answer — the
+// scalar O(m^2) probe driver — and this pins that across a spread of m, on an
+// energy exercising +,-,*,/,log,exp and scalar*dual.
 // ===========================================================================
 namespace {
 template <Numeric T> T vf_sample(const T *y, std::size_t n) {
@@ -80,7 +79,8 @@ TEST(SeededExprEnergy, GraphRoutesThroughPublicHessian) {
 
   EXPECT_NEAR(val_of(Hrouted), val_of(Hscalar), 1e-12);
   for (std::size_t i = 0; i < 4; ++i) {
-    EXPECT_NEAR(grad_at(Hrouted, i), grad_at(Hscalar, i), 1e-12) << "grad " << i;
+    EXPECT_NEAR(grad_at(Hrouted, i), grad_at(Hscalar, i), 1e-12)
+        << "grad " << i;
     for (std::size_t j = 0; j < 4; ++j) {
       EXPECT_NEAR(hess_at(Hrouted, i, j), hess_at(Hscalar, i, j), 1e-12)
           << "scalar H(" << i << "," << j << ")";
@@ -141,16 +141,19 @@ TEST(Ownership, GraphHessianRejectsAPointShorterThanTheSymbolSet) {
   // Two values for a three-symbol graph.  seeded_energy() reads slots [0,3),
   // so without the guard this reads off the end of the driver's dof vector.
   const std::array<double, 2> shortx{0.2, 0.4};
-  EXPECT_EQ(ddx::impl::hessian(expr, std::span<const double>{shortx}).error().code,
-            ddx::errc::wrong_arity);
+  EXPECT_EQ(
+      ddx::impl::hessian(expr, std::span<const double>{shortx}).error().code,
+      ddx::errc::wrong_arity);
 
   // Surplus values are just as wrong: the extra rows would come back zero.
   const std::array<double, 4> longx{0.2, 0.4, 0.6, 0.8};
-  EXPECT_EQ(ddx::impl::hessian(expr, std::span<const double>{longx}).error().code,
-            ddx::errc::wrong_arity);
+  EXPECT_EQ(
+      ddx::impl::hessian(expr, std::span<const double>{longx}).error().code,
+      ddx::errc::wrong_arity);
 
   const std::array<double, 3> okx{0.2, 0.4, 0.6};
-  EXPECT_TRUE(ddx::impl::hessian(expr, std::span<const double>{okx}).has_value());
+  EXPECT_TRUE(
+      ddx::impl::hessian(expr, std::span<const double>{okx}).has_value());
 }
 
 TEST(Ownership, GraphHessianRejectsAnActiveIndexThatNamesNoSymbol) {
@@ -203,10 +206,9 @@ TEST(Ownership, ResultOwnsItsBuffersAndTransfersThem) {
       std::is_same_v<decltype(values(named<"x">(2.0)).get<"x">()), double>,
       "get() on a temporary map must return by value");
   EXPECT_DOUBLE_EQ(values(named<"x">(2.0)).get<"x">(), 2.0);
-  EXPECT_DOUBLE_EQ(bind(var<"x"> * var<"y">, named<"x">(4.0),
-                        named<"y">(5.0))
-                       .get<"x">(),
-                   4.0);
+  EXPECT_DOUBLE_EQ(
+      bind(var<"x"> * var<"y">, named<"x">(4.0), named<"y">(5.0)).get<"x">(),
+      4.0);
 }
 
 TEST(Ownership, EquationSubtreeAccessorsWorkOnTemporaries) {
@@ -220,8 +222,10 @@ TEST(Ownership, EquationSubtreeAccessorsWorkOnTemporaries) {
 TEST(Ownership, ReverseHessianAcceptsATemporaryExpression) {
   // A temporary expression has to reach hessian(), not just gradient().
   using D = ddx::impl::Dual<double>;
-  const auto H = Equation{var<"x", dual> * var<"y", dual>}.hessian(std::array{2.0, 3.0});
-  const auto g = Equation{var<"x", dual> * var<"y", dual>}.gradient(std::array{D{2.0}, D{3.0}});
+  const auto H =
+      Equation{var<"x", dual> * var<"y", dual>}.hessian(std::array{2.0, 3.0});
+  const auto g = Equation{var<"x", dual> * var<"y", dual>}.gradient(
+      std::array{D{2.0}, D{3.0}});
   EXPECT_DOUBLE_EQ(H[0][1], 1.0);
   EXPECT_DOUBLE_EQ(H[0][0], 0.0);
   EXPECT_DOUBLE_EQ(g[0], 3.0);
@@ -337,7 +341,8 @@ TEST(HessianCoupling, CompressedDriverMatchesProbeDriverOnTrigProducts) {
   const std::span<const double> xs{x.data(), x.size()};
 
   const auto Hc = ddx::impl::hessian(expr, xs);
-  const auto Hp = ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
+  const auto Hp =
+      ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
   for (std::size_t i = 0; i < 4; ++i) {
     for (std::size_t j = 0; j < 4; ++j) {
       EXPECT_NEAR(hess_at(Hc, i, j), hess_at(Hp, i, j), 1e-9)
@@ -360,7 +365,11 @@ TEST(HessianCoupling, CompressedDriverMatchesProbeDriverOnTrigProducts) {
 namespace {
 // CSC triple -> dense row-major, exactly as a consumer would read it.
 template <typename Sparse>
-  requires requires { Sparse::rows; Sparse::outer(); Sparse::inner(); }
+  requires requires {
+    Sparse::rows;
+    Sparse::outer();
+    Sparse::inner();
+  }
 std::vector<double> densify(const Sparse &h) {
   std::vector<double> dense(Sparse::rows * Sparse::rows, 0.0);
   const auto outer = Sparse::outer();
@@ -417,7 +426,8 @@ TEST(SparseHessian, MatchesDenseDriver) {
   const std::array<double, 4> x{0.2, 0.4, 0.6, 0.8};
   const std::span<const double> xs{x.data(), x.size()};
 
-  const auto dense = ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
+  const auto dense =
+      ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
   const auto sparse = ddx::impl::sparse_hessian(expr, xs);
 
   // Tridiagonal plus the (0,3) corner: 4 + 2*3 + 2 = 12 nonzeros, not 16.
@@ -453,7 +463,8 @@ TEST(SparseHessian, IndexesLikeADenseMatrix) {
   const std::span<const double> xs{x.data(), x.size()};
 
   const auto sparse = ddx::impl::sparse_hessian(expr, xs);
-  const auto dense = ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
+  const auto dense =
+      ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
 
   // Indexed as if dense, while storing only the nonzeros.
   EXPECT_LT(decltype(sparse)::nnz, 9u);
@@ -485,7 +496,8 @@ TEST(SparseHessian, IsSymmetricAndSortedWithinEachColumn) {
   const std::span<const double> xs{x.data(), x.size()};
 
   const auto sparse = ddx::impl::sparse_hessian(expr, xs);
-  const auto dense = ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
+  const auto dense =
+      ddx::impl::detail::hessian(ddx::impl::seeded_energy(expr), xs);
   const auto M = densify(sparse);
 
   for (std::size_t i = 0; i < 3; ++i) {
@@ -541,7 +553,6 @@ TEST(SparseHessian, OfALinearExpressionIsEmpty) {
     }
   }
 }
-
 
 // A plain arithmetic energy lambda carries no tag and is not a CExpression, so
 // it must keep routing to the raw-callable branch — the expr-graph path is
@@ -624,16 +635,16 @@ TEST(ForwardDriverReuse, WorkspaceSurvivesAShrinkingExtent) {
   std::array<double, 3> g3{};
   std::array<double, 9> h3{};
   ddx::impl::detail::hessian(reuse_energy, std::span<const double>{big},
-                               ddx::impl::detail::all_indices(3), ws,
-                               std::span<double>{g3}, std::span<double>{h3});
+                             ddx::impl::detail::all_indices(3), ws,
+                             std::span<double>{g3}, std::span<double>{h3});
 
   auto planar = [](const auto *q) { return q[0] * q[0] * q[1]; };
   const std::array<double, 2> small{0.4, 0.9};
   std::array<double, 2> g2{};
   std::array<double, 4> h2{};
   ddx::impl::detail::hessian(planar, std::span<const double>{small},
-                               ddx::impl::detail::all_indices(2), ws,
-                               std::span<double>{g2}, std::span<double>{h2});
+                             ddx::impl::detail::all_indices(2), ws,
+                             std::span<double>{g2}, std::span<double>{h2});
 
   EXPECT_DOUBLE_EQ(h2[0 * 2 + 0], 2.0 * 0.9);
   EXPECT_DOUBLE_EQ(h2[0 * 2 + 1], 2.0 * 0.4);
@@ -671,7 +682,7 @@ TEST(ForwardDriverReuse, GradientReusingOverloadMatchesOwning) {
   ddx::impl::GradientWorkspace ws;
   std::array<double, 3> out{};
   ddx::impl::gradient(reuse_energy, x, ddx::impl::detail::all_indices(3), ws,
-                 std::span<double>{out});
+                      std::span<double>{out});
 
   ASSERT_EQ(out.size(), owned.size());
   for (std::size_t i = 0; i < owned.size(); ++i) {
@@ -711,5 +722,6 @@ TEST(ForwardDriverReuse, PointAcceptsAnyContiguousSizedRange) {
   const auto gv = ddx::impl::gradient(f, v);
   const auto ga = ddx::impl::gradient(f, a);
   ASSERT_EQ(gv.size(), ga.size());
-  for (std::size_t i = 0; i < gv.size(); ++i) EXPECT_DOUBLE_EQ(gv[i], ga[i]);
+  for (std::size_t i = 0; i < gv.size(); ++i)
+    EXPECT_DOUBLE_EQ(gv[i], ga[i]);
 }

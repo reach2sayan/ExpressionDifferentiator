@@ -187,4 +187,3 @@ TEST(JitVectorize, IrStreamsAndFormatsAlike) {
 }
 
 } // namespace
-

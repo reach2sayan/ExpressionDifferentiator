@@ -20,7 +20,7 @@ concept CompatibleValueTypes =
 
 template <CFixedString auto S, CSymbolList SymList>
 consteval std::size_t find_index_of_symbol() noexcept {
-  return ddx::impl::mp::mp_find<SymList, symbol_type<S>>::value;
+  return symbol_index<S, SymList>();
 }
 
 // Promote a bare scalar into value_type as a zero-derivative constant;

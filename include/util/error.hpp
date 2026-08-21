@@ -33,8 +33,8 @@ enum class errc : std::uint8_t {
 struct error {
   errc code;
 
-  [[nodiscard]] friend constexpr bool operator==(error, error) noexcept =
-      default;
+  [[nodiscard]] friend constexpr bool operator==(error,
+                                                 error) noexcept = default;
 };
 
 [[nodiscard]] constexpr std::string_view message(const errc c) noexcept {

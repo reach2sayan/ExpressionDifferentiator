@@ -98,7 +98,8 @@ TEST(RtMiscibility, NewtonFindsTwoSymmetricMinima) {
 
   EXPECT_NEAR((*f.gradient(lower))[0], 0.0, 1e-12);
   EXPECT_NEAR((*f.gradient(upper))[0], 0.0, 1e-12);
-  EXPECT_GT((*f.hessian(lower))[0], 0.0) << "a minimum, not the central maximum";
+  EXPECT_GT((*f.hessian(lower))[0], 0.0)
+      << "a minimum, not the central maximum";
   EXPECT_GT((*f.hessian(upper))[0], 0.0);
   EXPECT_LT(lower, 0.5);
   EXPECT_GT(upper, 0.5);

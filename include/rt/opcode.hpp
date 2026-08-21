@@ -30,10 +30,10 @@ namespace ddx::rt {
   X(atan2, Atan2, "atan2", impl::detail::atan2_impl,                           \
     r / hypot(l, r) / hypot(l, r), -l / hypot(l, r) / hypot(l, r))             \
   X(hypot, Hypot, "hypot", impl::detail::hypot_impl, l / f, r / f)             \
-  X(max, Max, "max", impl::detail::max_impl,                                   \
-    (T{1} + sign(l - r)) / T{2}, (T{1} - sign(l - r)) / T{2})                  \
-  X(min, Min, "min", impl::detail::min_impl,                                   \
-    (T{1} - sign(l - r)) / T{2}, (T{1} + sign(l - r)) / T{2})
+  X(max, Max, "max", impl::detail::max_impl, (T{1} + sign(l - r)) / T{2},      \
+    (T{1} - sign(l - r)) / T{2})                                               \
+  X(min, Min, "min", impl::detail::min_impl, (T{1} - sign(l - r)) / T{2},      \
+    (T{1} + sign(l - r)) / T{2})
 
 #define DDX_RT_OP_TABLE(X)                                                     \
   DDX_RT_LEAF_TABLE(X)                                                         \

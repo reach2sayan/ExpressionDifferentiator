@@ -264,12 +264,14 @@ int main() {
 
     const double t_lambda = bench_ns(
         [&] {
-          return ddx::impl::hessian(chain_lambda, qs)->hessian[0 * qs.size() + 7];
+          return ddx::impl::hessian(chain_lambda, qs)
+              ->hessian[0 * qs.size() + 7];
         },
         400);
     const double t_graph = bench_ns(
         [&] {
-          return ddx::impl::hessian(chain_graph, qs)->hessian[0 * qs.size() + 7];
+          return ddx::impl::hessian(chain_graph, qs)
+              ->hessian[0 * qs.size() + 7];
         },
         400);
 

@@ -97,11 +97,11 @@ public:
       // does.
       llvm::Type *const f64 = b_.getDoubleTy();
       llvm::Value *const zero = llvm::ConstantFP::get(f64, 0.0);
-      return b_.CreateSelect(
-          b_.CreateFCmpOGT(u, zero), llvm::ConstantFP::get(f64, 1.0),
-          b_.CreateSelect(b_.CreateFCmpOLT(u, zero),
-                          llvm::ConstantFP::get(f64, -1.0),
-                          b_.CreateFSub(u, u)));
+      return b_.CreateSelect(b_.CreateFCmpOGT(u, zero),
+                             llvm::ConstantFP::get(f64, 1.0),
+                             b_.CreateSelect(b_.CreateFCmpOLT(u, zero),
+                                             llvm::ConstantFP::get(f64, -1.0),
+                                             b_.CreateFSub(u, u)));
     }
     return call(op, {u});
   }

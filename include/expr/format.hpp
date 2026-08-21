@@ -179,8 +179,9 @@ template <> struct std::formatter<ddx::jit::Ir, char> {
   // prints why instead of the IR that does not exist.
   auto format(const ddx::jit::Ir &ir, std::format_context &ctx) const {
     const auto text = ir.str();
-    ddx::impl::detail::fmt_put(ctx, text ? std::string_view{*text}
-                                         : std::string_view{text.error().detail});
+    ddx::impl::detail::fmt_put(ctx,
+                               text ? std::string_view{*text}
+                                    : std::string_view{text.error().detail});
     return ctx.out();
   }
 };

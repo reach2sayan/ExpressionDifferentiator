@@ -26,7 +26,8 @@ TEST(MathFunctionTest, AsinDerivative) {
   double x0 = 0.5;
   auto x = var_of<"x">(x0);
   ASSERT_DOUBLE_EQ(asin(x).eval(x0), std::asin(x0));
-  ASSERT_DOUBLE_EQ(asin(x).derivative().eval(x0), 1.0 / std::sqrt(1.0 - x0 * x0));
+  ASSERT_DOUBLE_EQ(asin(x).derivative().eval(x0),
+                   1.0 / std::sqrt(1.0 - x0 * x0));
 }
 
 TEST(MathFunctionTest, AcosDerivative) {
@@ -351,25 +352,30 @@ TEST(SymbolTest, SingleVariable) {
   using E = Variable<double, ddx::impl::FixedString{"x"}>;
   using Syms = extract_symbols_from_expr_t<E>;
   static_assert(ddx::impl::mp::mp_size<Syms>::value == 1);
-  static_assert(std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 0>,
-                               ddx::impl::symbol_type<ddx::impl::FixedString{"x"}>>);
+  static_assert(
+      std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 0>,
+                     ddx::impl::symbol_type<ddx::impl::FixedString{"x"}>>);
 }
 
 TEST(SymbolTest, TwoVariables) {
-  using E = decltype(std::declval<Variable<double, ddx::impl::FixedString{"x"}>>() *
-                     std::declval<Variable<double, ddx::impl::FixedString{"y"}>>());
+  using E =
+      decltype(std::declval<Variable<double, ddx::impl::FixedString{"x"}>>() *
+               std::declval<Variable<double, ddx::impl::FixedString{"y"}>>());
   using Syms = extract_symbols_from_expr_t<E>;
   static_assert(ddx::impl::mp::mp_size<Syms>::value == 2);
   // Symbols are sorted lexicographically: "x" < "y"
-  static_assert(std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 0>,
-                               ddx::impl::symbol_type<ddx::impl::FixedString{"x"}>>);
-  static_assert(std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 1>,
-                               ddx::impl::symbol_type<ddx::impl::FixedString{"y"}>>);
+  static_assert(
+      std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 0>,
+                     ddx::impl::symbol_type<ddx::impl::FixedString{"x"}>>);
+  static_assert(
+      std::is_same_v<ddx::impl::mp::mp_at_c<Syms, 1>,
+                     ddx::impl::symbol_type<ddx::impl::FixedString{"y"}>>);
 }
 
 TEST(SymbolTest, DuplicateSymbolsDeduplicated) {
-  using E = decltype(std::declval<Variable<double, ddx::impl::FixedString{"x"}>>() *
-                     std::declval<Variable<double, ddx::impl::FixedString{"x"}>>());
+  using E =
+      decltype(std::declval<Variable<double, ddx::impl::FixedString{"x"}>>() *
+               std::declval<Variable<double, ddx::impl::FixedString{"x"}>>());
   using Syms = extract_symbols_from_expr_t<E>;
   static_assert(ddx::impl::mp::mp_size<Syms>::value == 1);
 }
@@ -383,28 +389,45 @@ TEST(SymbolTest, ThreeVariables) {
   static_assert(ddx::impl::mp::mp_size<Syms>::value == 3);
 }
 
+// The canonical order is what turns a label into a slot index, so an expression
+// whose symbols appear out of order, more than once, and across several
+// subtrees has to come back alphabetical and deduplicated -- every gradient is
+// returned in this order, and a sort that reordered them would silently return
+// the right numbers against the wrong names.
+TEST(SymbolTest, CanonicalOrderIsAlphabetical) {
+  auto expr = (var<"z"> * var<"a">)+(var<"m"> * var<"z">)+var<"b">;
+  using Syms = extract_symbols_from_expr_t<decltype(expr)>;
+  using ddx::impl::FixedString;
+  static_assert(ddx::impl::mp::mp_size<Syms>::value == 4);
+  static_assert(
+      std::is_same_v<Syms, ddx::impl::mp::mp_list<
+                               ddx::impl::symbol_type<FixedString{"a"}>,
+                               ddx::impl::symbol_type<FixedString{"b"}>,
+                               ddx::impl::symbol_type<FixedString{"m"}>,
+                               ddx::impl::symbol_type<FixedString{"z"}>>>,
+      "canonical symbol order must stay alphabetical and deduplicated");
+}
+
 // ===========================================================================
 // Expression / operator tests
 // ===========================================================================
 
 TEST(ExpressionTest, StaticTests) {
-  static_assert(
-      std::is_same_v<
-          as_const_expression<
-              Expression<MultiplyOp<int>, Variable<int, ddx::impl::FixedString{"x"}>,
-                         Constant<int>>>,
-          Expression<MultiplyOp<int>,
-                     Variable<int, ddx::impl::FixedString{"x"}, true>,
-                     Constant<int>>>);
+  static_assert(std::is_same_v<
+                as_const_expression<Expression<
+                    MultiplyOp<int>, Variable<int, ddx::impl::FixedString{"x"}>,
+                    Constant<int>>>,
+                Expression<MultiplyOp<int>,
+                           Variable<int, ddx::impl::FixedString{"x"}, true>,
+                           Constant<int>>>);
 
-  static_assert(
-      std::is_same_v<
-          as_const_expression<
-              Expression<MultiplyOp<int>, Variable<int, ddx::impl::FixedString{"x"}>,
-                         Variable<int, ddx::impl::FixedString{"y"}>>>,
-          Expression<MultiplyOp<int>,
-                     Variable<int, ddx::impl::FixedString{"x"}, true>,
-                     Variable<int, ddx::impl::FixedString{"y"}, true>>>);
+  static_assert(std::is_same_v<
+                as_const_expression<Expression<
+                    MultiplyOp<int>, Variable<int, ddx::impl::FixedString{"x"}>,
+                    Variable<int, ddx::impl::FixedString{"y"}>>>,
+                Expression<MultiplyOp<int>,
+                           Variable<int, ddx::impl::FixedString{"x"}, true>,
+                           Variable<int, ddx::impl::FixedString{"y"}, true>>>);
 
   auto x = 4_vi;
   auto y = 2_vi;
@@ -633,10 +656,11 @@ TEST(EquationTest, DifferenceOfSquares) {
   constexpr auto y = var<"y", int>;
   constexpr auto expr = (x + y) * (x - y);
   auto eq = Equation(expr);
-  auto [d1, d2] = eq.template gradient<ddx::DiffMode::Symbolic>(std::array{4, 2});
+  auto [d1, d2] =
+      eq.template gradient<ddx::DiffMode::Symbolic>(std::array{4, 2});
   ASSERT_EQ(expr.eval(4, 2), 12); // (4+2)*(4-2) = 12
-  ASSERT_EQ(d1, 8);    // 2x = 8
-  ASSERT_EQ(d2, -4);   // -2y = -4
+  ASSERT_EQ(d1, 8);               // 2x = 8
+  ASSERT_EQ(d2, -4);              // -2y = -4
 }
 
 TEST(EquationTest, ExpEquation) {
@@ -670,7 +694,8 @@ TEST(EquationTest, ThreeVariablePartials) {
   auto z = var<"z", int>;
   auto expr = x * y + y * z;
   auto eq = Equation(expr);
-  auto [dx, dy, dz] = eq.template gradient<ddx::DiffMode::Symbolic>(std::array{2, 3, 4});
+  auto [dx, dy, dz] =
+      eq.template gradient<ddx::DiffMode::Symbolic>(std::array{2, 3, 4});
   ASSERT_EQ(dx, 3);
   ASSERT_EQ(dy, 6);
   ASSERT_EQ(dz, 3);
@@ -790,7 +815,8 @@ TEST(EquationTest, ReverseJacobianAgreesWithSymbolic) {
   auto z = var<"z">;
   auto ve = Equation(x * y, sin(x) + y * z, exp(z));
 
-  auto J_sym = ve.template jacobian<ddx::DiffMode::Symbolic>(std::array{2.0, 3.0, 4.0});
+  auto J_sym =
+      ve.template jacobian<ddx::DiffMode::Symbolic>(std::array{2.0, 3.0, 4.0});
   auto J_rev = ve.jacobian(std::array{2.0, 3.0, 4.0});
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
@@ -806,7 +832,8 @@ TEST(EquationTest, ParallelReverseJacobian_FourOutputs) {
   static_assert(decltype(ve)::output_dim == 4);
   static_assert(decltype(ve)::input_dim == 3);
 
-  auto J_sym = ve.template jacobian<ddx::DiffMode::Symbolic>(std::array{1.0, 2.0, 3.0});
+  auto J_sym =
+      ve.template jacobian<ddx::DiffMode::Symbolic>(std::array{1.0, 2.0, 3.0});
   auto J_rev = ve.jacobian(std::array{1.0, 2.0, 3.0});
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
@@ -823,7 +850,8 @@ TEST(EquationTest, ParallelReverseJacobian_FiveOutputsTrigExp) {
   static_assert(decltype(ve)::output_dim == 5);
   static_assert(decltype(ve)::input_dim == 3);
 
-  auto J_sym = ve.template jacobian<ddx::DiffMode::Symbolic>(std::array{0.5, 1.0, 1.5});
+  auto J_sym =
+      ve.template jacobian<ddx::DiffMode::Symbolic>(std::array{0.5, 1.0, 1.5});
   auto J_rev = ve.jacobian(std::array{0.5, 1.0, 1.5});
 
   for (std::size_t i = 0; i < decltype(ve)::output_dim; ++i)
@@ -1123,7 +1151,8 @@ TEST(EquationForward, AgreesWithSymbolic) {
   auto xs = var_of<"x">(xv);
   auto ys = var_of<"y">(yv);
   auto ve_sym = Equation(xs * xs, xs * ys, ys * ys);
-  auto J_sym = ve_sym.template jacobian<ddx::DiffMode::Symbolic>(std::array{xv, yv});
+  auto J_sym =
+      ve_sym.template jacobian<ddx::DiffMode::Symbolic>(std::array{xv, yv});
 
   Variable<double, FixedString{"x"}> xd;
   Variable<double, FixedString{"y"}> yd;
@@ -1162,13 +1191,13 @@ TEST(EquationForward, AgreesWithReverse) {
       EXPECT_NEAR(J_rev[i][j], J_fwd[i][j], 1e-12);
 }
 
-
 TEST(ReverseModeAD, ScalarLiteralCoercion) {
   auto x = var<"x", dual>;
   auto y = var<"y", dual>;
   auto z = var<"z", dual>;
   auto expe = 3.0 * x * y + y * z;
-  auto g = Equation{expe}.gradient(Dual<double>{2.0, 0.0}, Dual<double>{3.0, 0.0}, Dual<double>{4.0, 0.0});
+  auto g = Equation{expe}.gradient(
+      Dual<double>{2.0, 0.0}, Dual<double>{3.0, 0.0}, Dual<double>{4.0, 0.0});
   EXPECT_DOUBLE_EQ(g[0], 9.0);  // df/dx = 3*y = 9
   EXPECT_DOUBLE_EQ(g[1], 10.0); // df/dy = 3*x + z = 10
   EXPECT_DOUBLE_EQ(g[2], 3.0);  // df/dz = y = 3
@@ -1221,7 +1250,6 @@ TEST(DualCompoundAssign, DivEq) {
   EXPECT_DOUBLE_EQ(a.template get<1>(), 1.0);
 }
 
-
 // ===========================================================================
 // reverse_mode_gradient on Dual-valued (PDV) expressions
 // ===========================================================================
@@ -1235,7 +1263,8 @@ TEST(ReverseModeAD_Dual, SingleVariable) {
 TEST(ReverseModeAD_Dual, TwoVariables) {
   auto x = var<"x", dual>;
   auto y = var<"y", dual>;
-  auto g = Equation{x * y}.gradient(Dual<double>{3.0, 0.0}, Dual<double>{4.0, 0.0});
+  auto g =
+      Equation{x * y}.gradient(Dual<double>{3.0, 0.0}, Dual<double>{4.0, 0.0});
   EXPECT_DOUBLE_EQ(g[0], 4.0);
   EXPECT_DOUBLE_EQ(g[1], 3.0);
 }
@@ -1244,7 +1273,8 @@ TEST(ReverseModeAD_Dual, ThreeVariables) {
   auto x = var<"x", dual>;
   auto y = var<"y", dual>;
   auto z = var<"z", dual>;
-  auto g = Equation{3.0 * x * y + y * z}.gradient(Dual<double>{2.0, 0.0}, Dual<double>{3.0, 0.0}, Dual<double>{4.0, 0.0});
+  auto g = Equation{3.0 * x * y + y * z}.gradient(
+      Dual<double>{2.0, 0.0}, Dual<double>{3.0, 0.0}, Dual<double>{4.0, 0.0});
   EXPECT_DOUBLE_EQ(g[0], 9.0);
   EXPECT_DOUBLE_EQ(g[1], 10.0);
   EXPECT_DOUBLE_EQ(g[2], 3.0);
@@ -1254,7 +1284,8 @@ TEST(ReverseModeAD_Dual, TrigExp) {
   double xv = 1.0, yv = std::numbers::pi / 4.0;
   auto x = dual_var_of<"x">(xv);
   auto y = dual_var_of<"y">(yv);
-  auto g = Equation{exp(x) * sin(y)}.gradient(Dual<double>{xv, 0.0}, Dual<double>{yv, 0.0});
+  auto g = Equation{exp(x) * sin(y)}.gradient(Dual<double>{xv, 0.0},
+                                              Dual<double>{yv, 0.0});
   EXPECT_DOUBLE_EQ(g[0], std::exp(xv) * std::sin(yv));
   EXPECT_DOUBLE_EQ(g[1], std::exp(xv) * std::cos(yv));
 }
@@ -1265,8 +1296,10 @@ TEST(ReverseModeAD_Dual, AgreesWithPVResult) {
   auto yp = var_of<"y">(yv);
   auto xd = dual_var_of<"x">(xv);
   auto yd = dual_var_of<"y">(yv);
-  auto gp = Equation{xp * yp + sin(xp) + yp * yp + exp(xp + yp)}.gradient(xv, yv);
-  auto gd = Equation{xd * yd + sin(xd) + yd * yd + exp(xd + yd)}.gradient(Dual<double>{xv, 0.0}, Dual<double>{yv, 0.0});
+  auto gp =
+      Equation{xp * yp + sin(xp) + yp * yp + exp(xp + yp)}.gradient(xv, yv);
+  auto gd = Equation{xd * yd + sin(xd) + yd * yd + exp(xd + yd)}.gradient(
+      Dual<double>{xv, 0.0}, Dual<double>{yv, 0.0});
   EXPECT_DOUBLE_EQ(gd[0], gp[0]);
   EXPECT_DOUBLE_EQ(gd[1], gp[1]);
 }
@@ -1506,7 +1539,8 @@ TEST(ScalarHessianTest, ForwardAgreesWithReverse) {
   Variable<double, FixedString{"x"}> xf;
   Variable<double, FixedString{"y"}> yf;
   auto expr_f = exp(xf * yf);
-  auto H_fwd = Equation{expr_f}.template derivative_tensor<2>(std::array{xv, yv});
+  auto H_fwd =
+      Equation{expr_f}.template derivative_tensor<2>(std::array{xv, yv});
 
   for (int i = 0; i < 2; ++i)
     for (int j = 0; j < 2; ++j)
@@ -1526,7 +1560,8 @@ TEST(DerivativeTensorTest, Order1_ScalarVariable) {
 
 TEST(DerivativeTensorTest, Order1_MatchesGradient) {
   double xv = 1.5, yv = 2.5;
-  (void)xv; (void)yv;
+  (void)xv;
+  (void)yv;
   Variable<double, FixedString{"x"}> x;
   Variable<double, FixedString{"y"}> y;
   auto expr = x * x + x * y; // df/dx = 2x+y, df/dy = x
@@ -1554,7 +1589,8 @@ TEST(DerivativeTensorTest, Order2_MatchesHessian) {
   Variable<double, FixedString{"x"}> xf;
   Variable<double, FixedString{"y"}> yf;
   auto expr_f = exp(xf * yf);
-  auto H_fwd = Equation{expr_f}.template derivative_tensor<2>(std::array{xv, yv});
+  auto H_fwd =
+      Equation{expr_f}.template derivative_tensor<2>(std::array{xv, yv});
 
   for (std::size_t i = 0; i < 2; ++i)
     for (std::size_t j = 0; j < 2; ++j)
@@ -1604,7 +1640,8 @@ TEST(DerivativeTensorTest, Equation_Order1_IsJacobian) {
 
 TEST(DerivativeTensorTest, Equation_Order2_IsHessianStack) {
   double xv = 1.5, yv = 2.5;
-  (void)xv; (void)yv;
+  (void)xv;
+  (void)yv;
   Variable<double, FixedString{"x"}> xf;
   Variable<double, FixedString{"y"}> yf;
   auto ve_fwd = Equation(xf * yf, xf * xf);
@@ -1689,7 +1726,8 @@ TEST(TutorialMultiVar, SymbolicPartials) {
   auto f = constant(1.0) + x + y + z + x * y + y * z + x * z + x * y * z +
            exp(x / y + y / z);
   auto eq = Equation(f);
-  auto [dx, dy, dz] = eq.template gradient<ddx::DiffMode::Symbolic>(std::array{xv, yv, zv});
+  auto [dx, dy, dz] =
+      eq.template gradient<ddx::DiffMode::Symbolic>(std::array{xv, yv, zv});
   double e = std::exp(xv / yv + yv / zv);
   EXPECT_NEAR(dx, 1.0 + yv + zv + yv * zv + e / yv, 1e-10);
   EXPECT_NEAR(dy, 1.0 + xv + zv + xv * zv + e * (-xv / (yv * yv) + 1.0 / zv),
@@ -1719,7 +1757,8 @@ TEST(TutorialMultiVar, ForwardReverseGradientAgree) {
   Variable<double, FixedString{"z"}> zf;
   auto f_fwd = 1.0 + xf + yf + zf + xf * yf + yf * zf + xf * zf + xf * yf * zf +
                exp(xf / yf + yf / zf);
-  auto T1 = Equation{f_fwd}.template derivative_tensor<1>(std::array{xv, yv, zv});
+  auto T1 =
+      Equation{f_fwd}.template derivative_tensor<1>(std::array{xv, yv, zv});
   auto xr = var_of<"x">(xv);
   auto yr = var_of<"y">(yv);
   auto zr = var_of<"z">(zv);
@@ -1751,7 +1790,9 @@ TEST(TutorialGradient, ForwardReverseAgree) {
   double xv = 1.0, yv = 0.5;
   Variable<double, FixedString{"x"}> xf;
   Variable<double, FixedString{"y"}> yf;
-  auto T1 = Equation{sin(xf) * cos(yf) + exp(xf * yf)}.template derivative_tensor<1>(std::array{xv, yv});
+  auto T1 =
+      Equation{sin(xf) * cos(yf) + exp(xf * yf)}.template derivative_tensor<1>(
+          std::array{xv, yv});
   auto xr = var_of<"x">(xv);
   auto yr = var_of<"y">(yv);
   auto g = Equation{sin(xr) * cos(yr) + exp(xr * yr)}.gradient(xv, yv);
@@ -1775,17 +1816,23 @@ TEST(TutorialHigherOrder, FourthOrder_ExpX) {
   double x0 = 0.7;
   Variable<double, FixedString{"x"}> x;
   double ev = std::exp(x0);
-  EXPECT_NEAR(Equation{exp(x)}.template derivative_tensor<2>(std::array{x0})[0][0], ev, 1e-12);
-  EXPECT_NEAR(Equation{exp(x)}.template derivative_tensor<3>(std::array{x0})[0][0][0], ev, 1e-12);
-  EXPECT_NEAR(Equation{exp(x)}.template derivative_tensor<4>(std::array{x0})[0][0][0][0], ev,
-              1e-9);
+  EXPECT_NEAR(
+      Equation{exp(x)}.template derivative_tensor<2>(std::array{x0})[0][0], ev,
+      1e-12);
+  EXPECT_NEAR(
+      Equation{exp(x)}.template derivative_tensor<3>(std::array{x0})[0][0][0],
+      ev, 1e-12);
+  EXPECT_NEAR(Equation{exp(x)}.template derivative_tensor<4>(
+                  std::array{x0})[0][0][0][0],
+              ev, 1e-9);
 }
 
 TEST(TutorialHigherOrder, FourthOrder_AllCrossPartialsOfSinXplusY) {
   double xv = 1.0, yv = 1.0;
   Variable<double, FixedString{"x"}> x;
   Variable<double, FixedString{"y"}> y;
-  auto T4 = Equation{sin(x + y)}.template derivative_tensor<4>(std::array{xv, yv});
+  auto T4 =
+      Equation{sin(x + y)}.template derivative_tensor<4>(std::array{xv, yv});
   double expected = std::sin(xv + yv);
   for (int i : {0, 1})
     for (int j : {0, 1})
@@ -1798,7 +1845,8 @@ TEST(TutorialHigherOrder, ThirdOrder_MixedPartial) {
   double xv = 1.0, yv = 2.0;
   Variable<double, FixedString{"x"}> x;
   Variable<double, FixedString{"y"}> y;
-  auto T3 = Equation{exp(x) * y * y}.template derivative_tensor<3>(std::array{xv, yv});
+  auto T3 = Equation{exp(x) * y * y}.template derivative_tensor<3>(
+      std::array{xv, yv});
   EXPECT_NEAR(T3[0][0][1], 2.0 * yv * std::exp(xv), 1e-10);
   EXPECT_NEAR(T3[1][1][1], 0.0, 1e-10); // d³(exp(x)*y²)/dy³ = 0
 }
@@ -1812,7 +1860,8 @@ TEST(TutorialDirectional, FirstOrder_DualSeeding) {
   double u = 1.0 / std::sqrt(2.0);
   Variable<Dual<double>, FixedString{"x"}> x;
   Variable<Dual<double>, FixedString{"y"}> y;
-  auto [fv, dfdu] = (exp(x) * sin(y)).eval(Dual<double>{xv, u}, Dual<double>{yv, u});
+  auto [fv, dfdu] =
+      (exp(x) * sin(y)).eval(Dual<double>{xv, u}, Dual<double>{yv, u});
   EXPECT_NEAR(fv, std::exp(xv) * std::sin(yv), 1e-12);
   EXPECT_NEAR(dfdu, std::exp(xv), 1e-12);
 }
@@ -1822,7 +1871,8 @@ TEST(TutorialDirectional, FirstOrder_ViaGradientDot) {
   double u = 1.0 / std::sqrt(2.0);
   Variable<double, FixedString{"x"}> x;
   Variable<double, FixedString{"y"}> y;
-  auto T1 = Equation{exp(x) * sin(y)}.template derivative_tensor<1>(std::array{xv, yv});
+  auto T1 = Equation{exp(x) * sin(y)}.template derivative_tensor<1>(
+      std::array{xv, yv});
   EXPECT_NEAR(T1[0] * u + T1[1] * u, std::exp(xv), 1e-12);
 }
 
@@ -1831,7 +1881,8 @@ TEST(TutorialDirectional, SecondOrder_HessianContraction) {
   double u = 1.0 / std::sqrt(2.0);
   Variable<double, FixedString{"x"}> x;
   Variable<double, FixedString{"y"}> y;
-  auto H = Equation{exp(x) * sin(y)}.template derivative_tensor<2>(std::array{xv, yv});
+  auto H = Equation{exp(x) * sin(y)}.template derivative_tensor<2>(
+      std::array{xv, yv});
   double d2fdu2 =
       H[0][0] * u * u + H[0][1] * u * u + H[1][0] * u * u + H[1][1] * u * u;
   EXPECT_NEAR(d2fdu2, std::exp(xv) * std::cos(yv), 1e-12);
@@ -1896,11 +1947,12 @@ TEST(TutorialReverseConditionals, UpdateReevaluatesDerivatives) {
   Variable<double, FixedString{"x"}> x;
   auto eq = Equation(x * x + sin(x));
   EXPECT_NEAR(eq.evaluate(std::array{2.0}), 4.0 + std::sin(2.0), 1e-12);
-  EXPECT_NEAR(eq.template gradient<ddx::DiffMode::Symbolic>(std::array{2.0})[0], 4.0 + std::cos(2.0),
+  EXPECT_NEAR(eq.template gradient<ddx::DiffMode::Symbolic>(std::array{2.0})[0],
+              4.0 + std::cos(2.0),
               1e-12); // 2x + cos(x)
   EXPECT_NEAR(eq.evaluate(std::array{5.0}), 25.0 + std::sin(5.0), 1e-12);
-  EXPECT_NEAR(eq.template gradient<ddx::DiffMode::Symbolic>(std::array{5.0})[0], 10.0 + std::cos(5.0),
-              1e-12);
+  EXPECT_NEAR(eq.template gradient<ddx::DiffMode::Symbolic>(std::array{5.0})[0],
+              10.0 + std::cos(5.0), 1e-12);
 }
 
 // ---------------------------------------------------------------------------
@@ -1970,10 +2022,12 @@ TEST(TutorialReverseHessian, GradientFromSameExpression) {
 TEST(TutorialReverseHigherOrder, SingleVar_SecondAndThird) {
   double x0 = 1.0;
   Variable<double, FixedString{"x"}> x;
-  EXPECT_NEAR(Equation{sin(x)}.template derivative_tensor<2>(std::array{x0})[0][0], -std::sin(x0),
-              1e-12);
-  EXPECT_NEAR(Equation{sin(x)}.template derivative_tensor<3>(std::array{x0})[0][0][0],
-              -std::cos(x0), 1e-12);
+  EXPECT_NEAR(
+      Equation{sin(x)}.template derivative_tensor<2>(std::array{x0})[0][0],
+      -std::sin(x0), 1e-12);
+  EXPECT_NEAR(
+      Equation{sin(x)}.template derivative_tensor<3>(std::array{x0})[0][0][0],
+      -std::cos(x0), 1e-12);
 }
 
 TEST(TutorialReverseHigherOrder, MultiVar_Hessian) {
@@ -1994,7 +2048,8 @@ TEST(TutorialReverseHigherOrder, ForwardReverseHessianAgree) {
   Variable<double, FixedString{"x"}> xf;
   Variable<double, FixedString{"y"}> yf;
   auto f_fwd = sin(xf) * exp(yf);
-  auto H_fwd = Equation{f_fwd}.template derivative_tensor<2>(std::array{xv, yv});
+  auto H_fwd =
+      Equation{f_fwd}.template derivative_tensor<2>(std::array{xv, yv});
   using D = Dual<double>;
   Variable<D, FixedString{"x"}> xr;
   Variable<D, FixedString{"y"}> yr;
@@ -2065,10 +2120,10 @@ TEST(ForwardDriver, GradientAndHessianCrossTerm) {
   const auto H = ddx::impl::hessian(f, xs);
   EXPECT_DOUBLE_EQ(val_of(H), 39.0); // 4*3 + 27
   ASSERT_EQ(hess_n(H), 2u);
-  EXPECT_DOUBLE_EQ(grad_at(H, 0), 12.0); // 2 x0 x1
-  EXPECT_DOUBLE_EQ(grad_at(H, 1), 31.0); // x0^2 + 3 x1^2
-  EXPECT_DOUBLE_EQ(hess_at(H, 0, 0), 6.0);      // 2 x1
-  EXPECT_DOUBLE_EQ(hess_at(H, 0, 1), 4.0);      // 2 x0
+  EXPECT_DOUBLE_EQ(grad_at(H, 0), 12.0);   // 2 x0 x1
+  EXPECT_DOUBLE_EQ(grad_at(H, 1), 31.0);   // x0^2 + 3 x1^2
+  EXPECT_DOUBLE_EQ(hess_at(H, 0, 0), 6.0); // 2 x1
+  EXPECT_DOUBLE_EQ(hess_at(H, 0, 1), 4.0); // 2 x0
   EXPECT_DOUBLE_EQ(hess_at(H, 1, 0), 4.0);
   EXPECT_DOUBLE_EQ(hess_at(H, 1, 1), 18.0); // 6 x1
 
@@ -2086,7 +2141,8 @@ TEST(ForwardDriver, IdealMixingHessianMatchesClosedForm) {
     return R * T * (y[0] * log(y[0]) + y[1] * log(y[1]));
   };
   const std::array<double, 2> y{0.3, 0.7};
-  const auto H = ddx::impl::hessian(f, std::span<const double>{y.data(), y.size()});
+  const auto H =
+      ddx::impl::hessian(f, std::span<const double>{y.data(), y.size()});
 
   EXPECT_NEAR(val_of(H), R * T * (0.3 * std::log(0.3) + 0.7 * std::log(0.7)),
               1e-6);
@@ -2273,10 +2329,10 @@ TEST(MapTest, SubscriptReadsTheSameSlotAsGet) {
 TEST(MapTest, OwnershipFollowsTheMapNotTheKey) {
   auto m = map(named<"x">(1.5));
   static_assert(std::is_same_v<decltype(m.get<"x">()), double &>);
-  static_assert(std::is_same_v<decltype(std::as_const(m).get<"x">()),
-                               const double &>);
-  static_assert(std::is_same_v<decltype(map(named<"x">(1.5)).get<"x">()),
-                               double>);
+  static_assert(
+      std::is_same_v<decltype(std::as_const(m).get<"x">()), const double &>);
+  static_assert(
+      std::is_same_v<decltype(map(named<"x">(1.5)).get<"x">()), double>);
 }
 
 TEST(MapTest, ContainsAnswersForAbsentAndSimilarKeys) {
@@ -2292,11 +2348,12 @@ TEST(MapTest, EverySpellingBuildsTheSameType) {
   constexpr Map by_variable{NamedValue{kMapN, 3}, NamedValue{kMapX, 1.5}};
   constexpr Map by_tagged_named{named(kMapN, 3), named(kMapX, 1.5)};
   constexpr Map<NamedValue<"n", int>, NamedValue<"x", double>> by_type{{3},
-                                                                      {1.5}};
+                                                                       {1.5}};
 
   static_assert(std::is_same_v<decltype(by_keyword), decltype(by_label)>);
   static_assert(std::is_same_v<decltype(by_keyword), decltype(by_variable)>);
-  static_assert(std::is_same_v<decltype(by_keyword), decltype(by_tagged_named)>);
+  static_assert(
+      std::is_same_v<decltype(by_keyword), decltype(by_tagged_named)>);
   static_assert(std::is_same_v<decltype(by_keyword), decltype(by_type)>);
   static_assert(by_keyword == by_label && by_label == by_variable &&
                 by_variable == by_tagged_named && by_tagged_named == by_type);
@@ -2370,8 +2427,8 @@ TEST(MapTest, EqualityIsKeysInOrderAndValues) {
   constexpr auto m = map(named<"n">(3), named<"x">(1.5));
   static_assert(m == map(named<"n">(3), named<"x">(1.5)));
   static_assert(!(m == map(named<"n">(4), named<"x">(1.5))));
-  static_assert(
-      !std::is_same_v<decltype(m), decltype(map(named<"x">(1.5), named<"n">(3)))>);
+  static_assert(!std::is_same_v<decltype(m),
+                                decltype(map(named<"x">(1.5), named<"n">(3)))>);
 }
 
 TEST(MapTest, EmptyMapIsUsable) {

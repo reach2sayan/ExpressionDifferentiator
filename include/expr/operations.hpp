@@ -448,8 +448,7 @@ template <Numeric T>
 constexpr auto Atan2Op<T>::derivative(const CExpression auto &lhs,
                                       const CExpression auto &rhs) noexcept {
   // Two divisions by hypot, never x² + y²: the square overflows past 1e154.
-  return ((rhs * lhs.derivative() - lhs * rhs.derivative()) /
-          hypot(lhs, rhs)) /
+  return ((rhs * lhs.derivative() - lhs * rhs.derivative()) / hypot(lhs, rhs)) /
          hypot(lhs, rhs);
 }
 

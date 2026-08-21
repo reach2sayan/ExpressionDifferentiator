@@ -8,8 +8,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <ranges>
 #include <iterator>
+#include <ranges>
 #include <vector>
 
 // ===========================================================================
@@ -53,8 +53,8 @@ void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
   const auto root = build(b, vars);
   // The sweep is repeated for the reference values; the builder runs its own.
   const auto reference_gradient = ddx::rt::gradient(b, root.id(b));
-  const auto kernel = must_compile(
-      ddx::rt::GraphBuilder{b}.value(root).gradient().build());
+  const auto kernel =
+      must_compile(ddx::rt::GraphBuilder{b}.value(root).gradient().build());
   ASSERT_EQ(kernel.outputs(), nvars + 1);
 
   std::vector<std::vector<double>> columns(nvars, std::vector<double>(n));
@@ -109,7 +109,9 @@ TEST(JitGradient, MatchesTheInterpreter) {
   expect_gradient_matches_interpreter(
       [](Builder<> &, auto &v) { return abs(v[0] - v[1]) * v[1]; }, 2);
   expect_gradient_matches_interpreter(
-      [](Builder<> &, auto &v) { return max(v[0] * v[0], v[1]) + min(v[0], v[1]); },
+      [](Builder<> &, auto &v) {
+        return max(v[0] * v[0], v[1]) + min(v[0], v[1]);
+      },
       2);
 }
 
@@ -120,8 +122,8 @@ TEST(JitGradient, MatchesDdxThroughTheBridge) {
 
   Builder<> b;
   const auto root = ddx::rt::to_graph(b, f);
-  const auto kernel = must_compile(
-      ddx::rt::GraphBuilder{b}.value(root).gradient().build());
+  const auto kernel =
+      must_compile(ddx::rt::GraphBuilder{b}.value(root).gradient().build());
 
   const std::array cx{1.0, 0.25, 2.5};
   const std::array cy{2.0, 1.75, 0.5};

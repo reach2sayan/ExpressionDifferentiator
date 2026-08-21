@@ -2,9 +2,9 @@
 
 #include "expr/expressions.hpp"
 #include "expr/operations.hpp"
+#include "expr/symbol.hpp"
 #include "expr/traits.hpp"
 #include "md/md.hpp"
-#include "expr/symbol.hpp"
 
 #include <algorithm>
 #include <array>
@@ -74,7 +74,7 @@ consteval coupling_info<N> coupling_of() noexcept {
   if constexpr (is_variable_v<U>) {
     // A frozen variable differentiates to zero.
     if constexpr (!U::frozen) {
-      info.symbols.set(mp::mp_find<Syms, symbol_type<U::label>>::value);
+      info.symbols.set(symbol_index<U::label, Syms>());
     }
   } else if constexpr (CExpressionNode<U>) {
     using Kids = typename U::children_t;

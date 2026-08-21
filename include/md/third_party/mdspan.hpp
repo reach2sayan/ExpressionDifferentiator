@@ -3401,8 +3401,8 @@ struct layout_stride {
     //--------------------------------------------------------------------------------
 
     MDSPAN_INLINE_FUNCTION_DEFAULTED
-        MDSPAN_IMPL_CONSTEXPR_14_DEFAULTED mapping &
-        operator=(mapping const &) noexcept = default;
+    MDSPAN_IMPL_CONSTEXPR_14_DEFAULTED mapping &
+    operator=(mapping const &) noexcept = default;
 
     MDSPAN_INLINE_FUNCTION constexpr const extents_type &
     extents() const noexcept {
@@ -4402,8 +4402,8 @@ private:
 MDSPAN_TEMPLATE_REQUIRES(
     class ElementType, class... SizeTypes,
     /* requires */
-        MDSPAN_IMPL_FOLD_AND(MDSPAN_IMPL_TRAIT(std::is_convertible, SizeTypes,
-                                               size_t) /* && ... */) &&
+    MDSPAN_IMPL_FOLD_AND(MDSPAN_IMPL_TRAIT(std::is_convertible, SizeTypes,
+                                           size_t) /* && ... */) &&
         (sizeof...(SizeTypes) > 0))
 MDSPAN_DEDUCTION_GUIDE explicit mdspan(ElementType *, SizeTypes...) -> mdspan<
     ElementType,

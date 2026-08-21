@@ -7,10 +7,10 @@
 #include "dual/taylor_dual.hpp"
 #include "expr/expressions.hpp"
 #include "expr/named_value.hpp"
+#include "expr/symbol.hpp"
 #include "expr/traits.hpp"
 #include "md/tensor.hpp"
 #include "util/config.hpp"
-#include "expr/symbol.hpp"
 #include "util/scope_guard.hpp"
 #include <algorithm>
 #include <array>
@@ -401,7 +401,7 @@ namespace detail {
 template <CExpression Expr>
 constexpr HessianStatic<
     mp::mp_size<detail::expr_symbols_t<std::remove_cvref_t<Expr>>>::value>
-    hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
+hessian_expr_reverse(const Expr &expr, std::span<const double> x) {
   using E = std::remove_cvref_t<Expr>;
   using T = typename E::value_type;
   using Syms = detail::expr_symbols_t<E>;
