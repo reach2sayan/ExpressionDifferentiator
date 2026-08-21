@@ -23,4 +23,15 @@ target_compile_definitions(ddx_jit PUBLIC
 # only needed by code that derives from an LLVM polymorphic class or applies
 # typeid/dynamic_cast to one; isa<>/cast<> use LLVM's own RTTI, not the
 # language's, and nothing here inherits from LLVM.
+#
+# -fno-exceptions, on the other hand, unconditionally: this is the one place the
+# project meets LLVM, LLVM is itself built -fno-exceptions -funwind-tables
+# (llvm-config --cxxflags), and nothing here throws -- llvm::Error comes out as
+# jit::error instead.  Independent of DDX_NO_EXCEPTIONS, which is about the rest
+# of the tree.
 ddx_target_flags(ddx_jit)
+if (NOT MSVC)
+    target_compile_options(ddx_jit PRIVATE -fno-exceptions -funwind-tables)
+else ()
+    target_compile_options(ddx_jit PRIVATE /EHs-c-)
+endif ()

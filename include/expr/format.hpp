@@ -175,8 +175,12 @@ template <> struct std::formatter<ddx::jit::Ir, char> {
     return ctx.begin();
   }
 
+  // A formatter has nowhere to put an error, so a module that would not build
+  // prints why instead of the IR that does not exist.
   auto format(const ddx::jit::Ir &ir, std::format_context &ctx) const {
-    ddx::impl::detail::fmt_put(ctx, ir.str());
+    const auto text = ir.str();
+    ddx::impl::detail::fmt_put(ctx, text ? std::string_view{*text}
+                                         : std::string_view{text.error().detail});
     return ctx.out();
   }
 };

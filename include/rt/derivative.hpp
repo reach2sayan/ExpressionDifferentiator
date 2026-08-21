@@ -15,11 +15,7 @@ namespace ddx::rt {
 
 namespace detail {
 
-// d/du of a one-argument op.  The eighteen transcendentals come from the
-// descriptors in expr/unary_math.hpp instantiated at RTExpression: the rule
-// bodies are written against Numeric, so at T = RTExpression they build nodes
-// instead of computing.  There is no second copy of the chain rule. A template,
-// so `if constexpr` actually discards: several descriptors define
+// A template, so `if constexpr` actually discards: several descriptors define
 // deriv_from_value, which reuses the primal node instead of recomputing it --
 // d(exp)/du becomes the exp node itself rather than a second one.
 template <typename Fn, impl::Numeric T>
@@ -144,17 +140,11 @@ template <impl::Numeric T>
 }
 
 // Forward accumulation: one pass per symbol, carrying d[v]/dx_s up the graph.
-// The graph analogue of Equation's Symbolic mode, which materialises one
-// partial tree per symbol.
-//
-// This is here to check Reverse against, not to compute with.  Measured on the
-// graph, Reverse produces fewer nodes on everything except a single-variable
-// expression, where it loses by exactly one -- and node count is what both the
-// interpreter and the kernel cost.  README's "Symbolic wins at n=3" is about a
-// different cost model: there Symbolic evaluates pre-folded partial trees
-// against a sweep that pays for a node_cache_t, and on a graph both are simply
-// nodes.  Being an independent implementation of the same derivative is the
-// whole of its value.
+// Here to check Reverse against, not to compute with -- on the graph Reverse
+// produces fewer nodes on everything except a single-variable expression, where
+// it loses by exactly one.  (README's "Symbolic wins at n=3" is a different
+// cost model: there Symbolic evaluates pre-folded partial trees against a sweep
+// that pays for a node_cache_t, and on a graph both are simply nodes.)
 template <impl::Numeric T>
 [[nodiscard]] constexpr Gradient symbolic_gradient(Builder<T> &b, NodeId root) {
   const auto nsym = b.symbols().size();
@@ -225,10 +215,8 @@ template <impl::Numeric T>
   return j;
 }
 
-// Pinned: explicit template arguments are required, so this never competes with
-// the plain spelling.  Symbolic exists as an independent implementation to
-// check Reverse against -- measured on the graph, Reverse produces fewer nodes
-// on everything except a single-variable expression, where it loses by one.
+// Explicit template arguments are required, so this never competes with the
+// plain spelling below.
 template <impl::DiffMode Mode, impl::Numeric T>
 [[nodiscard]] constexpr Gradient gradient(Builder<T> &b, NodeId root) {
   if constexpr (Mode == impl::DiffMode::Symbolic) {
@@ -238,22 +226,16 @@ template <impl::DiffMode Mode, impl::Numeric T>
   }
 }
 
-// The default remains one reverse sweep: it is what every existing caller
-// wants, and the facade is where the choice is made.
 template <impl::Numeric T>
 [[nodiscard]] constexpr Gradient gradient(Builder<T> &b, NodeId root) {
   return reverse_gradient(b, root);
 }
 
-// The Hessian, one sweep per colour rather than one per variable.
-//
-// Colouring normally works because the caller scatters a *numeric* result, and
-// it is not obvious it survives a sweep that builds expressions instead.  It
-// does: sweeping from the sum of a colour's partials gives, for row i,
-// sum over j in colour of d2f/dxi dxj -- and the colouring guarantees at most
-// one term of that sum is not structurally zero.  The rest fold away as the
-// nodes are formed, by the same x*0 -> 0 rewrite that runs everywhere else, so
-// the sum *is* the one second derivative.
+// The Hessian, one sweep per colour rather than one per variable.  Colouring
+// survives a sweep that builds expressions rather than scattering numbers:
+// sweeping from the sum of a colour's partials gives, for row i, the sum over j
+// in the colour of d2f/dxi dxj, of which the colouring guarantees at most one
+// term is not structurally zero.  The rest fold away as the nodes are formed.
 struct Hessian {
   NodeId value = no_node;
   std::vector<NodeId> partial;    // n
@@ -285,8 +267,7 @@ template <impl::Numeric T>
   h.compressed.assign(h.coloring.count * n, h.zero);
   for (const std::size_t c : std::views::iota(0uz, h.coloring.count)) {
     // Summing a colour's partials before the sweep is what makes one sweep do
-    // the work of |colour| of them; the folding order is the loop's order, so
-    // the node the builder interns is the same one either spelling produces.
+    // the work of |colour| of them.
     const auto seed = std::ranges::fold_left(
         std::views::iota(0uz, n) | std::views::filter([&](std::size_t j) {
           return h.coloring.color[j] == c;

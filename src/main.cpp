@@ -180,17 +180,17 @@ int main() {
   // allocate, the symbolic one returns a packed md_tensor on the stack.
   println("\nHESSIAN            H(0,2)");
   row("lambda  hessian(f, xs)",
-      ddx::impl::hessian(lambda, xs).hessian[0 * xs.size() + 2],
+      ddx::impl::hessian(lambda, xs)->hessian[0 * xs.size() + 2],
       bench_ns(
           [&] {
-            return ddx::impl::hessian(lambda, xs).hessian[0 * xs.size() + 2];
+            return ddx::impl::hessian(lambda, xs)->hessian[0 * xs.size() + 2];
           },
           1000));
   row("graph   hessian(expr, xs)",
-      ddx::impl::hessian(graph, xs).hessian[0 * xs.size() + 2],
+      ddx::impl::hessian(graph, xs)->hessian[0 * xs.size() + 2],
       bench_ns(
           [&] {
-            return ddx::impl::hessian(graph, xs).hessian[0 * xs.size() + 2];
+            return ddx::impl::hessian(graph, xs)->hessian[0 * xs.size() + 2];
           },
           1000));
   {
@@ -264,12 +264,12 @@ int main() {
 
     const double t_lambda = bench_ns(
         [&] {
-          return ddx::impl::hessian(chain_lambda, qs).hessian[0 * qs.size() + 7];
+          return ddx::impl::hessian(chain_lambda, qs)->hessian[0 * qs.size() + 7];
         },
         400);
     const double t_graph = bench_ns(
         [&] {
-          return ddx::impl::hessian(chain_graph, qs).hessian[0 * qs.size() + 7];
+          return ddx::impl::hessian(chain_graph, qs)->hessian[0 * qs.size() + 7];
         },
         400);
 

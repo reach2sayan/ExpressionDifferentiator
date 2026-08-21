@@ -3,9 +3,9 @@
 #include "rt/apply.hpp"
 #include "rt/builder.hpp"
 #include "rt/opcode.hpp"
+#include "util/error.hpp"
 #include "util/scope_guard.hpp"
 
-#include <stdexcept>
 #include <string_view>
 #include <utility> // std::move
 
@@ -39,6 +39,19 @@ public:
   [[nodiscard]] constexpr bool pending() const noexcept {
     return builder_ == nullptr;
   }
+
+  // A symbol named while no arena was current.  Deliberately not a pending
+  // literal: a pending literal is a legitimate value that materialises into
+  // whatever graph it first meets, and this must never do that -- it would put
+  // a zero where a symbol should be and differentiate a different function.  It
+  // propagates through every operator instead, so the mistake surfaces once, as
+  // errc::no_arena out of equation().
+  [[nodiscard]] static constexpr RTExpression poison() noexcept {
+    RTExpression e;
+    e.poisoned_ = true;
+    return e;
+  }
+  [[nodiscard]] constexpr bool poisoned() const noexcept { return poisoned_; }
   [[nodiscard]] constexpr const T &literal() const noexcept { return lit_; }
   [[nodiscard]] constexpr Builder<T> *builder() const noexcept {
     return builder_;
@@ -53,6 +66,9 @@ public:
   // the derivative rules produce never become nodes.
   [[nodiscard]] static constexpr RTExpression form(OpCode op,
                                                    const RTExpression &u) {
+    if (u.poisoned_) {
+      return poison();
+    }
     Builder<T> *const b = u.builder();
     return b ? RTExpression{*b, b->make(op, u.id(*b))}
              : RTExpression{apply<T>(op, u.literal())};
@@ -60,6 +76,9 @@ public:
 
   [[nodiscard]] static constexpr RTExpression
   form(OpCode op, const RTExpression &l, const RTExpression &r) {
+    if (l.poisoned_ || r.poisoned_) {
+      return poison();
+    }
     Builder<T> *const b = l.builder() ? l.builder() : r.builder();
     return b ? RTExpression{*b, b->make(op, l.id(*b), r.id(*b))}
              : RTExpression{apply<T>(op, l.literal(), r.literal())};
@@ -108,6 +127,7 @@ private:
   Builder<T> *builder_ = nullptr;
   NodeId id_ = no_node;
   T lit_{};
+  bool poisoned_ = false;
 };
 
 template <impl::Numeric T>
@@ -158,10 +178,9 @@ template <impl::Numeric T>
 // Name a symbol.  This is the spelling a model uses; the two-argument form
 // above is the primitive, for code that manages an arena itself.
 template <impl::Numeric T = double>
-[[nodiscard]] RTExpression<T> var(std::string_view name) {
+[[nodiscard]] RTExpression<T> var(std::string_view name) noexcept {
   if (detail::current_arena<T> == nullptr) {
-    throw std::logic_error(
-        "var: no arena is current -- name symbols inside ddx::rt::equation()");
+    return RTExpression<T>::poison();
   }
   return var(*detail::current_arena<T>, name);
 }

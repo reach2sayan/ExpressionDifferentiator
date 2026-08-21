@@ -143,7 +143,8 @@ template <impl::Numeric T>
 }
 
 // Columns j and k conflict iff their coupling rows overlap -- the CPR colouring
-// color_columns runs at compile time (drivers/coupling.hpp:130).
+// color_columns runs at compile time (drivers/coupling.hpp), which carries the
+// citations.
 //
 // An invalid colouring does not degrade the Hessian, it corrupts it: two
 // columns sharing a colour have their second derivatives summed into one cell

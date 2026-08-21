@@ -33,6 +33,7 @@ DDX_RT_MAP_OP(HypotOp, Hypot)
 DDX_RT_MAP_OP(MaxOp, Max)
 DDX_RT_MAP_OP(MinOp, Min)
 DDX_RT_MAP_OP(AbsOp, Abs)
+DDX_RT_MAP_OP(SignOp, Sign)
 #undef DDX_RT_MAP_OP
 
 // The eighteen share their spelling with the enumerators, by construction.

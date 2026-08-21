@@ -114,6 +114,12 @@ option(ENABLE_NATIVE_ARCH "Build optimized for this machine" ON)
 # accuracy for speed belongs here -- in particular never -ffast-math (nor
 # /fp:fast on MSVC, which needs no flags at all).
 option(DDX_FP_FLAGS "Pin FP contraction and drop errno on libm calls" ON)
+# The headers throw nothing, so a consumer is free to build without exceptions.
+# This only turns the flag on for our own targets -- the INTERFACE library must
+# never push it onto a consumer, which is why it is applied in
+# ddx_target_flags() below and nowhere else.  Two tests that assert on the
+# standard library's own throws compile out; see DDX_NO_EXCEPTIONS in the tests.
+option(DDX_NO_EXCEPTIONS "Build our own targets without C++ exceptions" OFF)
 
 if (MSVC)
     # /bigobj: one TU instantiates past the 2^16 COFF section limit.
@@ -123,6 +129,9 @@ if (MSVC)
     set(DDX_WARNINGS /Wall /wd4623 /wd4625 /wd4626 /wd5026 /wd5027 /wd4710
                      /wd4711 /wd4868 /wd4820 /wd5045 /wd5246 /wd4514 /wd4324 /wd5266)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    if (DDX_NO_EXCEPTIONS)
+        list(APPEND DDX_CODEGEN_FLAGS /EHs-c- /D_HAS_EXCEPTIONS=0)
+    endif ()
 else ()
     if (ENABLE_NATIVE_ARCH)
         set(DDX_CODEGEN_FLAGS -march=native)
@@ -131,6 +140,12 @@ else ()
     endif ()
     if (DDX_FP_FLAGS)
         list(APPEND DDX_CODEGEN_FLAGS -ffp-contract=fast -fno-math-errno)
+    endif ()
+    if (DDX_NO_EXCEPTIONS)
+        # -funwind-tables with it, matching how LLVM itself is built: no
+        # exceptions to raise or catch, but frames still unwindable for a
+        # backtrace or a profiler.
+        list(APPEND DDX_CODEGEN_FLAGS -fno-exceptions -funwind-tables)
     endif ()
     set(DDX_WARNINGS -Wall -Wextra -Wpedantic -Wfatal-errors)
 endif ()
@@ -192,6 +207,17 @@ if (DDX_BUILD_RT)
     add_library(ddx::rt ALIAS ddx_rt)
     target_link_libraries(ddx_rt INTERFACE ddx Boost::graph Boost::dynamic_bitset)
     add_subdirectory(include/rt)
+
+    # Boost leaves boost::throw_exception undefined under -fno-exceptions and
+    # makes it the program's to supply; see src/rt/boost_no_exceptions.cpp.
+    # ddx_rt is INTERFACE, so this is the one compiled object it carries, and
+    # only in this configuration.
+    if (DDX_NO_EXCEPTIONS)
+        add_library(ddx_rt_no_exceptions STATIC src/rt/boost_no_exceptions.cpp)
+        target_link_libraries(ddx_rt_no_exceptions PRIVATE Boost::throw_exception)
+        ddx_target_flags(ddx_rt_no_exceptions)
+        target_link_libraries(ddx_rt INTERFACE ddx_rt_no_exceptions)
+    endif ()
 endif ()
 
 if (DDX_BUILD_JIT)

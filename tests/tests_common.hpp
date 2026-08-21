@@ -48,6 +48,18 @@ concept CHessianResult = requires(const T &H) {
   { H.arity } -> std::convertible_to<std::size_t>;
 };
 
+// The drivers answer with result<T> wherever the point is a span or a range,
+// so every accessor below takes either.  A test that is not about the error
+// path reads exactly as it did; one that is checks .error().code directly.
+template <typename T>
+[[nodiscard]] constexpr const T &deref(const T &x) noexcept {
+  return x;
+}
+template <typename T>
+[[nodiscard]] constexpr const T &deref(const ddx::result<T> &r) noexcept {
+  return *r;
+}
+
 [[nodiscard]] constexpr const double *raw(const double *p) noexcept { return p; }
 template <std::ranges::contiguous_range R>
 [[nodiscard]] constexpr const double *raw(const R &r) noexcept {
@@ -57,34 +69,28 @@ template <std::ranges::contiguous_range R>
   return p.get();
 }
 
-template <CHessianResult T>
-[[nodiscard]] constexpr const double *grad_ptr(const T &H) noexcept {
-  return raw(H.gradient);
+[[nodiscard]] constexpr const double *grad_ptr(const auto &h) noexcept {
+  return raw(deref(h).gradient);
 }
 
-template <CHessianResult T>
-[[nodiscard]] constexpr const double *hess_ptr(const T &H) noexcept {
-  return raw(H.hessian);
+[[nodiscard]] constexpr const double *hess_ptr(const auto &h) noexcept {
+  return raw(deref(h).hessian);
 }
 
-template <CHessianResult T>
-[[nodiscard]] constexpr std::size_t hess_n(const T &H) noexcept {
-  return H.arity;
+[[nodiscard]] constexpr std::size_t hess_n(const auto &h) noexcept {
+  return deref(h).arity;
 }
 
-template <CHessianResult T>
-[[nodiscard]] constexpr double hess_at(const T &H, std::size_t i,
+[[nodiscard]] constexpr double hess_at(const auto &h, std::size_t i,
                                        std::size_t j) noexcept {
-  return hess_ptr(H)[i * hess_n(H) + j]; // row-major, as the drivers document
+  return hess_ptr(h)[i * hess_n(h) + j]; // row-major, as the drivers document
 }
 
-template <CHessianResult T>
-[[nodiscard]] constexpr double grad_at(const T &H, std::size_t i) noexcept {
-  return grad_ptr(H)[i];
+[[nodiscard]] constexpr double grad_at(const auto &h, std::size_t i) noexcept {
+  return grad_ptr(h)[i];
 }
 
-template <CHessianResult T>
-[[nodiscard]] constexpr double val_of(const T &H) noexcept {
-  return H.value;
+[[nodiscard]] constexpr double val_of(const auto &h) noexcept {
+  return deref(h).value;
 }
 

@@ -7,8 +7,6 @@
 // exercising +,-,*,/,log,exp and scalar*dual.
 // ===========================================================================
 namespace {
-// Non-trivial multivariate function exercising +,-,*,/,log,exp and
-// scalar*dual on the forward-dual element type.
 template <Numeric T> T vf_sample(const T *y, std::size_t n) {
   using std::exp, std::log; // ADL selects the dual overloads
   T g = T{0};
@@ -56,9 +54,8 @@ TEST(HessianRouter, RawCallableTakesTheScalarDriver) {
 }
 
 // A compile-time expression *graph* can be handed straight to the public
-// hessian(): the router detects CExpression, auto-bridges it via seeded_energy
-// (no client wrapping), and routes to the scalar driver.  The result must be
-// bit-close to both explicit drivers on the same graph.
+// hessian(): the router detects CExpression and auto-bridges it via
+// seeded_energy, with no client wrapping.
 TEST(SeededExprEnergy, GraphRoutesThroughPublicHessian) {
   using D = ddx::impl::Dual<double>;
   using ddx::impl::FixedString;
@@ -73,10 +70,8 @@ TEST(SeededExprEnergy, GraphRoutesThroughPublicHessian) {
   const std::array<double, 4> x{0.2, 0.4, 0.6, 0.8};
   const std::span<const double> xs{x.data(), x.size()};
 
-  // Client just calls hessian() with the raw graph — no seeded_energy in sight.
   const auto Hrouted = ddx::impl::hessian(expr, xs);
 
-  // Explicit bridge for cross-checking against both numeric drivers.
   auto f = ddx::impl::seeded_energy(expr);
   static_assert(ddx::impl::CSeededExprEnergy<decltype(f)>,
                 "seeded_energy() must advertise the routing tag");
@@ -94,9 +89,9 @@ TEST(SeededExprEnergy, GraphRoutesThroughPublicHessian) {
 }
 
 // Forward-over-reverse is the third driver for the same Hessian, and the only
-// one that is O(N) sweeps rather than O(N^2) probes.  Before the router may
-// prefer it, it has to agree with the forward-over-forward driver on a real
-// graph energy — not just the two-variable cases in HessianTest.
+// one that is O(N) sweeps rather than O(N^2) probes.  It has to agree with the
+// forward-over-forward driver on a real graph energy, not just the two-variable
+// cases in HessianTest.
 TEST(SeededExprEnergy, ForwardOverReverseAgreesWithNumericDrivers) {
   using D = ddx::impl::Dual<double>;
   using ddx::impl::FixedString;
@@ -146,17 +141,16 @@ TEST(Ownership, GraphHessianRejectsAPointShorterThanTheSymbolSet) {
   // Two values for a three-symbol graph.  seeded_energy() reads slots [0,3),
   // so without the guard this reads off the end of the driver's dof vector.
   const std::array<double, 2> shortx{0.2, 0.4};
-  EXPECT_THROW(ddx::impl::hessian(expr, std::span<const double>{shortx}),
-               std::out_of_range);
+  EXPECT_EQ(ddx::impl::hessian(expr, std::span<const double>{shortx}).error().code,
+            ddx::errc::wrong_arity);
 
   // Surplus values are just as wrong: the extra rows would come back zero.
   const std::array<double, 4> longx{0.2, 0.4, 0.6, 0.8};
-  EXPECT_THROW(ddx::impl::hessian(expr, std::span<const double>{longx}),
-               std::out_of_range);
+  EXPECT_EQ(ddx::impl::hessian(expr, std::span<const double>{longx}).error().code,
+            ddx::errc::wrong_arity);
 
-  // The exact point is accepted.
   const std::array<double, 3> okx{0.2, 0.4, 0.6};
-  EXPECT_NO_THROW(ddx::impl::hessian(expr, std::span<const double>{okx}));
+  EXPECT_TRUE(ddx::impl::hessian(expr, std::span<const double>{okx}).has_value());
 }
 
 TEST(Ownership, GraphHessianRejectsAnActiveIndexThatNamesNoSymbol) {
@@ -168,23 +162,25 @@ TEST(Ownership, GraphHessianRejectsAnActiveIndexThatNamesNoSymbol) {
 
   const std::array<double, 4> x{0.2, 0.4, 0.6, 0.8};
   const std::array<std::size_t, 2> bad{2, 3}; // no such symbols
-  EXPECT_THROW(ddx::impl::hessian(expr, std::span<const double>{x},
-                             std::span<const std::size_t>{bad}),
-               std::out_of_range);
+  EXPECT_EQ(ddx::impl::hessian(expr, std::span<const double>{x},
+                               std::span<const std::size_t>{bad})
+                .error()
+                .code,
+            ddx::errc::index_out_of_range);
 
   const std::array<std::size_t, 1> ok{1};
-  EXPECT_NO_THROW(ddx::impl::hessian(expr, std::span<const double>{x},
-                                std::span<const std::size_t>{ok}));
+  EXPECT_TRUE(ddx::impl::hessian(expr, std::span<const double>{x},
+                                 std::span<const std::size_t>{ok})
+                  .has_value());
 }
 
 TEST(Ownership, ResultOwnsItsBuffersAndTransfersThem) {
-  // The drivers hand back plain owning std types, so ownership is the tuple's:
-  // the buffers move with it and die with it.  There is no accessor, so an
-  // accessor on a prvalue result cannot dangle.
+  // The drivers hand back plain owning std types, so the buffers move with the
+  // result and die with it.
   auto f = [](const auto *d) { return d[0] * d[0] * d[1]; };
   const std::array<double, 2> x{2.0, 3.0};
 
-  auto H = ddx::impl::hessian(f, std::span<const double>{x});
+  auto H = *ddx::impl::hessian(f, std::span<const double>{x});
   EXPECT_DOUBLE_EQ(hess_at(H, 0, 1), 4.0); // d2/dx0dx1 of x0^2 x1 = 2 x0
 
   // Moving the result moves the buffers: the destination is intact and the
@@ -281,7 +277,6 @@ TEST(HessianCoupling, LinearExpressionHasEmptyPattern) {
   auto expr = 3.0 * x + 4.0 * y - x;
   constexpr auto P = ddx::impl::hessian_pattern<decltype(expr)>();
   static_assert(P[0].none() && P[1].none(), "a linear form has a zero Hessian");
-  // One colour, and every entry stays zero.
   constexpr auto C = ddx::impl::color_columns<2>(P);
   static_assert(C.count == 1, "nothing conflicts, so one sweep suffices");
 }
@@ -620,10 +615,9 @@ TEST(ForwardDriverReuse, WritingOverloadMatchesOwningOverload) {
 }
 
 TEST(ForwardDriverReuse, WorkspaceSurvivesAShrinkingExtent) {
-  // The scratch workspace is grow-only.  A second call with a SMALLER point must
-  // seed only that point's slots and read only those -- if the sweep were to run
-  // over the stale tail from the larger call it would read another problem's
-  // numbers, which is silently wrong rather than a crash.
+  // The scratch workspace is grow-only, so a second call with a SMALLER point
+  // must seed and read only that point's slots: running over the stale tail is
+  // silently wrong rather than a crash.
   ddx::impl::HessianWorkspace ws;
 
   const std::array<double, 3> big{0.4, 0.9, 1.3};
@@ -641,7 +635,6 @@ TEST(ForwardDriverReuse, WorkspaceSurvivesAShrinkingExtent) {
                                ddx::impl::detail::all_indices(2), ws,
                                std::span<double>{g2}, std::span<double>{h2});
 
-  // f = x0^2 x1 at (0.4, 0.9): d2/dx0^2 = 2 x1, d2/dx0dx1 = 2 x0, d2/dx1^2 = 0
   EXPECT_DOUBLE_EQ(h2[0 * 2 + 0], 2.0 * 0.9);
   EXPECT_DOUBLE_EQ(h2[0 * 2 + 1], 2.0 * 0.4);
   EXPECT_DOUBLE_EQ(h2[1 * 2 + 0], 2.0 * 0.4);
@@ -649,8 +642,8 @@ TEST(ForwardDriverReuse, WorkspaceSurvivesAShrinkingExtent) {
 }
 
 TEST(ForwardDriverReuse, AllIndicesMatchesAnExplicitSubset) {
-  // all_indices() is a view, not a container; it must behave identically to the
-  // materialised span it replaced.
+  // all_indices() is a view, not a container, and must behave identically to a
+  // materialised span.
   const std::array<double, 3> pt{0.4, 0.9, 1.3};
   const std::span<const double> x{pt};
   const std::array<std::size_t, 3> idx{0, 1, 2};

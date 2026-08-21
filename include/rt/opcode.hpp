@@ -19,22 +19,21 @@ namespace ddx::rt {
 // DDX_UNARY_MATH_TABLE, whose descriptors already carry their own derivatives;
 #define DDX_RT_UNARY_TABLE(X)                                                  \
   X(neg, Neg, "-", std::negate<>, T{-1})                                       \
-  X(abs, Abs, "abs", impl::detail::abs_impl, u / f)
+  X(abs, Abs, "abs", impl::detail::abs_impl, sign(u))                          \
+  X(sign, Sign, "sign", impl::detail::sign_impl, T{0})
 
 #define DDX_RT_BINARY_TABLE(X)                                                 \
   X(add, Add, "+", std::plus<>, T{1}, T{1})                                    \
   X(mul, Mul, "*", std::multiplies<>, r, l)                                    \
   X(div, Div, "/", std::divides<>, T{1} / r, -f / r)                           \
   X(pow, Pow, "pow", impl::detail::pow_impl, r *pow(l, r - T{1}), f *log(l))   \
-  X(atan2, Atan2, "atan2", impl::detail::atan2_impl, r / (l * l + r * r),      \
-    -l / (l * l + r * r))                                                      \
+  X(atan2, Atan2, "atan2", impl::detail::atan2_impl,                           \
+    r / hypot(l, r) / hypot(l, r), -l / hypot(l, r) / hypot(l, r))             \
   X(hypot, Hypot, "hypot", impl::detail::hypot_impl, l / f, r / f)             \
   X(max, Max, "max", impl::detail::max_impl,                                   \
-    (T{1} + (l - r) / abs(l - r)) / T{2},                                      \
-    (T{1} - (l - r) / abs(l - r)) / T{2})                                      \
+    (T{1} + sign(l - r)) / T{2}, (T{1} - sign(l - r)) / T{2})                  \
   X(min, Min, "min", impl::detail::min_impl,                                   \
-    (T{1} - (l - r) / abs(l - r)) / T{2},                                      \
-    (T{1} + (l - r) / abs(l - r)) / T{2})
+    (T{1} - sign(l - r)) / T{2}, (T{1} + sign(l - r)) / T{2})
 
 #define DDX_RT_OP_TABLE(X)                                                     \
   DDX_RT_LEAF_TABLE(X)                                                         \

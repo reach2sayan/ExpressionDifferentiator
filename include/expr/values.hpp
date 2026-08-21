@@ -8,12 +8,10 @@
 
 namespace ddx::impl {
 
-// Both sides carry the same value_type.
 template <typename LHS, typename RHS>
 concept CSameValueType =
     std::same_as<typename LHS::value_type, typename RHS::value_type>;
 
-// ... or at least one side's value_type converts to the other's.
 template <typename LHS, typename RHS>
 concept CompatibleValueTypes =
     CSameValueType<LHS, RHS> ||

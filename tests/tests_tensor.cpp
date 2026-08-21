@@ -90,8 +90,8 @@ TEST(BitExactness, EveryDriverIsBitStableAcrossBuilds) {
 #endif
 }
 
-// TaylorDual had no comparison operators, so detail::max_impl/min_impl -- which
-// spell `a < b` -- could not compile for a univariate_derivative sweep at all.
+// detail::max_impl/min_impl spell `a < b`, so a univariate_derivative sweep
+// through max or min needs TaylorDual to be ordered.
 TEST(UnivariateDerivative, MaxAndMinAreDifferentiable) {
   auto x = var<"x">;
   EXPECT_DOUBLE_EQ(Equation{max(x * x, 1.0)}.template univariate_derivative<1>(2.0), 4.0);
@@ -99,9 +99,8 @@ TEST(UnivariateDerivative, MaxAndMinAreDifferentiable) {
   EXPECT_DOUBLE_EQ(Equation{max(x * x, 1.0)}.template univariate_derivative<2>(2.0), 2.0);
 }
 
-// README advertises "Everything is constexpr" — not just evaluation, but the
-// differentiation entry points — and nothing was asserting it.  This is the
-// guard for that claim, and the tripwire for anything (a foreign matrix type, a
+// The guard on "everything is constexpr", differentiation entry points
+// included, and the tripwire for anything (a foreign matrix type, a
 // std::vector, an allocation) leaking into the symbolic core: a leak makes
 // these static_asserts fail to compile rather than merely slow something down.
 TEST(ConstexprContract, DifferentiationEntryPointsAreConstantEvaluated) {
@@ -130,8 +129,8 @@ TEST(ConstexprContract, DifferentiationEntryPointsAreConstantEvaluated) {
   static_assert(g3[0] == 12.0 && g3[1] == 8.0 && g3[2] == 6.0,
                 "forward gradient path is constexpr");
 
-  // Forward-over-reverse Hessian — the driver the public router now prefers.
-  // It seeds tangents, so its expression carries Dual<double> numbers.
+  // Forward-over-reverse seeds tangents, so its expression carries Dual<double>
+  // numbers.
   using D = Dual<double>;
   constexpr Variable<D, FixedString{"a"}> a;
   constexpr Variable<D, FixedString{"b"}> b;
@@ -263,9 +262,8 @@ TEST(DerivativeTensorTest, ForwardAndReverseHessiansAgree) {
 }
 
 TEST(ForwardDriver, DriverHessianAgreesWithEquationHessian) {
-  // Two routes to the same Hessian, with two different return shapes: the
-  // driver hands back a plain tuple of owning buffers (row-major), Equation
-  // hands back an md_tensor.  What must agree is the numbers, not the spelling.
+  // Two routes to the same Hessian with two return shapes: the driver hands
+  // back a tuple of owning row-major buffers, Equation an md_tensor.
   Variable<ddx::impl::Dual<double>, ddx::impl::FixedString{"x"}> x;
   Variable<ddx::impl::Dual<double>, ddx::impl::FixedString{"y"}> y;
   auto expr = x * y + x * x + sin(y);
@@ -281,8 +279,8 @@ TEST(ForwardDriver, DriverHessianAgreesWithEquationHessian) {
           << "driver vs Equation at (" << i << "," << j << ")";
     }
   }
-  // Row-major is part of the driver's contract, so state it as a test rather
-  // than only as a comment: (0,1) is element 1 of the flat buffer.
+  // Row-major is part of the driver's contract: (0,1) is element 1 of the flat
+  // buffer.
   EXPECT_DOUBLE_EQ(hess_ptr(H)[1], hess_at(H, 0, 1));
 }
 
@@ -305,10 +303,9 @@ TEST(MdTensor, BothIndexSpellingsAgree) {
   }
 }
 
-// The gate on workstream 6: the packed tensor with the permutations skipped
-// must equal the dense tensor with every multi-index evaluated.  If the
-// symmetry assumption or the simplex ranking is ever wrong, this is what says
-// so — the existing derivative tests only check a handful of entries.
+// The packed tensor with the permutations skipped must equal the dense tensor
+// with every multi-index evaluated: a wrong symmetry assumption or simplex
+// ranking shows up here and nowhere else.
 template <std::size_t Order, CExpression Expr, CTupleLike Values>
 void ExpectPackedMatchesDense(const Expr &expr, const Values &values) {
   const auto packed = Equation{expr}.template derivative_tensor<Order>(values);

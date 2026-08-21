@@ -2,12 +2,8 @@
 
 
 // ===========================================================================
-// Expression printing.
-//
-// Every one of these was unverifiable before expr/format.hpp: printing had no
-// test at all, which is how a unary node that printed only its child (sin(x)
-// as "x") survived.  The assertions are on std::format, since operator<< is a
-// forward to it.
+// Expression printing.  The assertions are on std::format, since operator<< is
+// a forward to it.
 // ===========================================================================
 
 namespace {
@@ -83,6 +79,10 @@ TEST(ExpressionPrinting, DualValuedLeavesPrint) {
   EXPECT_EQ(std::format("{::.2f}", c), "1.50+2.00ε");
 }
 
+#ifdef __cpp_exceptions
+// std::vformat is the thing that throws here, not ddx: a bad runtime spec is
+// std::format_error by the standard's own contract.  Under -fno-exceptions it
+// aborts instead, which is not a thing to assert on.
 TEST(ExpressionPrinting, RejectsUnparseableValueSpec) {
   // The spec is parsed at compile time for literals, so a bad one has to be
   // reached through vformat to be observable as a throw.  It is rejected by
@@ -90,6 +90,7 @@ TEST(ExpressionPrinting, RejectsUnparseableValueSpec) {
   EXPECT_THROW((void)std::vformat("{:q}", std::make_format_args(px)),
                std::format_error);
 }
+#endif
 
 TEST(ExpressionPrinting, EquationPrintsFunctionsAndGradientRows) {
   auto eq = ddx::Equation{px * py};

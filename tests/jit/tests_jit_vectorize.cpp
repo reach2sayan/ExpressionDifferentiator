@@ -28,9 +28,21 @@ namespace {
 using ddx::rt::Builder;
 using ddx::rt::Graph;
 
+// A host with no native target has no JIT to test; every test here needs one,
+// so bring it up once and let the assertion name the reason if it will not.
 ddx::jit::Compiler &compiler() {
-  static ddx::jit::Compiler c;
-  return c;
+  static ddx::jit::result<ddx::jit::Compiler> c = ddx::jit::Compiler::create();
+  EXPECT_TRUE(c.has_value()) << (c ? "" : c.error().detail);
+  return *c;
+}
+
+// A compile that has to succeed for the test to mean anything.  compile()
+// answers with result<Kernel>; the assertion names LLVM's own reason when it
+// does not, instead of an empty Kernel three lines later.
+ddx::jit::Kernel must_compile(auto &&...args) {
+  auto k = compiler().compile(static_cast<decltype(args) &&>(args)...);
+  EXPECT_TRUE(k.has_value()) << (k ? std::string{} : k.error().detail);
+  return k ? std::move(*k) : ddx::jit::Kernel{};
 }
 
 // Any width: libmvec offers 2 (SSE), 4 (AVX2) and 8 (AVX512), and which one
@@ -62,6 +74,33 @@ constexpr bool host_has_libmvec =
 #else
     false;
 #endif
+
+// nounwind is the IR spelling of noexcept, and Kernel::operator() is noexcept
+// on the strength of it.  willreturn and memory(argmem: readwrite) go with it:
+// the body is arithmetic over the argument pointers and calls that are
+// themselves nounwind and memory(none), so the optimiser may move code across
+// them.  Asserted on the *optimised* IR, which is what actually runs.
+TEST(JitVectorize, TheKernelIsNounwind) {
+  const auto ir = ir_for([](auto &v) { return exp(v[0]) * sin(v[1]); }, 2);
+
+  const std::smatch attrs = [&] {
+    std::smatch m;
+    // The attribute group the kernel definition names, then that group's body.
+    std::smatch def;
+    EXPECT_TRUE(std::regex_search(
+        ir, def, std::regex{R"(define[^\n]*@ddx_kernel_\w+\([^\n]*#(\d+))"}))
+        << "no kernel definition in the IR";
+    std::regex_search(
+        ir, m, std::regex{"attributes #" + def[1].str() + R"( = \{([^}]*)\})"});
+    return m;
+  }();
+  ASSERT_FALSE(attrs.empty()) << "the kernel names no attribute group";
+
+  const std::string got = attrs[1].str();
+  EXPECT_NE(got.find("nounwind"), std::string::npos) << got;
+  EXPECT_NE(got.find("willreturn"), std::string::npos) << got;
+  EXPECT_NE(got.find("memory(argmem: readwrite)"), std::string::npos) << got;
+}
 
 TEST(JitVectorize, ArithmeticLoopVectorises) {
   const auto ir = ir_for([](auto &v) { return v[0] * v[1] + v[0]; }, 2);
@@ -117,7 +156,7 @@ TEST(JitVectorize, EveryVectorSymbolResolves) {
   f = f + atan(x) + asinh(x) + pow(x, ddx::rt::RTExpression<>{3});
 
   const auto graph = Graph<>::freeze(b, std::array{f.id(b)});
-  const auto kernel = compiler().compile(graph);
+  const auto kernel = must_compile(graph);
   ASSERT_TRUE(static_cast<bool>(kernel));
 
   const std::array col{0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
@@ -148,3 +187,4 @@ TEST(JitVectorize, IrStreamsAndFormatsAlike) {
 }
 
 } // namespace
+

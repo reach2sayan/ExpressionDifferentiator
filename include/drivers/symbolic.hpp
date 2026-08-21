@@ -62,6 +62,8 @@ constexpr auto fill_cache(const E &node, const Vals &vals,
 // One reverse sweep: fill the primal cache from `seeds`, then push adjoints
 // back from a root adjoint of 1.  Returns the root value; `grads` receives the
 // gradient.
+// Ref: Linnainmaa, BIT 16(2) (1976) 146.  docs/reverse_mode_by_example.md
+// walks one of these by hand.
 template <CSymbolList Syms, CExpression Expr, CNumericBuffer Seeds,
           CNumericBuffer Grads>
 DDX_ALWAYS_INLINE constexpr auto
@@ -168,6 +170,11 @@ make_values(NamedValue<Syms, Vs>... nv) noexcept {
 
 // Forward mode is reached through the drivers, which take a callable rather
 // than a Mode, so it is not a value here.
+//
+// Reverse is the gradient default: one sweep yields every partial, at a cost
+// bounded by a constant times the function itself however many inputs there
+// are, where forward mode needs one sweep per input.
+// Ref: Baur & Strassen, Theoret. Comput. Sci. 22(3) (1983) 317.
 enum class DiffMode { Symbolic, Reverse };
 
 namespace detail {
@@ -257,13 +264,14 @@ template <std::size_t N, std::size_t Order>
   });
 }
 
-// One canonical representative per permutation class: C(N + Order - 1, Order)
-// of them.  Keep it a consteval table -- a filtered view and a lazy iterator
-// were each measured 4x slower.
+// One canonical representative per permutation class: mixed partials commute
+// (Schwarz), so only C(N+Order-1, Order) of the N^Order entries are distinct.
+// A consteval table, not a filtered view or a lazy iterator: both measured 4x
+// slower.  Ref: Neidinger, ACM TOMS 18(2) (1992) 159 for the same saving in
+// multivariate Taylor arithmetic.
 template <std::size_t N, std::size_t Order>
   requires(N > 0 && Order > 0)
 consteval auto simplex_index_table() noexcept {
-  // The layout's own cell count, so table and storage cannot disagree.
   std::array<std::array<std::size_t, Order>, binomial(N + Order - 1, Order)>
       out{};
   std::array<std::size_t, Order> idx{};
@@ -361,6 +369,9 @@ static_assert(compile_time_factorial(3) == 6);
 static_assert(compile_time_factorial(5) == 120);
 static_assert(compile_time_factorial(7) == 5040);
 
+// One Taylor sweep, then undo the 1/Order! normalisation.  Ref: Griewank,
+// Utke & Walther, "Evaluating Higher Derivative Tensors by Forward Propagation
+// of Univariate Taylor Series", Math. Comp. 69(231) (2000) 1117.
 template <std::size_t Order, CExpression Expr,
           Numeric T = typename std::remove_cvref_t<Expr>::value_type,
           Numeric S = scalar_base_t<T>,
@@ -383,15 +394,12 @@ univariate_derivative_impl(const Expr &expr, S x0) noexcept {
 
 } // namespace detail
 
-// Forward-over-reverse Hessian of an expression graph: the only O(N)-sweep
-// Hessian driver.  Seeds a tangent, sweeps backward once per colour, harvests a
-// whole set of rows per sweep.  hessian.hpp decides when it applies.
-
 namespace detail {
 
-// Seeding column j and running one backward sweep yields that whole Hessian
-// column: N sweeps against the scalar driver's N(N+1)/2 probes, and the j == 0
-// sweep hands back the value and gradient free.
+// Forward-over-reverse: seeding column j and running one backward sweep yields
+// that whole Hessian column, N sweeps against the scalar driver's N(N+1)/2
+// probes, and the j == 0 sweep hands back the value and gradient free.
+// hessian.hpp decides when it applies.
 template <CExpression Expr>
 constexpr HessianStatic<
     mpl::mp_size(detail::expr_symbols_t<std::remove_cvref_t<Expr>>{})>
@@ -439,10 +447,10 @@ constexpr HessianStatic<
   return res;
 }
 
-// The nonzero values in sparse_layout<Expr>() order: the same sweeps as above
+// The nonzero values in sparse_layout<Expr>() order: the same sweeps as above,
 // scattered straight into compressed storage.  No symmetrization -- the layout
-// names each entry exactly once.  NNZ is defaulted from a consteval count, so
-// the buffer is an array and this path does not allocate.
+// names each entry exactly once.  NNZ comes from a consteval count, so the
+// buffer is an array and this path does not allocate.
 template <CExpression Expr,
           std::size_t NNZ = hessian_nnz<std::remove_cvref_t<Expr>>()>
 std::array<double, NNZ + 1> hessian_values_sparse(const Expr &expr,

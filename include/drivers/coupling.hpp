@@ -127,6 +127,10 @@ template <std::size_t N> struct column_coloring {
 
 // Two columns may share a seed only if no row has a nonzero in both -- the
 // distance-1 colouring of the column intersection graph that CPR uses.  Greedy.
+// Ref: Curtis, Powell & Reid, J. Inst. Math. Appl. 13(1) (1974) 117 (CPR);
+// Coleman & More, SIAM J. Numer. Anal. 20(1) (1983) 187 for the colouring
+// formulation; Gebremedhin, Manne & Pothen, "What Color Is Your Jacobian?",
+// SIAM Review 47(4) (2005) 629 for the survey.
 template <std::size_t N>
 consteval column_coloring<N>
 color_columns(const coupling_rows<N> &rows) noexcept {

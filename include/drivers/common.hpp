@@ -75,15 +75,6 @@ constexpr void symmetrize(std::span<double> h, const std::size_t n) noexcept {
 }
 
 // Only for the subset-taking hessian(), which can reach both shapes.
-//
-// A free function, not a conversion: the coupling runs one way only.  A
-// converting constructor would cost HessianOwned its aggregate-ness and with it
-// the designated initialisers that build it, and a conversion operator would
-// teach the deliberately allocation-free type about the allocating one -- for
-// a widening that only the router in drivers/hessian.hpp ever wants.
-//
-// By const reference: the arrays are copied into fresh buffers, so an rvalue
-// parameter would promise a move that does not happen.
 template <std::size_t N>
 [[nodiscard]] inline HessianOwned to_owned(const HessianStatic<N> &h) {
   auto grad = std::make_unique_for_overwrite<double[]>(N);
@@ -129,8 +120,7 @@ template <Numeric D> struct SweepWorkspace {
       detail::no_inline_block> block;
   std::vector<D> heap;
 
-  // Storage valid until the next seed on this workspace.  regular_invocable
-  // because the heap path hands `make` to std::ranges::transform.
+  // Storage valid until the next seed on this workspace.
   template <std::regular_invocable<double> Make>
     requires std::convertible_to<std::invoke_result_t<Make &, double>, D>
   [[nodiscard]] D *seed_with(const std::span<const double> x, Make make) {

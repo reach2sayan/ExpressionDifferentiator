@@ -53,8 +53,6 @@ struct BinaryOp {
   static constexpr Notation notation = note;
   static constexpr int precedence = prec;
 
-  // False lets fill_cache skip the store for every child.  True is the
-  // conservative answer.
   static constexpr bool reads_primals = true;
   [[nodiscard]] static constexpr auto
   eval(const CExpression auto &lhs, const CExpression auto &rhs) noexcept {
@@ -178,6 +176,15 @@ struct abs_impl {
     return abs(a);
   }
 };
+// sign(0) is 0: the abs/max/min subgradient convention every engine shares.
+// a - a reaches only ±0 and NaN, giving 0 for the first and NaN for the
+// second, so a NaN operand poisons the derivative instead of picking a side.
+struct sign_impl {
+  constexpr auto operator()(const Numeric auto &a) const noexcept {
+    using T = std::remove_cvref_t<decltype(a)>;
+    return a > T{} ? T{1} : a < T{} ? T{-1} : T{a - a};
+  }
+};
 // `using std::` plus an unqualified call: ADL finds Dual's / TaylorDual's own
 // overloads, std::* otherwise.
 #define DDX_ADL_BINARY_IMPL(NAME, FN)                                          \
@@ -192,16 +199,42 @@ DDX_ADL_BINARY_IMPL(pow_impl, pow)
 DDX_ADL_BINARY_IMPL(atan2_impl, atan2)
 DDX_ADL_BINARY_IMPL(hypot_impl, hypot)
 #undef DDX_ADL_BINARY_IMPL
+// A tie averages the operands: the value is unchanged, but a dual or Taylor
+// operand carries the mean of the two subgradients.  An unordered pair -- at
+// least one NaN -- returns (a-b)*0, NaN in every component from either side.
+// Both choices are symmetric, the only convention stable under the
+// commutative reordering the graph builder applies.  The tie is spelled
+// a + (b-a)/2 so an equal pair at the top of the range cannot overflow.
 struct max_impl {
   constexpr auto operator()(const Numeric auto &a,
                             const Numeric auto &b) const noexcept {
-    return a < b ? b : a;
+    using R = std::remove_cvref_t<decltype(a < b ? b : a)>;
+    if (a == b) {
+      return R{a + (b - a) / R{2}};
+    }
+    if (a < b) {
+      return R{b};
+    }
+    if (b < a) {
+      return R{a};
+    }
+    return R{(a - b) * R{}};
   }
 };
 struct min_impl {
   constexpr auto operator()(const Numeric auto &a,
                             const Numeric auto &b) const noexcept {
-    return b < a ? b : a;
+    using R = std::remove_cvref_t<decltype(b < a ? b : a)>;
+    if (a == b) {
+      return R{a + (b - a) / R{2}};
+    }
+    if (b < a) {
+      return R{b};
+    }
+    if (a < b) {
+      return R{a};
+    }
+    return R{(a - b) * R{}};
   }
 };
 } // namespace detail
@@ -229,6 +262,24 @@ struct min_impl {
 DDX_UNARY_MATH_TABLE(DDX_UNARY_MATH_OP)
 #undef DDX_UNARY_MATH_OP
 
+// Piecewise constant, so its derivative is identically zero.  Not public API:
+// it exists so the derivative trees of abs, max and min stay finite at the
+// kink, where a u/|u| quotient is 0/0.
+template <Numeric T>
+  requires std::totally_ordered<T>
+struct SignOp : UnaryOp<T, detail::sign_impl, FixedString{"sign"}> {
+  static constexpr bool reads_primals = false;
+  [[nodiscard]] static constexpr auto
+  derivative(const CExpression auto &) noexcept {
+    return Lit<T, 0>{};
+  }
+  template <std::size_t Base, std::size_t... CB>
+  static constexpr std::array<T, sizeof...(CB)>
+  adjoints(T, const auto &) noexcept {
+    return {T{}};
+  }
+};
+
 // abs is not in the table: its derivative is a sign, not a function of the
 // primal.  totally_ordered because the rule branches on a comparison.
 template <Numeric T>
@@ -236,20 +287,18 @@ template <Numeric T>
 struct AbsOp : UnaryOp<T, detail::abs_impl, FixedString{"abs"}> {
   [[nodiscard]] static constexpr auto
   derivative(const CExpression auto &lhs) noexcept {
-    auto abs_lhs = MonoExpression<AbsOp<T>, std::decay_t<decltype(lhs)>>{lhs};
-    return (lhs / abs_lhs) * lhs.derivative();
+    auto s = MonoExpression<SignOp<T>, std::decay_t<decltype(lhs)>>{lhs};
+    return std::move(s) * lhs.derivative();
   }
   template <std::size_t Base, std::size_t... CB>
   static constexpr std::array<T, sizeof...(CB)>
   adjoints(T adj, const auto &cache) noexcept {
     constexpr std::size_t cb[]{CB...};
-    const T v = cache[cb[0]];
-    const T sign = v > T{} ? T{1} : v < T{} ? T{-1} : T{};
-    return {adj * sign};
+    return {adj * detail::sign_impl{}(cache[cb[0]])};
   }
 };
 
-// pow(a, b) = a^b.  d(a^b) = a^b * (b' ln a + b a'/a).
+// pow(a, b) = a^b.  d(a^b) = b' ln(a) a^b + b a^(b-1) a'.
 template <Numeric T>
 struct PowOp
     : BinaryOp<T, detail::pow_impl, FixedString{"pow"}, Notation::Function> {
@@ -277,10 +326,13 @@ struct Atan2Op : BinaryOp<T, detail::atan2_impl, FixedString{"atan2"},
   static constexpr std::array<T, sizeof...(CB)>
   adjoints(T adj, const auto &cache) noexcept {
     constexpr std::size_t cb[]{CB...};
+    using std::hypot;
     const T y = cache[cb[0]];
     const T x = cache[cb[1]];
-    const T q = x * x + y * y;
-    return {adj * x / q, -adj * y / q};
+    // Scaled by hypot rather than divided by x² + y², which overflows past
+    // 1e154 and underflows the adjoints to zero.
+    const T h = hypot(x, y);
+    return {adj * (x / h) / h, -adj * (y / h) / h};
   }
 };
 
@@ -298,7 +350,9 @@ struct HypotOp : BinaryOp<T, detail::hypot_impl, FixedString{"hypot"},
     const T x = cache[cb[0]];
     const T y = cache[cb[1]];
     const T h = hypot(x, y);
-    return {adj * x / h, adj * y / h};
+    // x / h first: x * adj can overflow where the quotient, in [-1, 1], never
+    // does.
+    return {adj * (x / h), adj * (y / h)};
   }
 };
 
@@ -307,16 +361,16 @@ template <Numeric T>
   requires std::totally_ordered<T>
 struct MaxOp
     : BinaryOp<T, detail::max_impl, FixedString{"max"}, Notation::Function> {
-  // max(a, b) = (a + b + |a - b|) / 2, so with s = (a - b)/|a - b|,
+  // max(a, b) = (a + b + |a - b|) / 2, so with s = sign(a - b),
   //   max' = (a' + b' + s*(a' - b')) / 2
   // Branch-free of necessity: a runtime conditional would have to choose
-  // between two different *types*.  NaN at a == b, where max is not
-  // differentiable anyway.
+  // between two different *types*.  sign(0) = 0 makes a tie the mean of the
+  // two branches, the shared convention.
   [[nodiscard]] static constexpr auto
   derivative(const CExpression auto &lhs,
              const CExpression auto &rhs) noexcept {
     const auto d = lhs - rhs;
-    const auto s = d / MonoExpression<AbsOp<T>, std::decay_t<decltype(d)>>{d};
+    const auto s = MonoExpression<SignOp<T>, std::decay_t<decltype(d)>>{d};
     return (lhs.derivative() + rhs.derivative() +
             s * (lhs.derivative() - rhs.derivative())) /
            Lit<T, 2>{};
@@ -326,7 +380,20 @@ struct MaxOp
   adjoints(T adj, const auto &cache) noexcept {
     constexpr std::size_t cb[]{CB...};
     using ret_t = std::array<T, sizeof...(CB)>;
-    return (cache[cb[0]] < cache[cb[1]]) ? ret_t{T{}, adj} : ret_t{adj, T{}};
+    const T &a = cache[cb[0]];
+    const T &b = cache[cb[1]];
+    if (a == b) {
+      const T half = adj / T{2};
+      return ret_t{half, half};
+    }
+    if (a < b) {
+      return ret_t{T{}, adj};
+    }
+    if (b < a) {
+      return ret_t{adj, T{}};
+    }
+    const T poison = (a - b) * T{}; // unordered: NaN to both operands
+    return ret_t{poison, poison};
   }
 };
 
@@ -335,12 +402,13 @@ template <Numeric T>
   requires std::totally_ordered<T>
 struct MinOp
     : BinaryOp<T, detail::min_impl, FixedString{"min"}, Notation::Function> {
-  // min(a, b) = (a + b - |a - b|) / 2; see MaxOp for why this is branch-free.
+  // min(a, b) = (a + b - |a - b|) / 2; see MaxOp for why this is branch-free
+  // and what a tie means.
   [[nodiscard]] static constexpr auto
   derivative(const CExpression auto &lhs,
              const CExpression auto &rhs) noexcept {
     const auto d = lhs - rhs;
-    const auto s = d / MonoExpression<AbsOp<T>, std::decay_t<decltype(d)>>{d};
+    const auto s = MonoExpression<SignOp<T>, std::decay_t<decltype(d)>>{d};
     return (lhs.derivative() + rhs.derivative() -
             s * (lhs.derivative() - rhs.derivative())) /
            Lit<T, 2>{};
@@ -349,22 +417,40 @@ struct MinOp
   static constexpr auto adjoints(T adj, const auto &cache) noexcept {
     using ret_t = std::array<T, sizeof...(CB)>;
     constexpr std::size_t cb[]{CB...};
-    return cache[cb[1]] < cache[cb[0]] ? ret_t{T{}, adj} : ret_t{adj, T{}};
+    const T &a = cache[cb[0]];
+    const T &b = cache[cb[1]];
+    if (a == b) {
+      const T half = adj / T{2};
+      return ret_t{half, half};
+    }
+    if (b < a) {
+      return ret_t{T{}, adj};
+    }
+    if (a < b) {
+      return ret_t{adj, T{}};
+    }
+    const T poison = (a - b) * T{}; // unordered: NaN to both operands
+    return ret_t{poison, poison};
   }
 };
 
 template <Numeric T>
 constexpr auto PowOp<T>::derivative(const CExpression auto &lhs,
                                     const CExpression auto &rhs) noexcept {
-  return pow(lhs, rhs) *
-         (rhs.derivative() * log(lhs) + rhs * (lhs.derivative() / lhs));
+  // Split form, not a^b * (b' ln a + b a'/a): the a'/a quotient is 0/0 at
+  // a == 0 where a^(b-1) is exact, and with a constant exponent the b' term
+  // folds away without leaving a log node behind.
+  return rhs.derivative() * log(lhs) * pow(lhs, rhs) +
+         rhs * pow(lhs, rhs - Lit<T, 1>{}) * lhs.derivative();
 }
 
 template <Numeric T>
 constexpr auto Atan2Op<T>::derivative(const CExpression auto &lhs,
                                       const CExpression auto &rhs) noexcept {
-  return (rhs * lhs.derivative() - lhs * rhs.derivative()) /
-         (rhs * rhs + lhs * lhs);
+  // Two divisions by hypot, never x² + y²: the square overflows past 1e154.
+  return ((rhs * lhs.derivative() - lhs * rhs.derivative()) /
+          hypot(lhs, rhs)) /
+         hypot(lhs, rhs);
 }
 
 template <Numeric T>

@@ -40,17 +40,17 @@ TEST(RtNewton, SolvesASystemBuiltAtRuntime) {
   Builder<> b;
   const auto x = var(b, "x");
   const auto y = var(b, "y");
-  const ddx::Equation system{x * x + y * y - 4.0, x * y - 1.0};
+  const auto system = *ddx::rt::equation(x * x + y * y - 4.0, x * y - 1.0);
 
   std::array<double, 2> at{1.5, 1.0};
   int taken = 0;
   for (int iteration = 0; iteration < 40; ++iteration) {
-    const auto residual = system.evaluate(at[0], at[1]);
+    const auto residual = *system.evaluate(at[0], at[1]);
     if (std::hypot(residual[0], residual[1]) < 1e-14) {
       break;
     }
     const auto step =
-        solve2(system.jacobian(at[0], at[1]), {-residual[0], -residual[1]});
+        solve2(*system.jacobian(at[0], at[1]), {-residual[0], -residual[1]});
     at[0] += step[0];
     at[1] += step[1];
     ++taken;
@@ -75,7 +75,7 @@ TEST(RtNewton, SolvesPengRobinsonForCompressibility) {
     composition.push_back(var(b, "x" + std::to_string(i)));
   }
   const auto Z = var(b, "Z");
-  const ddx::Equation cubic{models::peng_robinson(composition, Z)};
+  const auto cubic = *ddx::rt::equation(models::peng_robinson(composition, Z));
 
   ASSERT_EQ(cubic.arity(), species + 1);
 
@@ -85,16 +85,16 @@ TEST(RtNewton, SolvesPengRobinsonForCompressibility) {
 
   int taken = 0;
   for (int iteration = 0; iteration < 60; ++iteration) {
-    const double residual = cubic.evaluate(at);
+    const double residual = *cubic.evaluate(at);
     if (std::abs(residual) < 1e-14) {
       break;
     }
     // Only dF/dZ is wanted; the composition is held fixed.
-    at[z_slot] -= residual / cubic.gradient(at)[z_slot];
+    at[z_slot] -= residual / (*cubic.gradient(at))[z_slot];
     ++taken;
   }
 
-  EXPECT_LT(std::abs(cubic.evaluate(at)), 1e-12) << "did not converge";
+  EXPECT_LT(std::abs(*cubic.evaluate(at)), 1e-12) << "did not converge";
   EXPECT_LE(taken, 12);
   EXPECT_GT(at[z_slot], 0.0) << "a compressibility factor is positive";
 }
@@ -105,7 +105,7 @@ TEST(RtNewton, OneEquationServesAWholeSweep) {
   Builder<> b;
   const auto x = var(b, "x");
   const auto c = var(b, "c");
-  const ddx::Equation f{x * x - c}; // root: x = sqrt(c)
+  const auto f = *ddx::rt::equation(x * x - c); // root: x = sqrt(c)
 
   const std::size_t z_slot = static_cast<std::size_t>(
       std::ranges::find(f.symbols(), "x") - f.symbols().begin());
@@ -116,11 +116,11 @@ TEST(RtNewton, OneEquationServesAWholeSweep) {
     at[1 - z_slot] = target;
 
     for (int iteration = 0; iteration < 40; ++iteration) {
-      const double residual = f.evaluate(at);
+      const double residual = *f.evaluate(at);
       if (std::abs(residual) < 1e-15) {
         break;
       }
-      at[z_slot] -= residual / f.gradient(at)[z_slot];
+      at[z_slot] -= residual / (*f.gradient(at))[z_slot];
     }
     EXPECT_NEAR(at[z_slot], std::sqrt(target), 1e-12) << "c=" << target;
   }

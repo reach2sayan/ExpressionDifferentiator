@@ -24,8 +24,6 @@ namespace ddx::rt {
 // and `a / b` is not `b / a`.
 template <impl::Numeric T = double> class Graph {
 public:
-  // Operand position rides along as an edge property, because a CSR row is a
-  // set and `a / b` is not `b / a`.
   using adjacency_type =
       boost::compressed_sparse_row_graph<boost::directedS, boost::no_property,
                                          std::uint32_t>;
@@ -35,8 +33,7 @@ public:
 
   // What the output columns are, in the order they are stored: values first,
   // then Jacobian entries, then Hessian entries.  Codegen and the caller agree
-  // on the meaning of a column from this rather than from a positional
-  // convention only one of them knows.
+  // on the meaning of a column from this, not from a positional convention.
   struct Layout {
     std::size_t values = 0;   // m
     std::size_t jacobian = 0; // m * n, row-major by function
@@ -120,9 +117,8 @@ public:
   }
 
   // The three column blocks of outputs(), in the order the layout names them.
-  // Codegen, the interpreter and the ABI size checks all need the same split;
-  // deriving it here is what keeps them from each carrying a running counter
-  // over one flat list and having to agree on where the boundaries fall.
+  // Codegen, the interpreter and the ABI size checks all need the same split,
+  // and deriving it here is what keeps them from each walking one flat list.
   struct Blocks {
     std::span<const NodeId> values;
     std::span<const NodeId> jacobian;

@@ -25,7 +25,7 @@ namespace {
 using ddx::rt::Builder;
 
 auto free_energy(Builder<> &b, double c, double k) {
-  return ddx::Equation{models::regular_solution(var(b, "x"), c, k)};
+  return *ddx::rt::equation(models::regular_solution(var(b, "x"), c, k));
 }
 
 constexpr double second_derivative(double x, double c, double k) {
@@ -37,7 +37,7 @@ TEST(RtMiscibility, HalfIsAlwaysStationary) {
   for (const double c : {2.0, 0.4, 0.0, -1.5}) {
     for (const double k : {0.25, -0.25}) {
       Builder<> b;
-      EXPECT_DOUBLE_EQ(free_energy(b, c, k).gradient(0.5)[0], 0.0)
+      EXPECT_DOUBLE_EQ((*free_energy(b, c, k).gradient(0.5))[0], 0.0)
           << "c=" << c << " k=" << k;
     }
   }
@@ -49,7 +49,7 @@ TEST(RtMiscibility, HessianMatchesTheClosedForm) {
       Builder<> b;
       const auto f = free_energy(b, c, k);
       for (const double x : {0.05, 0.25, 0.5, 0.8}) {
-        EXPECT_NEAR(f.hessian(x)[0], second_derivative(x, c, k), 1e-12)
+        EXPECT_NEAR((*f.hessian(x))[0], second_derivative(x, c, k), 1e-12)
             << "c=" << c << " k=" << k << " x=" << x;
       }
     }
@@ -60,16 +60,16 @@ TEST(RtMiscibility, HessianMatchesTheClosedForm) {
 TEST(RtMiscibility, TheGapOpensWhenEnthalpyBeatsEntropy) {
   constexpr double k = 0.25;
   Builder<> b1;
-  EXPECT_LT(free_energy(b1, 1.0, k).hessian(0.5)[0], 0.0)
+  EXPECT_LT((*free_energy(b1, 1.0, k).hessian(0.5))[0], 0.0)
       << "c > 2k: a maximum";
   Builder<> b2;
-  EXPECT_GT(free_energy(b2, 0.4, k).hessian(0.5)[0], 0.0)
+  EXPECT_GT((*free_energy(b2, 0.4, k).hessian(0.5))[0], 0.0)
       << "c < 2k: a minimum";
 
   // k < 0 inverts the curvature at the ends, so no interior gap for any c.
   Builder<> b3;
   const auto inverted = free_energy(b3, 2.0, -k);
-  EXPECT_LT(inverted.hessian(0.02)[0], 0.0) << "concave at the edge";
+  EXPECT_LT((*inverted.hessian(0.02))[0], 0.0) << "concave at the edge";
 }
 
 // Newton on f', using f'' as the derivative -- so a wrong Hessian shows up as
@@ -79,16 +79,16 @@ TEST(RtMiscibility, NewtonFindsTwoSymmetricMinima) {
   constexpr double k = 0.25; // c > 2k, so the gap is open
   Builder<> b;
   const auto f = free_energy(b, c, k);
-  ASSERT_LT(f.hessian(0.5)[0], 0.0) << "no gap to find";
+  ASSERT_LT((*f.hessian(0.5))[0], 0.0) << "no gap to find";
 
   const auto minimise_from = [&](double start) {
     double at = start;
     for (int iteration = 0; iteration < 100; ++iteration) {
-      const double slope = f.gradient(at)[0];
+      const double slope = (*f.gradient(at))[0];
       if (std::abs(slope) < 1e-14) {
         break;
       }
-      at = std::clamp(at - slope / f.hessian(at)[0], 1e-12, 1.0 - 1e-12);
+      at = std::clamp(at - slope / (*f.hessian(at))[0], 1e-12, 1.0 - 1e-12);
     }
     return at;
   };
@@ -96,10 +96,10 @@ TEST(RtMiscibility, NewtonFindsTwoSymmetricMinima) {
   const double lower = minimise_from(0.05);
   const double upper = minimise_from(0.95);
 
-  EXPECT_NEAR(f.gradient(lower)[0], 0.0, 1e-12);
-  EXPECT_NEAR(f.gradient(upper)[0], 0.0, 1e-12);
-  EXPECT_GT(f.hessian(lower)[0], 0.0) << "a minimum, not the central maximum";
-  EXPECT_GT(f.hessian(upper)[0], 0.0);
+  EXPECT_NEAR((*f.gradient(lower))[0], 0.0, 1e-12);
+  EXPECT_NEAR((*f.gradient(upper))[0], 0.0, 1e-12);
+  EXPECT_GT((*f.hessian(lower))[0], 0.0) << "a minimum, not the central maximum";
+  EXPECT_GT((*f.hessian(upper))[0], 0.0);
   EXPECT_LT(lower, 0.5);
   EXPECT_GT(upper, 0.5);
 

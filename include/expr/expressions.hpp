@@ -222,7 +222,8 @@ concept CEvalArg = Numeric<T> || std::ranges::input_range<T> || requires {
 
 namespace detail {
 template <CExpression Expr, CEvalArg... Args>
-[[nodiscard]] constexpr auto eval_dispatch(const Expr &e, const Args &...args);
+[[nodiscard]] constexpr auto eval_dispatch(const Expr &e,
+                                           const Args &...args) noexcept;
 
 template <auto Seed, CExpression Expr, CEvalArg... Args>
 [[nodiscard]] constexpr auto tangent_dispatch(const Expr &e,

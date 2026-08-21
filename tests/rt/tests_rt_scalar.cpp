@@ -87,7 +87,9 @@ TEST(RtScalar, EvaluatesInTheScalarsOwnArithmetic) {
 TEST(RtScalar, UnsupportedOpsDoNotBreakTheInstantiation) {
   ddx::rt::Builder<M2> b;
   const auto x = var(b, "x");
-  EXPECT_NO_THROW({ (void)(x + x * x - x / x).id(b); });
+  // Nothing here can fail at run time: the assertion is that it instantiates
+  // and builds a node at all, which is what naming the id proves.
+  EXPECT_NE((x + x * x - x / x).id(b), ddx::rt::no_node);
 }
 
 } // namespace

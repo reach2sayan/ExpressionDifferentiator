@@ -52,8 +52,7 @@ public:
 
   // Attributes go in through dynamic_properties rather than a hand-written
   // label writer, so the names are the ones graphviz knows and BGL does the
-  // quoting.  Each map is computed on demand: nothing here is a second copy of
-  // the graph.
+  // quoting.
   void write(std::ostream &out) const {
     const auto &adj = graph_.children();
 
@@ -85,13 +84,9 @@ public:
   }
 
   // The graph codegen actually emits.  An adaptor over the liveness bits the
-  // freeze already computed, so it costs a predicate and no traversal: the
-  // vertices keep their original ids, which is what makes a drawing of the live
-  // view comparable with one of the whole graph.
-  //
-  // It reads like a Graph member and is not one: on Graph it would put
-  // boost/graph/filtered_graph.hpp in the header every evaluator includes, for
-  // the sake of one caller.  It belongs there the day there is a second.
+  // freeze already computed, so it costs a predicate and no traversal, and the
+  // vertices keep their original ids.  Not a Graph member: on Graph it would
+  // put boost/graph/filtered_graph.hpp in the header every evaluator includes.
   [[nodiscard]] auto live_view() const {
     return boost::filtered_graph<typename Graph<T>::adjacency_type,
                                  boost::keep_all, IsLive>{
@@ -102,9 +97,7 @@ private:
   using vertex_type = typename Graph<T>::vertex_type;
 
   // Only vertices are filtered: an edge out of a live node lands on a live
-  // node, because reaching a node is what made its operands live.  BGL applies
-  // this to both endpoints of every edge it enumerates, so keep_all is the
-  // whole edge rule.
+  // node, because reaching a node is what made its operands live.
   struct IsLive {
     const Graph<T> *graph = nullptr;
     bool operator()(vertex_type v) const {

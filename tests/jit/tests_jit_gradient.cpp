@@ -25,9 +25,21 @@ namespace {
 using ddx::rt::Builder;
 using ddx::rt::Graph;
 
+// A host with no native target has no JIT to test; every test here needs one,
+// so bring it up once and let the assertion name the reason if it will not.
 ddx::jit::Compiler &compiler() {
-  static ddx::jit::Compiler c;
-  return c;
+  static ddx::jit::result<ddx::jit::Compiler> c = ddx::jit::Compiler::create();
+  EXPECT_TRUE(c.has_value()) << (c ? "" : c.error().detail);
+  return *c;
+}
+
+// A compile that has to succeed for the test to mean anything.  compile()
+// answers with result<Kernel>; the assertion names LLVM's own reason when it
+// does not, instead of an empty Kernel three lines later.
+ddx::jit::Kernel must_compile(auto &&...args) {
+  auto k = compiler().compile(static_cast<decltype(args) &&>(args)...);
+  EXPECT_TRUE(k.has_value()) << (k ? std::string{} : k.error().detail);
+  return k ? std::move(*k) : ddx::jit::Kernel{};
 }
 
 void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
@@ -41,7 +53,7 @@ void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
   const auto root = build(b, vars);
   // The sweep is repeated for the reference values; the builder runs its own.
   const auto reference_gradient = ddx::rt::gradient(b, root.id(b));
-  const auto kernel = compiler().compile(
+  const auto kernel = must_compile(
       ddx::rt::GraphBuilder{b}.value(root).gradient().build());
   ASSERT_EQ(kernel.outputs(), nvars + 1);
 
@@ -92,6 +104,13 @@ TEST(JitGradient, MatchesTheInterpreter) {
       3);
   expect_gradient_matches_interpreter(
       [](Builder<> &, auto &v) { return erf(v[0]) + cbrt(v[1]); }, 2);
+  // abs and max/min put sign nodes in the gradient graph, which codegen emits
+  // as compare-and-select rather than a libm call.
+  expect_gradient_matches_interpreter(
+      [](Builder<> &, auto &v) { return abs(v[0] - v[1]) * v[1]; }, 2);
+  expect_gradient_matches_interpreter(
+      [](Builder<> &, auto &v) { return max(v[0] * v[0], v[1]) + min(v[0], v[1]); },
+      2);
 }
 
 TEST(JitGradient, MatchesDdxThroughTheBridge) {
@@ -101,7 +120,7 @@ TEST(JitGradient, MatchesDdxThroughTheBridge) {
 
   Builder<> b;
   const auto root = ddx::rt::to_graph(b, f);
-  const auto kernel = compiler().compile(
+  const auto kernel = must_compile(
       ddx::rt::GraphBuilder{b}.value(root).gradient().build());
 
   const std::array cx{1.0, 0.25, 2.5};
@@ -137,7 +156,7 @@ TEST(JitHessian, ThirdBlockCarriesTheColouredHessian) {
 
   const auto graph =
       ddx::rt::GraphBuilder{b}.value(f).gradient().hessian().build();
-  const auto kernel = compiler().compile(graph);
+  const auto kernel = must_compile(graph);
 
   ASSERT_EQ(kernel.values(), 1u);
   ASSERT_EQ(kernel.jacobian_columns(), 2u);

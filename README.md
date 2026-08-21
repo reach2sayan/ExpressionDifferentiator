@@ -34,6 +34,7 @@ auto g  = Equation{f}.gradient(1.0, 2.0);   // {∂f/∂x, ∂f/∂y}
 10. [Building the project](#building-the-project)
 11. [Cheat sheet](#cheat-sheet)
 12. [Diagnostics](#diagnostics)
+13. [Further reading](#further-reading)
 
 ---
 
@@ -970,6 +971,26 @@ silently, and always `std::out_of_range`: an input range that supplies fewer
 values than the expression has symbols.
 Nothing on the evaluation path is `noexcept` for that reason — silently
 differentiating at the wrong point is worse than an exception.
+
+---
+
+## Further reading
+
+Worked walkthroughs of the algorithms, each doing one derivative by hand and
+then pointing at the code that does it:
+
+| Document | Covers |
+|---|---|
+| [docs/reverse_mode_by_example.md](docs/reverse_mode_by_example.md) | one gradient in both modes over the same graph, then the Jacobian and the Hessian |
+| [docs/ad_jacobian.md](docs/ad_jacobian.md) | the node protocol and Jacobian computation in full ([PDF](docs/ad_jacobian.pdf)) |
+| [docs/taylor_dual_by_example.md](docs/taylor_dual_by_example.md) | `TaylorDual<S, N>` — jet arithmetic and the recurrences, at `N = 3` |
+| [docs/hyperdual_nth_order_by_example.md](docs/hyperdual_nth_order_by_example.md) | the nested dual's `2ⁿ` component lattice, and why the top slot is the `n`th derivative |
+| [docs/forward_higher_order_by_example.md](docs/forward_higher_order_by_example.md) | the same higher-order derivative down both routes, compared |
+
+[NOTES.md](NOTES.md) has the design decisions that are not obvious from the
+headers. [REFERENCES.md](REFERENCES.md) is the literature: Part I is the
+mathematics — dual numbers, Taylor arithmetic, the complexity results behind the
+mode choices — and Part II is expression-tree optimisation.
 
 ---
 

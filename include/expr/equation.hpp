@@ -107,6 +107,9 @@ private:
     return J;
   }
 
+  // Forward over reverse: the dual level carries the tangent seed while the
+  // sweep carries the adjoints, so one sweep is an exact Hessian-vector
+  // product.  Ref: Pearlmutter, Neural Computation 6(1) (1994) 147.
   [[nodiscard]] constexpr auto hessian_forward_over_reverse(
       const std::array<dual_scalar_t<value_type>, input_dim> &values)
       const noexcept
@@ -195,7 +198,10 @@ public:
     return detail::make_jac_rows(expressions, symbols{});
   }
 
-  // Every numeric member takes a point in any spelling eval() accepts.
+  // Every numeric member takes a point in any spelling eval() accepts.  A
+  // spelling whose length is only known at run time -- a range -- answers with
+  // result<T>; every other spelling is counted by a static_assert and answers
+  // with T.  detail::with_point is the one place that fork lives.
   template <Numeric U = value_type>
   [[nodiscard]] static constexpr auto
   point(const CEvalArg auto &...args) noexcept {
@@ -204,16 +210,19 @@ public:
 
   [[nodiscard]] constexpr auto
   evaluate(const CEvalArg auto &...args) const noexcept {
-    const auto vals = point(args...);
-    if constexpr (output_dim == 1) {
-      return std::get<0>(expressions).template eval_seeded<symbols>(vals);
-    } else {
-      return std::apply(
-          [&](const auto &...es) {
-            return detail::eval_all<symbols>(vals, es...);
-          },
-          expressions);
-    }
+    return detail::with_point<symbols, value_type, input_dim>(
+        [this](const auto &vals) {
+          if constexpr (output_dim == 1) {
+            return std::get<0>(expressions).template eval_seeded<symbols>(vals);
+          } else {
+            return std::apply(
+                [&](const auto &...es) {
+                  return detail::eval_all<symbols>(vals, es...);
+                },
+                expressions);
+          }
+        },
+        args...);
   }
 
   // Symbolic evaluates the stored partial trees; Reverse never builds them.
@@ -222,18 +231,22 @@ public:
   gradient(const CEvalArg auto &...args) const noexcept
     requires(output_dim == 1 && input_dim > 0)
   {
-    const auto vals = point(args...);
-    if constexpr (Mode == DiffMode::Symbolic) {
-      const auto rows = jacobian_rows();
-      const auto &row = std::get<0>(rows);
-      std::array<value_type, input_dim> grads{};
-      static_for<input_dim>([&]<std::size_t I>() {
-        grads[I] = std::get<I>(row).template eval_seeded<symbols>(vals);
-      });
-      return detail::strip_seed(grads);
-    } else {
-      return detail::reverse_mode_gradient(std::get<0>(expressions), vals);
-    }
+    return detail::with_point<symbols, value_type, input_dim>(
+        [this](const auto &vals) {
+          if constexpr (Mode == DiffMode::Symbolic) {
+            const auto rows = jacobian_rows();
+            const auto &row = std::get<0>(rows);
+            std::array<value_type, input_dim> grads{};
+            static_for<input_dim>([&]<std::size_t I>() {
+              grads[I] = std::get<I>(row).template eval_seeded<symbols>(vals);
+            });
+            return detail::strip_seed(grads);
+          } else {
+            return detail::reverse_mode_gradient(std::get<0>(expressions),
+                                                 vals);
+          }
+        },
+        args...);
   }
 
   // Slot 0 is the expression itself; slot k>0 is d/d(k-1 th symbol), in
@@ -246,11 +259,15 @@ public:
   jacobian(const CEvalArg auto &...args) const noexcept
     requires(input_dim > 0)
   {
-    if constexpr (Mode == DiffMode::Symbolic) {
-      return jacobian_symbolic(point(args...));
-    } else {
-      return jacobian_reverse_mode(point(args...));
-    }
+    return detail::with_point<symbols, value_type, input_dim>(
+        [this](const auto &vals) {
+          if constexpr (Mode == DiffMode::Symbolic) {
+            return jacobian_symbolic(vals);
+          } else {
+            return jacobian_reverse_mode(vals);
+          }
+        },
+        args...);
   }
 
   // The leading output axis only appears with more than one output, here and in
@@ -262,12 +279,15 @@ public:
   hessian(const CEvalArg auto &...args) const noexcept
     requires(DualLike<value_type> && input_dim > 0)
   {
-    const auto vals = point<dual_scalar_t<value_type>>(args...);
-    if constexpr (output_dim == 1) {
-      return detail::reverse_mode_hessian(std::get<0>(expressions), vals);
-    } else {
-      return hessian_forward_over_reverse(vals);
-    }
+    return detail::with_point<symbols, dual_scalar_t<value_type>, input_dim>(
+        [this](const auto &vals) {
+          if constexpr (output_dim == 1) {
+            return detail::reverse_mode_hessian(std::get<0>(expressions), vals);
+          } else {
+            return hessian_forward_over_reverse(vals);
+          }
+        },
+        args...);
   }
 
   template <std::size_t Order>
@@ -275,13 +295,16 @@ public:
   derivative_tensor(const CEvalArg auto &...args) const noexcept
     requires(input_dim > 0 && Order > 0)
   {
-    const auto vals = point<scalar_base_t<value_type>>(args...);
-    if constexpr (output_dim == 1) {
-      return detail::derivative_tensor_impl<Order>(std::get<0>(expressions),
-                                                   vals);
-    } else {
-      return equation_derivative_tensor_impl<Order>(vals);
-    }
+    return detail::with_point<symbols, scalar_base_t<value_type>, input_dim>(
+        [this](const auto &vals) {
+          if constexpr (output_dim == 1) {
+            return detail::derivative_tensor_impl<Order>(
+                std::get<0>(expressions), vals);
+          } else {
+            return equation_derivative_tensor_impl<Order>(vals);
+          }
+        },
+        args...);
   }
 
   // One variable, one Taylor sweep: a plain number, not a one-entry tensor.

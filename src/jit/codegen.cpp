@@ -24,10 +24,13 @@ llvm::Intrinsic::ID intrinsic_for(rt::OpCode op) {
   switch (op) {
   case rt::OpCode::Abs:
     return llvm::Intrinsic::fabs;
+  // IEEE-754 maximum/minimum, not maxnum/minnum: a NaN operand propagates
+  // from either side, as the interpreter's max_impl has it.  A hand-rolled
+  // select chain does not survive InstCombine with its NaN arm intact.
   case rt::OpCode::Max:
-    return llvm::Intrinsic::maxnum;
+    return llvm::Intrinsic::maximum;
   case rt::OpCode::Min:
-    return llvm::Intrinsic::minnum;
+    return llvm::Intrinsic::minimum;
   case rt::OpCode::Pow:
     return llvm::Intrinsic::pow;
   case rt::OpCode::Atan2:
@@ -88,6 +91,18 @@ public:
     if (op == rt::OpCode::Neg) {
       return b_.CreateFNeg(u);
     }
+    if (op == rt::OpCode::Sign) {
+      // u > 0 ? 1 : u < 0 ? -1 : u - u -- there is no libm spelling of sign.
+      // The u - u arm reaches only ±0 and NaN, giving 0 and NaN as sign_impl
+      // does.
+      llvm::Type *const f64 = b_.getDoubleTy();
+      llvm::Value *const zero = llvm::ConstantFP::get(f64, 0.0);
+      return b_.CreateSelect(
+          b_.CreateFCmpOGT(u, zero), llvm::ConstantFP::get(f64, 1.0),
+          b_.CreateSelect(b_.CreateFCmpOLT(u, zero),
+                          llvm::ConstantFP::get(f64, -1.0),
+                          b_.CreateFSub(u, u)));
+    }
     return call(op, {u});
   }
 
@@ -146,6 +161,15 @@ llvm::Function *declare_kernel(llvm::Module &m, llvm::StringRef name) {
     fn->addParamAttr(i, llvm::Attribute::NoCapture);
   }
   fn->addParamAttr(0, llvm::Attribute::ReadOnly);
+
+  // The body is floating-point arithmetic over those pointers and calls that
+  // are themselves nounwind and memory(none), so all three hold.  nounwind is
+  // the IR spelling of noexcept -- without it the kernel is assumed to unwind,
+  // which costs it an unwind table entry and stops the optimiser moving code
+  // across the libm calls.  Kernel::operator() is noexcept to match.
+  fn->setDoesNotThrow();
+  fn->setWillReturn();
+  fn->setMemoryEffects(llvm::MemoryEffects::argMemOnly());
   return fn;
 }
 

@@ -1,11 +1,13 @@
 #pragma once
 
 #include "expr/expressions.hpp" // ddx::impl::Numeric
+#include "util/error.hpp"
 #include "util/pinned.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <expected>
 #include <span>
 #include <string>
 
@@ -24,6 +26,17 @@ namespace ddx::jit {
 // Which vector math library the loop vectoriser may call.
 enum class VecLib : std::uint8_t { None, Auto, Libmvec };
 
+// A JIT failure carries text where the rest of the library's does not: LLVM's
+// own errors are not one of a fixed set, and the reason a target will not come
+// up on this host is the whole of what a caller can act on.  There is no
+// numeric path through here to keep allocation-free.
+struct error {
+  errc code;
+  std::string detail;
+};
+
+template <typename T> using result = std::expected<T, error>;
+
 #ifndef DDX_JIT_DEFAULT_OPT
 #define DDX_JIT_DEFAULT_OPT 2
 #endif
@@ -41,11 +54,9 @@ struct Options {
   bool contract = default_contract; // Follows DDX_FP_FLAGS
 };
 
-// One compiled graph.  Cheap to copy: a copy is one atomic increment, because
-// a Kernel keeps the JIT that owns its code alive rather than pointing into
-// something another object may free.  Dropping the last Kernel is what frees
-// the code, so the failure this replaces -- a call jumping into an unmapped
-// page, with a stack trace that points at nothing -- cannot be written.
+// One compiled graph.  Cheap to copy: a copy is one atomic increment, because a
+// Kernel keeps the JIT that owns its code alive rather than pointing into
+// something another object may free.  Dropping the last Kernel frees the code.
 class Kernel {
 public:
   using function_type = void (*)(const double *const *, double *const *,
@@ -60,17 +71,14 @@ public:
 
   // Spans on the C++ surface, raw pointers only in function_type, which is the
   // JIT's actual ABI: a block that was not requested is `{}` here rather than a
-  // null pointer whose length the callee has to infer.
-  //
-  // xs[j] is the column for symbol j, g[j] the column for the partial in that
-  // symbol, all of length n.  A kernel computes exactly the outputs its graph
-  // was frozen with, so g is read only when outputs() > 1 -- freeze with the
-  // value alone and it is never touched.
-  // Each pointer is an array of columns, each column n long.  A block that was
-  // not requested has no columns, and its pointer is never read.
+  // null pointer whose length the callee has to infer.  xs[j] is the column for
+  // symbol j, g[j] the column for the partial in that symbol, all of length n.
+  // noexcept because the emitted function is nounwind: codegen marks both the
+  // kernel and every libm declaration it calls, so there is no unwind edge to
+  // cross here.
   void operator()(std::span<const double *const> xs, std::span<double *const> f,
                   std::span<double *const> g, std::span<double *const> h,
-                  std::size_t n) const {
+                  std::size_t n) const noexcept {
     fn_(xs.data(), f.data(), g.data(), h.data(), n);
   }
 
@@ -91,8 +99,7 @@ public:
 
 private:
   function_type fn_ = nullptr;
-  // Never read: it is here to be held.  operator() calls through fn_ alone, so
-  // sharing costs a call nothing.
+  // Never read: it is here to be held.  operator() calls through fn_ alone.
   std::shared_ptr<void> code_;
   std::size_t arity_ = 0;
   std::size_t values_ = 0;
@@ -100,41 +107,43 @@ private:
   std::size_t hessian_ = 0;
 };
 
-// A Compiler *is* the LLJIT, and the code a Kernel calls lives in it.
-// Move-only on the surface, so there is still one Compiler to hand on or hold
-// in a static; underneath, every Kernel it hands out shares that LLJIT with it.
-// A Compiler going out of scope therefore frees no code anything can still
-// call -- but it reclaims nothing either, so one surviving Kernel holds the
-// target machine, the symbol generators, and every module compiled through it.
+// A Compiler *is* the LLJIT, and the code a Kernel calls lives in it. Move-only
+// on the surface, so there is one Compiler to hand on or hold in a static;
+// underneath, every Kernel it hands out shares that LLJIT.  A Compiler going
+// out of scope therefore frees nothing still callable -- and reclaims nothing
+// either: one surviving Kernel holds the target machine, the symbol generators
+// and every module compiled through it.
 class Compiler : private impl::noncopyable {
 public:
-  Compiler();
+  // Bringing up the LLJIT is the one thing here that can fail for reasons that
+  // are not a caller's mistake -- no native target for this host, no way to
+  // build a target machine -- so it happens in a factory rather than a
+  // constructor.  A caller that cannot get one is not stuck: the runtime graph
+  // interprets instead.
+  [[nodiscard]] static result<Compiler> create();
+
   ~Compiler();
   Compiler(Compiler &&) noexcept;
   Compiler &operator=(Compiler &&) noexcept;
 
-  [[nodiscard]] Kernel compile(const rt::Graph<double> &g,
-                               const Options &opt = {});
+  [[nodiscard]] result<Kernel> compile(const rt::Graph<double> &g,
+                                       const Options &opt = {});
 
 private:
-  friend class Ir;
-  [[nodiscard]] std::string render_ir(const rt::Graph<double> &g,
-                                      const Options &opt) const;
-
   struct Impl;
+  explicit Compiler(std::shared_ptr<Impl> impl) noexcept;
+
+  friend class Ir;
+  [[nodiscard]] result<std::string> render_ir(const rt::Graph<double> &g,
+                                              const Options &opt) const;
+
   std::shared_ptr<Impl> impl_;
 };
 
 // The optimised IR a graph would compile to.  A borrowing handle rather than a
-// string, so that IR prints through the same formatter as everything else and
-// the pipeline only runs if something actually reads it.
-//
-// It owns neither end and cannot: the LLJIT is shared with the Kernels a
-// Compiler hands out, not with a handle that only prints, and copying a graph
-// to print it would be backwards.  Both have to outlive the handle -- which the
-// deleted overloads make the compiler check, rather than leaving it as a
-// comment nobody reads.  Name what you render; a temporary graph is a dangling
-// one the moment the handle is stored.
+// string, so the IR prints through the same formatter as everything else and
+// the pipeline only runs if something reads it.  Both ends have to outlive the
+// handle, which the deleted overloads make the compiler check.
 class Ir {
 public:
   Ir(const Compiler &c, const rt::Graph<double> &g, Options opt = {}) noexcept
@@ -142,7 +151,7 @@ public:
   Ir(const Compiler &&, const rt::Graph<double> &, Options = {}) = delete;
   Ir(const Compiler &, const rt::Graph<double> &&, Options = {}) = delete;
 
-  [[nodiscard]] std::string str() const {
+  [[nodiscard]] result<std::string> str() const {
     return compiler_.render_ir(graph_, options_);
   }
 

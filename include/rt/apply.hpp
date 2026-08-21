@@ -47,6 +47,11 @@ template <impl::Numeric T>
 inline constexpr bool probes_Abs =
     impl::CArithmetic<T> || requires(const T &u) { abs(u); };
 template <impl::Numeric T> inline constexpr bool probes_Neg = true;
+// sign_impl branches on comparisons rather than calling anything, so ordering
+// is the whole requirement.
+template <impl::Numeric T>
+inline constexpr bool probes_Sign =
+    impl::CArithmetic<T> || std::totally_ordered<T>;
 
 template <typename Fn, impl::Numeric T, bool Ok, impl::Numeric... Args>
 [[nodiscard]] constexpr T supported(const Args &...args) noexcept {
