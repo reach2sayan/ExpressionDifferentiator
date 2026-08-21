@@ -29,9 +29,10 @@ auto g  = Equation{f}.gradient(1.0, 2.0);   // {∂f/∂x, ∂f/∂y}
 5. [Return types](#return-types)
 6. [Getting the most speed out of it](#getting-the-most-speed-out-of-it)
 7. [Compile-time use](#compile-time-use)
-8. [Building the project](#building-the-project)
-9. [Cheat sheet](#cheat-sheet)
-10. [Diagnostics](#diagnostics)
+8. [Runtime expressions](#runtime-expressions)
+9. [Building the project](#building-the-project)
+10. [Cheat sheet](#cheat-sheet)
+11. [Diagnostics](#diagnostics)
 
 ---
 
@@ -98,6 +99,10 @@ The public API is macro-free, so nothing of the library sits at global scope.
 Everything that deduces a type from a value — `constant(v)`, `var_of<"x">(v)`,
 `dual_var_of<"x">(v)` — is an ordinary function template, and obeys namespaces
 like the rest.
+
+`ddx::rt` and `ddx::jit` are deliberately not among them: they are opt-in, they
+carry dependencies, and `ddx.hpp` does not reach for either. See
+[Runtime expressions](#runtime-expressions).
 
 ---
 
@@ -537,6 +542,12 @@ the total. Reducing the number of transcendental calls in the expression is the
 optimisation with the most left in it; shaving arithmetic nodes around them is
 not.
 
+**Many points at once is a different question.** Everything above is one point per
+call. If what you have is thousands of them, the libm call that dominates can be
+vectorised, which the compile-time path cannot do for you — see
+[Runtime expressions](#runtime-expressions) for the batch kernel and what it
+measures at.
+
 **Move it to compile time if the point is known.** Every entry point is
 `constexpr`; see the next section.
 
@@ -565,6 +576,185 @@ and a value read from a file at run time.
 
 ---
 
+## Runtime expressions
+
+Everything above needs the expression written in source, because the tree lives in
+the type. An expression assembled at run time — terms looped over from a data file,
+a coupling read from a configuration — has no type to live in, so it lives in a
+graph instead.
+
+`ddx::rt` is that graph and `ddx::jit` compiles it to native code. Both are opt-in;
+the core stays header-only and dependency-free either way.
+
+```cpp
+#include "rt/derivative.hpp"
+using namespace ddx::rt;
+
+Builder b;
+auto x = var(b, "x");
+auto y = var(b, "y");
+auto f = exp(x) * sin(y);        // the same operators, resolved at run time
+
+auto g = gradient(b, f.id(b));   // ∂f/∂x and ∂f/∂y, as more graph nodes
+                                 // (or let GraphBuilder do it, below)
+```
+
+`Expr` is a handle onto one node. The operators and the eighteen unary functions are
+the ones you already have, and the derivative rules are literally the same rules:
+`unary_math.hpp` writes them against `Numeric`, so instantiating them at `Expr`
+builds nodes instead of computing numbers. Adding a row to `DDX_UNARY_MATH_TABLE`
+gives the runtime path the function and its derivative at once.
+
+"Runtime" names when the *structure* is decided, not when the arithmetic runs. Every
+one of these calls is `constexpr`, so a graph assembled from values a constant
+expression can see is itself a constant expression:
+
+```cpp
+consteval double slope() {
+  Builder b;
+  const auto x = var(b, "x");
+  const auto g = gradient(b, (x * x).id(b));
+  return evaluate_all(b, std::array{3.0})[g.partial[0]];
+}
+static_assert(slope() == 6.0);
+```
+
+Freezing is where that stops: `Graph` and the JIT are run-time only.
+
+### The graph folds as it is built
+
+`Builder` interns: forming a subexpression that already exists returns the existing
+node, so `exp(x) * sin(y)` written twice is one subgraph and structural identity is a
+`std::uint32_t` compare. The rewrites of [`simplify.hpp`](include/expr/simplify.hpp)
+run on the way in, exactly as the operator factories run them at compile time — `x+0`,
+`x*1`, `x*0`, `x/1`, `-(-x)`, `(n/d)*d → n`, and constant folding. Literals fold before
+they ever reach a graph, so `Expr{2} * Expr{3} + Expr{1}` costs no nodes at all.
+
+`gradient` is one reverse sweep over the whole graph, accumulating *nodes* rather than
+values — the structural analogue of the sweep in
+[`drivers/symbolic.hpp`](include/drivers/symbolic.hpp). One sweep produces every
+partial, and they share every subexpression they can. Partials come back in
+`Builder::symbols()` order, which is the order the symbols were first seen.
+
+### Freezing and compiling
+
+Freezing gives the static graph: a `Builder` can still be added to, a `Graph` cannot.
+Whatever you freeze with is exactly what the kernel computes.
+
+```cpp
+#include "jit/kernel.hpp"
+
+const auto graph = GraphBuilder{b}.value(f).gradient().build();
+
+ddx::jit::Compiler compiler;
+const auto kernel = compiler.compile(graph);
+```
+
+`GraphBuilder` names the outputs one step at a time — `value` is the function and
+what `gradient` differentiates, `output` adds a column of anything else — and `build`
+is the only thing that produces a `Graph`. `.value(f).build()` alone gives a kernel
+that computes just the value.
+
+The kernel takes columns, not points:
+
+```cpp
+const std::array<const double *, 2> xs{x_column, y_column};
+std::array<double *, 2> partials{dx_column, dy_column};
+kernel(xs, f_column, partials.data(), n);
+```
+
+`xs[j]` is the column for symbol `j` and `partials[j]` the column for the partial in
+it, each of length `n`. Freeze with the value alone and the partials pointer is never
+read. A `Kernel` does not own its code, so it must not outlive its `Compiler`.
+
+For a graph without the JIT there is `evaluate(b, root, point)`, a plain walk in node
+order. It is the reference the compiled kernels are tested against, and it is what you
+get when `DDX_BUILD_JIT` is off.
+
+A kernel's IR prints like anything else in the library — `ddx::jit::Ir` has a
+`std::formatter` and an `operator<<`, next to the one for expressions in
+[`format.hpp`](include/expr/format.hpp):
+
+```cpp
+std::cout << ddx::jit::Ir{compiler, graph};   // or std::format("{}", ...)
+```
+
+### Crossing over from a compile-time expression
+
+`to_graph` lowers a typed tree into a graph, which is useful when the shape is known
+but the *use* is a batch, and is how the two paths are tested against each other:
+
+```cpp
+constexpr auto x = ddx::var<"x">;
+Builder b;
+auto root = to_graph(b, exp(x) * sin(ddx::var<"y">));
+```
+
+### What this is worth
+
+Per point the JIT does not beat the compile-time path and is not meant to: there the
+expression is already inlined straight-line code, and a JIT'd call has the same libm
+calls plus an indirect call. The batch kernel wins by vectorising, and the thing worth
+vectorising is the libm call that
+[dominates a gradient](#getting-the-most-speed-out-of-it).
+
+Gradient of `exp(x) * sin(y)`, one machine, `-march=native`, medians of five runs:
+
+| n | `Equation::gradient` | batch kernel | |
+|---|---|---|---|
+| 1 | 13.2 ns | 16.3 ns | compile-time path 1.2x |
+| 1 000 | 13.5 µs | 3.44 µs | **kernel 3.9x** |
+| 1 000 000 | 13.6 ms | 4.53 ms | **kernel 3.0x** |
+
+Compiling a gradient kernel costs about 9.3 ms, paid once.
+
+That advantage is specific to transcendentals. A polynomial gradient runs *slower*
+through the kernel — around 1.4x at a thousand points and 1.3x at a million — and not
+because it failed to vectorise: it vectorises four wide as well. It writes three columns
+an iteration where the loop writes two, and at that size the work is memory-bound, so
+the extra column is most of the difference. Cheap arithmetic in bulk is a memory
+problem, and a better code generator does not help with those. Those two figures are
+also the least stable in the suite, at around 10% run-to-run against 2-3% elsewhere,
+for the same reason.
+
+The real reason to reach for any of this is the first paragraph: an expression that is
+not known until the program runs. The speed is why the batch shape is the one on offer.
+
+### Vector math library
+
+The loop vectoriser only vectorises `sin`, `exp` and the rest if it is told there are
+vector forms to call. `Options::veclib` defaults to `Auto`, which uses glibc's libmvec
+on x86-64 Linux; glibc 2.35 and later covers every function in
+`DDX_UNARY_MATH_TABLE` plus `pow`, `atan2` and `hypot`. `VecLib::None` turns it off,
+which is the escape hatch if a mapping ever names a symbol the host's glibc lacks —
+the loop still compiles and still gives the same answers, it simply stays scalar
+through those calls.
+
+Nothing enables reassociation. `-ffast-math` is no more welcome here than anywhere
+else in the project, for the same reason: it changes derivative values.
+
+### Options follow how the project was built
+
+`Options` starts from the build rather than from a fixed constant, so a kernel agrees
+with the compile-time path by default:
+
+| Field | Default |
+|---|---|
+| `contract` | `DDX_FP_FLAGS` — a kernel that contracts where `Equation` does not would give different derivative values for the same expression |
+| `opt_level` | `1` for a `Debug` build, `3` for `Release`, `2` otherwise |
+
+`ddx::jit::default_opt_level` and `default_contract` name those, and both fields are
+still ordinary members you can set per compile.
+
+The optimisation level is never `0`. No predefined macro carries the level — GCC and
+Clang define only `__OPTIMIZE__`, and only as a yes/no — so CMake is the one place that
+knows it, and a debug build is mapped to `1` rather than `0` deliberately: `-O0` turns
+the loop vectoriser off, and vectorising is the only reason a batch kernel is worth
+compiling. Debugging your own program should make the JIT cheaper to invoke, not
+pointless.
+
+---
+
 ## Building the project
 
 ```sh
@@ -572,6 +762,33 @@ cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+Or through the presets, which need CMake 3.21+ (the library itself still only needs
+3.20):
+
+| Preset | Build type | Runtime graph and JIT |
+|---|---|---|
+| `debug` | Debug | — |
+| `release` | Release | — |
+| `relwithdebinfo` | RelWithDebInfo | — |
+| `debug_with_jit` | Debug | yes, kernels at `-O1` |
+| `release_with_jit` | Release | yes, kernels at `-O3` |
+
+```sh
+cmake --preset release_with_jit
+cmake --build --preset release_with_jit
+ctest --preset release_with_jit
+```
+
+The two JIT presets pin `LLVM_DIR` to the Debian/Ubuntu `llvm-20` layout, because an
+unhinted `find_package(LLVM)` takes whichever it finds first — often too old. Override
+it on the command line, which wins over the preset:
+
+```sh
+cmake --preset release_with_jit -DLLVM_DIR=/opt/llvm-19/lib/cmake/llvm
+```
+
+or keep your own layout in an untracked `CMakeUserPresets.json`.
 
 Benchmarks:
 
@@ -584,6 +801,19 @@ cmake --build build --target benchmarks
 See [BENCHMARKS.md](benchmarks/BENCHMARKS.md) for the suite description and
 results, and `src/main.cpp` for a runnable tour of every entry point.
 
+[Runtime expressions](#runtime-expressions) are off by default, because they are the
+one part of the library with third-party dependencies:
+
+```sh
+cmake -S . -B build -DDDX_BUILD_JIT=ON -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm
+cmake --build build --target tests_rt tests_jit
+```
+
+`ddx::rt` needs [NWGraph](https://github.com/pnnl/NWGraph), fetched and patched during
+configuration, and oneTBB. `ddx::jit` adds LLVM 18–20 — the ORC API is not stable
+across releases, so the range is checked rather than assumed. Neither is reachable
+from `ddx::ddx`, which remains header-only and standard-library-only.
+
 ### CMake options
 
 | Option | Default | Meaning |
@@ -593,6 +823,8 @@ results, and `src/main.cpp` for a runnable tour of every entry point.
 | `DDX_FP_FLAGS` | `ON` | `-ffp-contract=fast -fno-math-errno` |
 | `DDX_MDSPAN_MODE` | `auto` | `auto` / `std` / `vendored` — which `mdspan` to bind to |
 | `DDX_DEDUCING_THIS` | `auto` | `auto` / `on` / `off` — accessor spelling (P0847) |
+| `DDX_BUILD_RT` | `OFF` | the runtime expression graph — needs NWGraph and oneTBB |
+| `DDX_BUILD_JIT` | `OFF` | the LLVM JIT backend — implies `DDX_BUILD_RT` |
 
 `-ffast-math` is not used and is not recommended: it changes derivative values.
 

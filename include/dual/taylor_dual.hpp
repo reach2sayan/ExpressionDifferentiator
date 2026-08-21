@@ -207,7 +207,7 @@ template <Numeric S, std::size_t N> struct TaylorDual {
     return sincos_td(u).second;
   }
   [[nodiscard]] constexpr friend TaylorDual tan(const TaylorDual &u) noexcept {
-    auto [s, c] = sincos_td(u);
+    const auto [s, c] = sincos_td(u);
     return s / c;
   }
 
@@ -321,7 +321,7 @@ template <Numeric S, std::size_t N> struct TaylorDual {
     TaylorDual w = log(u);
     const S log10e = static_cast<S>(std::numbers::log10e);
     std::ranges::transform(w.c, w.c.begin(),
-                           [log10e](S x) noexcept { return x * log10e; });
+                           [log10e](const S &x) noexcept { return x * log10e; });
     return w;
   }
 

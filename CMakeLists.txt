@@ -181,6 +181,29 @@ if (DDX_BUILD_RT)
 endif ()
 
 if (DDX_BUILD_JIT)
+    # The JIT's defaults follow how the project itself was built.  Contraction
+    # especially: a kernel that contracts where the compile-time path does not
+    # would return different derivative values for the same expression.
+    if (DDX_FP_FLAGS)
+        set(DDX_JIT_DEFAULT_CONTRACT 1)
+    else ()
+        set(DDX_JIT_DEFAULT_CONTRACT 0)
+    endif ()
+
+    # No predefined macro carries the optimisation *level* -- GCC and Clang
+    # define only __OPTIMIZE__, and only as a yes/no -- so CMake is the one
+    # place that knows.  O0 is deliberately unreachable: it turns the loop
+    # vectoriser off, and vectorising is the only reason a batch kernel beats
+    # the compile-time path.  A debug build gets cheaper compiles, not scalar code.
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" DDX_BUILD_TYPE_UPPER)
+    if (DDX_BUILD_TYPE_UPPER STREQUAL "DEBUG")
+        set(DDX_JIT_DEFAULT_OPT 1)
+    elseif (DDX_BUILD_TYPE_UPPER STREQUAL "RELEASE")
+        set(DDX_JIT_DEFAULT_OPT 3)
+    else ()
+        set(DDX_JIT_DEFAULT_OPT 2)
+    endif ()
+
     # LLVMConfig declares itself compatible only with an exact version request,
     # so a find_package version range never matches; check the major ourselves.
     # The ORC C++ API is not stable across releases, hence the range at all.
@@ -260,6 +283,12 @@ if (DDX_BUILD_BENCHMARKS)
     add_executable(benchmarks benchmarks/benchmark.cpp)
     target_link_libraries(benchmarks PRIVATE benchmark::benchmark ddx)
     ddx_target_flags(benchmarks)
+
+    if (DDX_BUILD_JIT)
+        add_executable(benchmarks_jit benchmarks/jit/benchmark_jit.cpp)
+        target_link_libraries(benchmarks_jit PRIVATE benchmark::benchmark ddx_jit)
+        ddx_target_flags(benchmarks_jit)
+    endif ()
 
     add_custom_target(benchmark_json
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/benchmark-results"

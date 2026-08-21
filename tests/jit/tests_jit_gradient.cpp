@@ -27,18 +27,6 @@ ddx::jit::Compiler &compiler() {
   return c;
 }
 
-struct Frozen {
-  Graph graph;
-  ddx::rt::Gradient gradient;
-};
-
-Frozen freeze_with_gradient(Builder &b, ddx::rt::NodeId root) {
-  auto g = ddx::rt::gradient(b, root);
-  std::vector<ddx::rt::NodeId> outputs{g.value};
-  outputs.insert(outputs.end(), g.partial.begin(), g.partial.end());
-  return {Graph::freeze(b, outputs), std::move(g)};
-}
-
 void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
                                          std::size_t n = 32) {
   Builder b;
@@ -48,8 +36,10 @@ void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
     vars.push_back(var(b, names[i]));
   }
   const auto root = build(b, vars);
-  const auto frozen = freeze_with_gradient(b, root.id(b));
-  const auto kernel = compiler().compile(frozen.graph);
+  // The sweep is repeated for the reference values; the builder runs its own.
+  const auto reference_gradient = ddx::rt::gradient(b, root.id(b));
+  const auto kernel = compiler().compile(
+      ddx::rt::GraphBuilder{b}.value(root).gradient().build());
   ASSERT_EQ(kernel.outputs(), nvars + 1);
 
   std::vector<std::vector<double>> columns(nvars, std::vector<double>(n));
@@ -77,9 +67,9 @@ void expect_gradient_matches_interpreter(auto build, std::size_t nvars,
       point[j] = columns[j][i];
     }
     const auto reference = ddx::rt::evaluate_all(b, point);
-    EXPECT_NEAR(value[i], reference[frozen.gradient.value], 1e-12);
+    EXPECT_NEAR(value[i], reference[reference_gradient.value], 1e-12);
     for (std::size_t j = 0; j < nvars; ++j) {
-      const double want = reference[frozen.gradient.partial[j]];
+      const double want = reference[reference_gradient.partial[j]];
       EXPECT_NEAR(grad[j][i], want, 1e-12 * std::max(1.0, std::abs(want)))
           << "d/d" << names[j] << " at point " << i;
     }
@@ -107,8 +97,8 @@ TEST(JitGradient, MatchesDdxThroughTheBridge) {
 
   Builder b;
   const auto root = ddx::rt::to_graph(b, f);
-  const auto frozen = freeze_with_gradient(b, root.id(b));
-  const auto kernel = compiler().compile(frozen.graph);
+  const auto kernel = compiler().compile(
+      ddx::rt::GraphBuilder{b}.value(root).gradient().build());
 
   const std::array cx{1.0, 0.25, 2.5};
   const std::array cy{2.0, 1.75, 0.5};

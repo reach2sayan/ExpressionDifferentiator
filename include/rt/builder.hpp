@@ -5,10 +5,10 @@
 
 #include <bit>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 namespace ddx::rt {
@@ -31,24 +31,24 @@ struct Node {
 // rather than a type comparison.
 class Builder {
 public:
-  [[nodiscard]] NodeId constant(double v) {
+  [[nodiscard]] constexpr NodeId constant(double v) {
     return intern({.op = OpCode::Const, .value = v});
   }
 
-  [[nodiscard]] NodeId variable(std::string_view name) {
-    for (std::uint32_t i = 0; i < symbols_.size(); ++i) {
-      if (symbols_[i] == name) {
-        return intern({.op = OpCode::Var, .slot = i});
-      }
+  [[nodiscard]] constexpr NodeId variable(std::string_view name) {
+    const auto it = std::ranges::find(symbols_, name);
+    // Index before growing: emplace_back invalidates `it`, and for a new symbol
+    // the slot is the old size, which is what end() - begin() already is.
+    const auto slot = static_cast<std::uint32_t>(it - symbols_.begin());
+    if (it == symbols_.end()) {
+      symbols_.emplace_back(name);
     }
-    symbols_.emplace_back(name);
-    return intern({.op = OpCode::Var,
-                   .slot = static_cast<std::uint32_t>(symbols_.size() - 1)});
+    return intern({.op = OpCode::Var, .slot = slot});
   }
 
-  [[nodiscard]] NodeId make(OpCode op, NodeId a, NodeId b = no_node) {
-    if (const NodeId folded = fold(op, a, b); folded != no_node) {
-      return folded;
+  [[nodiscard]] constexpr NodeId make(OpCode op, NodeId a, NodeId b = no_node) {
+    if (const auto folded = fold(op, a, b)) {
+      return *folded;
     }
     if (is_commutative(op) && b != no_node && b < a) {
       std::swap(a, b);
@@ -56,121 +56,154 @@ public:
     return intern({.op = op, .a = a, .b = b});
   }
 
-  [[nodiscard]] const Node &operator[](NodeId id) const { return nodes_[id]; }
-  [[nodiscard]] std::size_t size() const { return nodes_.size(); }
-  [[nodiscard]] std::span<const Node> nodes() const { return nodes_; }
-  [[nodiscard]] const std::vector<std::string> &symbols() const {
+  [[nodiscard]] constexpr const Node &operator[](NodeId id) const {
+    return nodes_[id];
+  }
+  [[nodiscard]] constexpr std::size_t size() const { return nodes_.size(); }
+  [[nodiscard]] constexpr std::span<const Node> nodes() const { return nodes_; }
+  [[nodiscard]] constexpr const std::vector<std::string> &symbols() const {
     return symbols_;
   }
 
-  [[nodiscard]] bool is_constant(NodeId id, double v) const {
+  [[nodiscard]] constexpr bool is_constant(NodeId id, double v) const {
     return nodes_[id].op == OpCode::Const && nodes_[id].value == v;
   }
 
 private:
-  struct Key {
-    OpCode op;
-    NodeId a, b;
-    std::uint64_t extra;
-    bool operator==(const Key &) const = default;
-  };
-  struct KeyHash {
-    std::size_t operator()(const Key &k) const noexcept {
-      std::size_t h = static_cast<std::size_t>(k.op);
-      auto mix = [&h](std::uint64_t v) {
-        h ^= std::hash<std::uint64_t>{}(v) + 0x9e3779b97f4a7c15ULL + (h << 6) +
-             (h >> 2);
-      };
-      mix(k.a);
-      mix(k.b);
-      mix(k.extra);
-      return h;
-    }
-  };
-
-  static Key key_of(const Node &n) {
-    const std::uint64_t extra = n.op == OpCode::Const
-                                    ? std::bit_cast<std::uint64_t>(n.value)
-                                    : std::uint64_t{n.slot};
-    return {n.op, n.a, n.b, extra};
+  // Open addressing in a plain vector rather than a hash map: unordered_map
+  // has no constexpr support, and it is the only thing that would keep the
+  // builder out of constant evaluation.  At these sizes it is also the faster
+  // structure -- no node allocation and no pointer chase.
+  static constexpr std::uint64_t payload_of(const Node &n) {
+    return n.op == OpCode::Const ? std::bit_cast<std::uint64_t>(n.value)
+                                 : std::uint64_t{n.slot};
   }
 
-  NodeId intern(const Node &n) {
-    const auto [it, fresh] =
-        interned_.try_emplace(key_of(n), static_cast<NodeId>(nodes_.size()));
-    if (fresh) {
-      nodes_.push_back(n);
+  static constexpr bool same(const Node &l, const Node &r) {
+    return l.op == r.op && l.a == r.a && l.b == r.b &&
+           payload_of(l) == payload_of(r);
+  }
+
+  static constexpr std::size_t hash_of(const Node &n) {
+    std::uint64_t h = static_cast<std::uint64_t>(n.op);
+    const auto mix = [&h](std::uint64_t v) {
+      h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      h *= 0xff51afd7ed558ccdULL;
+      h ^= h >> 33;
+    };
+    mix(n.a);
+    mix(n.b);
+    mix(payload_of(n));
+    return static_cast<std::size_t>(h);
+  }
+
+  constexpr void rehash() {
+    table_.assign(table_.empty() ? 64 : table_.size() * 2, no_node);
+    const std::size_t mask = table_.size() - 1;
+    for (NodeId id = 0; id < nodes_.size(); ++id) {
+      std::size_t i = hash_of(nodes_[id]) & mask;
+      while (table_[i] != no_node) {
+        i = (i + 1) & mask;
+      }
+      table_[i] = id;
     }
-    return it->second;
+  }
+
+  constexpr NodeId intern(const Node &n) {
+    // Keep the table at most half full; linear probing degrades sharply past
+    // that.
+    if ((nodes_.size() + 1) * 2 > table_.size()) {
+      rehash();
+    }
+    const std::size_t mask = table_.size() - 1;
+    std::size_t i = hash_of(n) & mask;
+    while (table_[i] != no_node) {
+      if (same(nodes_[table_[i]], n)) {
+        return table_[i];
+      }
+      i = (i + 1) & mask;
+    }
+    const auto id = static_cast<NodeId>(nodes_.size());
+    nodes_.push_back(n);
+    table_[i] = id;
+    return id;
   }
 
   // The rewrites of expr/simplify.hpp.  x*0 -> 0, 0/x -> 0 and (n/d)*d -> n are
   // not IEEE-faithful; as there, they cancel arithmetic the derivative rules
   // manufactured rather than anything a caller wrote.
-  NodeId fold(OpCode op, NodeId a, NodeId b) {
+  constexpr std::optional<NodeId> fold(OpCode op, NodeId a, NodeId b) {
     const bool ca = a != no_node && nodes_[a].op == OpCode::Const;
     const bool cb = b != no_node && nodes_[b].op == OpCode::Const;
 
     if (arity_of(op) == 1) {
       if (ca) {
-        return constant(apply1(op, nodes_[a].value));
+        return constant(apply(op, nodes_[a].value));
       }
       if (op == OpCode::Neg && nodes_[a].op == OpCode::Neg) {
         return nodes_[a].a;
       }
-      return no_node;
+      return std::nullopt;
     }
     if (ca && cb) {
-      return constant(apply2(op, nodes_[a].value, nodes_[b].value));
+      return constant(apply(op, nodes_[a].value, nodes_[b].value));
     }
 
     switch (op) {
     case OpCode::Add:
-      if (ca && nodes_[a].value == 0.0)
+      if (ca && nodes_[a].value == 0.0) {
         return b;
-      if (cb && nodes_[b].value == 0.0)
+      } else if (cb && nodes_[b].value == 0.0) {
         return a;
+      }
       break;
     case OpCode::Mul:
-      if ((ca && nodes_[a].value == 0.0) || (cb && nodes_[b].value == 0.0))
+      if ((ca && nodes_[a].value == 0.0) || (cb && nodes_[b].value == 0.0)) {
         return constant(0.0);
+      }
       if (ca && nodes_[a].value == 1.0)
         return b;
       if (cb && nodes_[b].value == 1.0)
         return a;
-      if (const NodeId n = cancel_quotient(a, b); n != no_node)
+      // Either operand may be the quotient; or_else says "that ordering, else
+      // the other" without repeating the statement.
+      if (const auto n = cancel_quotient(a, b).or_else(
+              [&] { return cancel_quotient(b, a); })) {
         return n;
-      if (const NodeId n = cancel_quotient(b, a); n != no_node)
-        return n;
+      }
       break;
     case OpCode::Div:
-      if (a == b)
+      if (a == b) {
         return constant(1.0);
-      if (ca && nodes_[a].value == 0.0)
+      } else if (ca && nodes_[a].value == 0.0) {
         return constant(0.0);
-      if (cb && nodes_[b].value == 1.0)
+      } else if (cb && nodes_[b].value == 1.0) {
         return a;
+      }
       break;
     case OpCode::Pow:
-      if (cb && nodes_[b].value == 0.0)
+      if (cb && nodes_[b].value == 0.0) {
         return constant(1.0);
-      if (cb && nodes_[b].value == 1.0)
+      } else if (cb && nodes_[b].value == 1.0) {
         return a;
+      }
       break;
     default:
       break;
     }
-    return no_node;
+    return std::nullopt;
   }
 
   // (n/d) * d -> n.  On a DAG the denominator match is an id compare.
-  NodeId cancel_quotient(NodeId quotient, NodeId x) const {
+  constexpr std::optional<NodeId> cancel_quotient(NodeId quotient,
+                                                  NodeId x) const {
     const Node &q = nodes_[quotient];
-    return q.op == OpCode::Div && q.b == x ? q.a : no_node;
+    return q.op == OpCode::Div && q.b == x ? std::optional{q.a} : std::nullopt;
   }
 
   std::vector<Node> nodes_;
-  std::unordered_map<Key, NodeId, KeyHash> interned_;
+  std::vector<NodeId>
+      table_; // power-of-two capacity; no_node marks a free slot
   std::vector<std::string> symbols_;
 };
 

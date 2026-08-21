@@ -5,30 +5,34 @@
 #include <span>
 #include <string>
 
-// The JIT's public surface.  No LLVM header appears here, and none may: this
-// lives under include/, and Compiler holds its LLVM state behind a pointer for
-// exactly that reason.  rt::Graph is only named, so nwgraph stays out too.
+// The JIT's public surface.
 namespace ddx::rt {
 class Graph;
 }
 
 namespace ddx::jit {
 
-// Which vector math library the loop vectoriser may call.  Auto probes for
-// glibc's libmvec and falls back to None, which still compiles -- the loop
-// simply stays scalar wherever a transcendental appears.
+// Which vector math library the loop vectoriser may call.
 enum class VecLib : std::uint8_t { None, Auto, Libmvec };
 
+#ifndef DDX_JIT_DEFAULT_OPT
+#define DDX_JIT_DEFAULT_OPT 2
+#endif
+#ifndef DDX_JIT_DEFAULT_CONTRACT
+#define DDX_JIT_DEFAULT_CONTRACT 1
+#endif
+
+inline constexpr unsigned default_opt_level = DDX_JIT_DEFAULT_OPT;
+inline constexpr bool default_contract = DDX_JIT_DEFAULT_CONTRACT != 0;
+
 struct Options {
-  unsigned opt_level = 2;
+  // Never 0: that disables the loop vectoriser
+  unsigned opt_level = default_opt_level;
   VecLib veclib = VecLib::Auto;
-  // Matches the -ffp-contract=fast the project builds with.  Nothing here
-  // enables reassociation: that would change derivative values.
-  bool contract = true;
+  bool contract = default_contract;  // Follows DDX_FP_FLAGS
 };
 
-// One compiled graph.  Cheap to copy -- it is a function pointer and a shape --
-// but it does not own the code, so it must not outlive the Compiler.
+// One compiled graph.  Cheap to copy
 class Kernel {
 public:
   using function_type = void (*)(const double *const *, double *,
@@ -70,13 +74,28 @@ public:
 
   [[nodiscard]] Kernel compile(const rt::Graph &g, const Options &opt = {});
 
-  // The optimised IR, for tests that assert on what the vectoriser did.
-  [[nodiscard]] std::string dump_ir(const rt::Graph &g,
-                                    const Options &opt = {}) const;
-
 private:
+  friend class Ir;
+  [[nodiscard]] std::string render_ir(const rt::Graph &g,
+                                      const Options &opt) const;
+
   struct Impl;
   std::unique_ptr<Impl> impl_;
+};
+
+// The optimised IR a graph would compile to
+class Ir {
+public:
+  Ir(const Compiler &c, const rt::Graph &g, Options opt = {}) noexcept
+      : compiler_(&c), graph_(&g), options_(opt) {}
+  [[nodiscard]] std::string str() const {
+    return compiler_->render_ir(*graph_, options_);
+  }
+
+private:
+  const Compiler *compiler_;
+  const rt::Graph *graph_;
+  Options options_;
 };
 
 } // namespace ddx::jit

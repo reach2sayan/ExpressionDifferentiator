@@ -1,12 +1,14 @@
 #pragma once
 
 #include "rt/builder.hpp"
+#include "rt/derivative.hpp"
 #include "rt/opcode.hpp"
 
 #include <nwgraph/adjacency.hpp>
 #include <nwgraph/edge_list.hpp>
 
 #include <execution>
+#include <ranges>
 #include <span>
 #include <string>
 #include <vector>
@@ -37,14 +39,14 @@ public:
 
     edge_list_type el(b.size());
     el.open_for_push_back();
-    for (NodeId v = 0; v < b.size(); ++v) {
-      const Node &n = b[v];
+    for (const auto [v, n] : std::views::enumerate(b.nodes())) {
       g.properties_.push_back({.op = n.op, .value = n.value, .slot = n.slot});
+      const auto id = static_cast<NodeId>(v);
       if (arity_of(n.op) >= 1) {
-        el.push_back(v, n.a, 0);
+        el.push_back(id, n.a, 0);
       }
       if (arity_of(n.op) == 2) {
-        el.push_back(v, n.b, 1);
+        el.push_back(id, n.b, 1);
       }
     }
     el.close_for_push_back();
@@ -103,6 +105,47 @@ private:
   std::vector<NodeId> outputs_;
   std::vector<std::string> symbols_;
   std::vector<bool> live_;
+};
+
+// Assembling what a Graph is frozen with.  Freezing takes a list of output
+// nodes, and building that list by hand is the same four lines everywhere --
+// sweep, take the value, append the partials, freeze.  Each step here names one
+// of those, and `build` is the only thing that produces a Graph.
+//
+//   const auto graph = GraphBuilder{b}.value(f).gradient().build();
+class GraphBuilder {
+public:
+  explicit constexpr GraphBuilder(Builder &b) noexcept : builder_(&b) {}
+
+  // The function the kernel computes.  It is the first output, and the one
+  // `gradient` differentiates.
+  constexpr GraphBuilder &value(const Expr &root) {
+    root_ = root.id(*builder_);
+    outputs_.assign(1, root_);
+    return *this;
+  }
+
+  // Every partial, in symbol order, one output each.  One reverse sweep.
+  constexpr GraphBuilder &gradient() {
+    const auto g = rt::gradient(*builder_, root_);
+    outputs_.insert(outputs_.end(), g.partial.begin(), g.partial.end());
+    return *this;
+  }
+
+  // Anything else worth a column of its own.
+  constexpr GraphBuilder &output(const Expr &e) {
+    outputs_.push_back(e.id(*builder_));
+    return *this;
+  }
+
+  [[nodiscard]] Graph build() const {
+    return Graph::freeze(*builder_, outputs_);
+  }
+
+private:
+  Builder *builder_;
+  NodeId root_ = no_node;
+  std::vector<NodeId> outputs_;
 };
 
 } // namespace ddx::rt

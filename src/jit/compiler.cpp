@@ -11,138 +11,143 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/TargetParser/Host.h>
 
-#include <mutex>
 #include <stdexcept>
 #include <string>
-
-using namespace llvm;
 
 namespace ddx::jit {
 namespace {
 
-// InitializeNativeTarget is global state, and a process may hold more than one
-// Compiler.
+// llvm::InitializeNativeTarget is global state, and a process may hold more
+// than one Compiler.
 void init_native_target_once() {
-  static std::once_flag flag;
-  std::call_once(flag, [] {
-    InitializeNativeTarget();
-    InitializeNativeTargetAsmPrinter();
-  });
+  // A function-local static is initialised once and thread-safely, which is the
+  // whole of what call_once was here for.
+  [[maybe_unused]] static const bool ready = [] {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    return true;
+  }();
 }
 
-[[noreturn]] void fail(const Twine &what, Error e) {
-  throw std::runtime_error((what + ": " + toString(std::move(e))).str());
+[[noreturn]] void fail(const llvm::Twine &what, llvm::Error e) {
+  throw std::runtime_error((what + ": " + llvm::toString(std::move(e))).str());
 }
 
-TargetLibraryInfoImpl target_library_info(const Triple &triple,
-                                          const Options &opt) {
-  TargetLibraryInfoImpl tlii(triple);
+llvm::TargetLibraryInfoImpl target_library_info(const llvm::Triple &triple,
+                                                const Options &opt) {
+  llvm::TargetLibraryInfoImpl tlii(triple);
   const bool want = opt.veclib == VecLib::Libmvec ||
                     (opt.veclib == VecLib::Auto && triple.isOSLinux() &&
-                     triple.getArch() == Triple::x86_64);
+                     triple.getArch() == llvm::Triple::x86_64);
   if (want) {
     // Without this the loop vectoriser has no vector form for sin/exp/... and
     // bails out of any loop containing one -- which is most of them here.
-    tlii.addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::LIBMVEC_X86,
-                                            triple);
+    tlii.addVectorizableFunctionsFromVecLib(
+        llvm::TargetLibraryInfoImpl::LIBMVEC_X86, triple);
   }
   return tlii;
 }
 
-void optimize(Module &m, TargetMachine &tm, const Options &opt) {
-  const Triple triple(m.getTargetTriple());
-  TargetLibraryInfoImpl tlii = target_library_info(triple, opt);
+void optimize(llvm::Module &m, llvm::TargetMachine &tm, const Options &opt) {
+  const llvm::Triple triple(m.getTargetTriple());
+  llvm::TargetLibraryInfoImpl tlii = target_library_info(triple, opt);
 
-  LoopAnalysisManager lam;
-  FunctionAnalysisManager fam;
-  CGSCCAnalysisManager cgam;
-  ModuleAnalysisManager mam;
+  llvm::LoopAnalysisManager lam;
+  llvm::FunctionAnalysisManager fam;
+  llvm::CGSCCAnalysisManager cgam;
+  llvm::ModuleAnalysisManager mam;
 
-  PassBuilder pb(&tm);
+  llvm::PassBuilder pb(&tm);
   // Before registerFunctionAnalyses, which would otherwise install the default
-  // TargetLibraryAnalysis and with it an empty vector-function table.
-  fam.registerPass([&] { return TargetLibraryAnalysis(tlii); });
+  // llvm::TargetLibraryAnalysis and with it an empty vector-function table.
+  fam.registerPass([&] { return llvm::TargetLibraryAnalysis(tlii); });
   pb.registerModuleAnalyses(mam);
   pb.registerCGSCCAnalyses(cgam);
   pb.registerFunctionAnalyses(fam);
   pb.registerLoopAnalyses(lam);
   pb.crossRegisterProxies(lam, fam, cgam, mam);
 
-  OptimizationLevel level = OptimizationLevel::O2;
+  llvm::OptimizationLevel level = llvm::OptimizationLevel::O2;
   switch (opt.opt_level) {
   case 0:
-    level = OptimizationLevel::O0;
+    level = llvm::OptimizationLevel::O0;
     break;
   case 1:
-    level = OptimizationLevel::O1;
+    level = llvm::OptimizationLevel::O1;
     break;
   case 3:
-    level = OptimizationLevel::O3;
+    level = llvm::OptimizationLevel::O3;
     break;
   default:
     break;
   }
-  ModulePassManager mpm = level == OptimizationLevel::O0
-                              ? pb.buildO0DefaultPipeline(level)
-                              : pb.buildPerModuleDefaultPipeline(level);
+  llvm::ModulePassManager mpm = level == llvm::OptimizationLevel::O0
+                                    ? pb.buildO0DefaultPipeline(level)
+                                    : pb.buildPerModuleDefaultPipeline(level);
   mpm.run(m, mam);
 }
 
 } // namespace
 
 struct Compiler::Impl {
-  std::unique_ptr<orc::LLJIT> jit;
-  std::unique_ptr<TargetMachine> tm;
+  std::unique_ptr<llvm::orc::LLJIT> jit;
+  std::unique_ptr<llvm::TargetMachine> tm;
   unsigned counter = 0;
 
   Impl() {
     init_native_target_once();
 
-    auto jtmb = orc::JITTargetMachineBuilder::detectHost();
-    if (!jtmb) {
+    if (auto jtmb = llvm::orc::JITTargetMachineBuilder::detectHost(); !jtmb) {
       fail("detecting the host", jtmb.takeError());
-    }
-    // Parity with the project's -march=native.
-    jtmb->setCPU(sys::getHostCPUName().str());
-    for (const auto &[feature, enabled] : sys::getHostCPUFeatures()) {
-      jtmb->getFeatures().AddFeature(feature, enabled);
+    } else {
+      // Parity with the project's -march=native.
+      jtmb->setCPU(llvm::sys::getHostCPUName().str());
+      for (const auto &[feature, enabled] : llvm::sys::getHostCPUFeatures()) {
+        jtmb->getFeatures().AddFeature(feature, enabled);
+      }
+
+      if (auto machine = jtmb->createTargetMachine(); !machine) {
+        fail("creating a target machine", machine.takeError());
+      } else {
+        tm = std::move(*machine);
+      }
+
+      if (auto built = llvm::orc::LLJITBuilder()
+                           .setJITTargetMachineBuilder(std::move(*jtmb))
+                           .create();
+          !built) {
+        fail("creating the JIT", built.takeError());
+      } else {
+        jit = std::move(*built);
+      }
     }
 
-    auto machine = jtmb->createTargetMachine();
-    if (!machine) {
-      fail("creating a target machine", machine.takeError());
-    }
-    tm = std::move(*machine);
-
-    auto built = orc::LLJITBuilder()
-                     .setJITTargetMachineBuilder(std::move(*jtmb))
-                     .create();
-    if (!built) {
-      fail("creating the JIT", built.takeError());
-    }
-    jit = std::move(*built);
-
-    orc::JITDylib &jd = jit->getMainJITDylib();
+    llvm::orc::JITDylib &jd = jit->getMainJITDylib();
     const char prefix = jit->getDataLayout().getGlobalPrefix();
-    auto process =
-        orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(prefix);
-    if (!process) {
+
+    if (auto process =
+            llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+                prefix);
+        !process) {
       fail("opening the process symbols", process.takeError());
+    } else {
+      jd.addGenerator(std::move(*process));
     }
-    jd.addGenerator(std::move(*process));
+
     // GetForCurrentProcess only sees what is already loaded, and libmvec is not
     // linked into a program that never called it; without this the vector
     // symbols the vectoriser emits have nowhere to resolve.
-    if (auto vec =
-            orc::DynamicLibrarySearchGenerator::Load("libmvec.so.1", prefix)) {
+    if (auto vec = llvm::orc::DynamicLibrarySearchGenerator::Load(
+            "libmvec.so.1", prefix)) {
       jd.addGenerator(std::move(*vec));
     } else {
-      consumeError(vec.takeError());
+      llvm::consumeError(vec.takeError());
     }
   }
 
-  std::unique_ptr<Module> build(LLVMContext &ctx, const rt::Graph &g,
-                                const Options &opt, const std::string &name) {
+  std::unique_ptr<llvm::Module> build(llvm::LLVMContext &ctx,
+                                      const rt::Graph &g, const Options &opt,
+                                      const std::string &name) const {
     auto m = detail::emit_module(ctx, g, opt, name);
     if (!m) {
       throw std::runtime_error(
@@ -162,11 +167,11 @@ Compiler &Compiler::operator=(Compiler &&) noexcept = default;
 
 Kernel Compiler::compile(const rt::Graph &g, const Options &opt) {
   const std::string name = "ddx_kernel_" + std::to_string(impl_->counter++);
-  auto ctx = std::make_unique<LLVMContext>();
+  auto ctx = std::make_unique<llvm::LLVMContext>();
   auto m = impl_->build(*ctx, g, opt, name);
 
   if (auto e = impl_->jit->addIRModule(
-          orc::ThreadSafeModule(std::move(m), std::move(ctx)))) {
+          llvm::orc::ThreadSafeModule(std::move(m), std::move(ctx)))) {
     fail("adding the module", std::move(e));
   }
   auto sym = impl_->jit->lookup(name);
@@ -179,11 +184,11 @@ Kernel Compiler::compile(const rt::Graph &g, const Options &opt) {
                 outputs};
 }
 
-std::string Compiler::dump_ir(const rt::Graph &g, const Options &opt) const {
-  auto ctx = std::make_unique<LLVMContext>();
+std::string Compiler::render_ir(const rt::Graph &g, const Options &opt) const {
+  auto ctx = std::make_unique<llvm::LLVMContext>();
   auto m = impl_->build(*ctx, g, opt, "ddx_kernel_dump");
   std::string out;
-  raw_string_ostream os(out);
+  llvm::raw_string_ostream os(out);
   m->print(os, nullptr);
   return out;
 }

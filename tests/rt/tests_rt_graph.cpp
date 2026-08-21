@@ -18,13 +18,6 @@ namespace {
 using ddx::rt::Graph;
 using ddx::rt::NodeId;
 
-Graph freeze_with_gradient(ddx::rt::Builder &b, NodeId root) {
-  const auto g = ddx::rt::gradient(b, root);
-  std::vector<NodeId> outputs{g.value};
-  outputs.insert(outputs.end(), g.partial.begin(), g.partial.end());
-  return Graph::freeze(b, outputs);
-}
-
 TEST(RtGraph, OperandOrderSurvivesCompression) {
   ddx::rt::Builder b;
   const auto x = var(b, "x");
@@ -65,7 +58,7 @@ TEST(RtGraph, EverythingTheOutputsReachIsLive) {
 TEST(RtGraph, CarriesSymbolsAndOutputs) {
   ddx::rt::Builder b;
   const auto root = ddx::rt::to_graph(b, ddx::var<"x"> * ddx::var<"y">);
-  const auto graph = freeze_with_gradient(b, root.id(b));
+  const auto graph = ddx::rt::GraphBuilder{b}.value(root).gradient().build();
 
   EXPECT_EQ(graph.symbols().size(), 2u);
   EXPECT_EQ(graph.outputs().size(), 3u); // value plus two partials
@@ -75,7 +68,7 @@ TEST(RtGraph, IdOrderIsTopological) {
   ddx::rt::Builder b;
   const auto root = ddx::rt::to_graph(b, sin(ddx::var<"x"> * ddx::var<"y">) +
                                              exp(ddx::var<"x">));
-  const auto graph = freeze_with_gradient(b, root.id(b));
+  const auto graph = ddx::rt::GraphBuilder{b}.value(root).gradient().build();
 
   // Codegen emits in id order in one pass, which is only correct if every
   // child precedes its parent.

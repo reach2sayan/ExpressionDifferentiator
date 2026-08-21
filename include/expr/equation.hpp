@@ -140,7 +140,8 @@ private:
 
   template <std::size_t Order>
   [[nodiscard]] constexpr auto equation_derivative_tensor_impl(
-      std::array<scalar_base_t<value_type>, input_dim> values) const noexcept
+      const std::array<scalar_base_t<value_type>, input_dim> &values)
+      const noexcept
     requires(input_dim > 0 && Order > 0)
   {
     using S = scalar_base_t<value_type>;
@@ -152,7 +153,8 @@ private:
       const auto seeds = detail::mixed_seeds<S, Order>(values, idx);
 
       static_for<output_dim>([&]<std::size_t OUT>() {
-        U val = std::get<OUT>(expressions).template eval_seeded<symbols>(seeds);
+        const U val =
+            std::get<OUT>(expressions).template eval_seeded<symbols>(seeds);
         const auto stacked = [&]<std::size_t... K>(std::index_sequence<K...>) {
           return std::array<std::size_t, Order + 1>{OUT, idx[K]...};
         }(std::make_index_sequence<Order>{});

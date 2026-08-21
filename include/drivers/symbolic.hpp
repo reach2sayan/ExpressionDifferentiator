@@ -40,7 +40,7 @@ constexpr auto fill_cache(const E &node, const Vals &vals,
   using VT = typename U::value_type;
   if constexpr (CExpressionNode<U>) {
     using Kids = typename U::children_t;
-    VT v = [&]<std::size_t... I>(std::index_sequence<I...>) {
+    const VT v = [&]<std::size_t... I>(std::index_sequence<I...>) {
       return typename U::op_type::func_type{}(
           fill_cache<child_base_at<Base, Kids, I>(), Syms,
                      U::op_type::reads_primals>(std::get<I>(node.expressions()),
@@ -51,7 +51,7 @@ constexpr auto fill_cache(const E &node, const Vals &vals,
     }
     return v;
   } else { // leaf (Variable / Constant / Lit)
-    VT v = node.template eval_seeded<Syms>(vals);
+    const VT v = node.template eval_seeded<Syms>(vals);
     if constexpr (Store) {
       cache[Base] = v;
     }
@@ -206,7 +206,8 @@ template <CExpression Expr,
           std::size_t N = detail::expr_arity_v<Expr>>
   requires DualLike<T>
 [[nodiscard]] constexpr auto
-reverse_mode_hessian(const Expr &expr, std::array<S, N> values) noexcept {
+reverse_mode_hessian(const Expr &expr,
+                     const std::array<S, N> &values) noexcept {
   using E = std::remove_cvref_t<Expr>;
 
   // Sparsity is a property of the type, so the colouring and the row -> column
@@ -318,7 +319,8 @@ template <std::size_t Order, CExpression Expr,
           std::size_t N = detail::expr_arity_v<Expr>>
   requires(Order > 0 && N > 0)
 [[nodiscard]] constexpr auto
-derivative_tensor_impl(const Expr &expr, std::array<S, N> values) noexcept {
+derivative_tensor_impl(const Expr &expr,
+                       const std::array<S, N> &values) noexcept {
   using symbols = detail::expr_symbols_t<std::remove_cvref_t<Expr>>;
   using U = nth_dual_t<S, Order>;
 
@@ -329,7 +331,7 @@ derivative_tensor_impl(const Expr &expr, std::array<S, N> values) noexcept {
   // walk plus make_mixed_seed's recursive span walk for nothing.
   if constexpr (Order == 1) {
     [&]<std::size_t... J>(std::index_sequence<J...>) {
-      auto sweep = [&]<std::size_t Seeded>() {
+      const auto sweep = [&]<std::size_t Seeded>() {
         std::array<U, N> seeds{};
         for (std::size_t k = 0; k < N; ++k) {
           seeds[k] = U{values[k], k == Seeded ? S{1} : S{}};
@@ -344,7 +346,7 @@ derivative_tensor_impl(const Expr &expr, std::array<S, N> values) noexcept {
 
   for (const auto &idx : detail::symmetric_index_grid<N, Order>()) {
     const auto seeds = mixed_seeds<S, Order>(values, idx);
-    U val = expr.template eval_seeded<symbols>(seeds);
+    const U val = expr.template eval_seeded<symbols>(seeds);
     result.at_index(idx) = extract_nth<Order>(val);
   }
   return result;
@@ -377,7 +379,8 @@ univariate_derivative_impl(const Expr &expr, S x0) noexcept {
   seed.c[0] = x0;
   seed.c[1] = S{1};
 
-  TD result = expr.template eval_seeded<symbols>(std::array<TD, 1>{seed});
+  const TD result =
+      expr.template eval_seeded<symbols>(std::array<TD, 1>{seed});
 
   constexpr S factorial = static_cast<S>(compile_time_factorial(Order));
   return result.c[Order] * factorial;
@@ -491,7 +494,7 @@ public:
   static constexpr std::size_t rows = kN;
   static constexpr std::size_t nnz = kNnz;
 
-  explicit SparseHessian(std::array<double, kNnz + 1> values) noexcept
+  explicit SparseHessian(const std::array<double, kNnz + 1> &values) noexcept
       : values_(values) {}
 
   // Column j occupies [outer()[j], outer()[j + 1]); inner()[k] is the row of

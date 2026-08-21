@@ -15,19 +15,32 @@ namespace ddx::rt {
   X(constant, Const, "const")                                                  \
   X(var, Var, "var")
 
+// Rows carry, after the spelling / enumerator / label that every consumer
+// needs: the functor that evaluates the op, then its partial derivatives
+// written in terms of the operands and `f`, the node for the result.  A
+// consumer that only wants the first three takes `...` and ignores the rest.
+//
+// The eighteen transcendentals get the same treatment from
+// DDX_UNARY_MATH_TABLE, whose descriptors already carry their own derivatives;
+// these are the ops that would otherwise be hand-written in four places.
 #define DDX_RT_UNARY_TABLE(X)                                                  \
-  X(neg, Neg, "-")                                                             \
-  X(abs, Abs, "abs")
+  X(neg, Neg, "-", std::negate<>, T{-1})                                       \
+  X(abs, Abs, "abs", impl::detail::abs_impl, u / f)
 
 #define DDX_RT_BINARY_TABLE(X)                                                 \
-  X(add, Add, "+")                                                             \
-  X(mul, Mul, "*")                                                             \
-  X(div, Div, "/")                                                             \
-  X(pow, Pow, "pow")                                                           \
-  X(atan2, Atan2, "atan2")                                                     \
-  X(hypot, Hypot, "hypot")                                                     \
-  X(max, Max, "max")                                                           \
-  X(min, Min, "min")
+  X(add, Add, "+", std::plus<>, T{1}, T{1})                                    \
+  X(mul, Mul, "*", std::multiplies<>, r, l)                                    \
+  X(div, Div, "/", std::divides<>, T{1} / r, -f / r)                           \
+  X(pow, Pow, "pow", impl::detail::pow_impl, r *pow(l, r - T{1}), f *log(l))   \
+  X(atan2, Atan2, "atan2", impl::detail::atan2_impl, r / (l * l + r * r),      \
+    -l / (l * l + r * r))                                                      \
+  X(hypot, Hypot, "hypot", impl::detail::hypot_impl, l / f, r / f)             \
+  X(max, Max, "max", impl::detail::max_impl,                                   \
+    (T{1} + (l - r) / abs(l - r)) / T{2},                                      \
+    (T{1} - (l - r) / abs(l - r)) / T{2})                                      \
+  X(min, Min, "min", impl::detail::min_impl,                                   \
+    (T{1} - (l - r) / abs(l - r)) / T{2},                                      \
+    (T{1} + (l - r) / abs(l - r)) / T{2})
 
 #define DDX_RT_OP_TABLE(X)                                                     \
   DDX_RT_LEAF_TABLE(X)                                                         \
@@ -36,14 +49,14 @@ namespace ddx::rt {
   DDX_RT_BINARY_TABLE(X)
 
 enum class OpCode : std::uint8_t {
-#define DDX_RT_ENUMERATOR(fn, Op, label) Op,
+#define DDX_RT_ENUMERATOR(fn, Op, label, ...) Op,
   DDX_RT_OP_TABLE(DDX_RT_ENUMERATOR)
 #undef DDX_RT_ENUMERATOR
 };
 
 inline constexpr std::size_t op_count = [] {
   std::size_t n = 0;
-#define DDX_RT_COUNT(fn, Op, label) ++n;
+#define DDX_RT_COUNT(fn, Op, label, ...) ++n;
   DDX_RT_OP_TABLE(DDX_RT_COUNT)
 #undef DDX_RT_COUNT
   return n;
@@ -51,7 +64,7 @@ inline constexpr std::size_t op_count = [] {
 
 [[nodiscard]] constexpr std::string_view label_of(OpCode op) noexcept {
   switch (op) {
-#define DDX_RT_LABEL(fn, Op, label)                                            \
+#define DDX_RT_LABEL(fn, Op, label, ...)                                       \
   case OpCode::Op:                                                             \
     return label;
     DDX_RT_OP_TABLE(DDX_RT_LABEL)
@@ -62,18 +75,18 @@ inline constexpr std::size_t op_count = [] {
 
 [[nodiscard]] constexpr std::uint8_t arity_of(OpCode op) noexcept {
   switch (op) {
-#define DDX_RT_ARITY(fn, Op, label)                                            \
+#define DDX_RT_ARITY(fn, Op, label, ...)                                       \
   case OpCode::Op:                                                             \
     return 0;
     DDX_RT_LEAF_TABLE(DDX_RT_ARITY)
 #undef DDX_RT_ARITY
-#define DDX_RT_ARITY(fn, Op, label)                                            \
+#define DDX_RT_ARITY(fn, Op, label, ...)                                       \
   case OpCode::Op:                                                             \
     return 1;
     DDX_RT_UNARY_TABLE(DDX_RT_ARITY)
     DDX_UNARY_MATH_TABLE(DDX_RT_ARITY)
 #undef DDX_RT_ARITY
-#define DDX_RT_ARITY(fn, Op, label)                                            \
+#define DDX_RT_ARITY(fn, Op, label, ...)                                       \
   case OpCode::Op:                                                             \
     return 2;
     DDX_RT_BINARY_TABLE(DDX_RT_ARITY)

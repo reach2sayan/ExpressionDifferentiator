@@ -2,6 +2,8 @@
 
 #include "rt/expr.hpp"
 
+#include <algorithm>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -17,7 +19,7 @@ namespace detail {
 // deriv_from_value, which reuses the primal node instead of recomputing it --
 // d(exp)/du becomes the exp node itself rather than a second one.
 template <typename Fn>
-[[nodiscard]] inline Expr rule(const Expr &u, const Expr &fu) {
+[[nodiscard]] inline constexpr Expr rule(const Expr &u, const Expr &fu) {
   if constexpr (impl::detail::has_deriv_from_value_v<Fn, Expr>) {
     return Fn::deriv_from_value(u, fu);
   } else {
@@ -25,17 +27,24 @@ template <typename Fn>
   }
 }
 
-[[nodiscard]] inline Expr partial(OpCode op, const Expr &u, const Expr &fu) {
+// d/du of a one-argument op.  The eighteen transcendentals come from the
+// descriptors in expr/unary_math.hpp instantiated at Expr: the rule bodies are
+// written against Numeric, so at T = Expr they build nodes instead of
+// computing.  `neg` and `abs` come from rt/opcode.hpp's table, which carries
+// their partials for the same reason -- there is no second copy of the chain
+// rule anywhere.
+[[nodiscard]] inline constexpr Expr partial(OpCode op, const Expr &u,
+                                            const Expr &f) {
+  using T = Expr;
   switch (op) {
-  case OpCode::Neg:
-    return Expr{-1};
-  // `abs` is absent from the table because its derivative is a sign, not a
-  // function of the primal; u/|u| is that sign in the ops we have.
-  case OpCode::Abs:
-    return u / fu;
+#define DDX_RT_PARTIAL(fn, Op, label, functor, dU)                             \
+  case OpCode::Op:                                                             \
+    return dU;
+    DDX_RT_UNARY_TABLE(DDX_RT_PARTIAL)
+#undef DDX_RT_PARTIAL
 #define DDX_RT_PARTIAL(fn, Op, label)                                          \
   case OpCode::Op:                                                             \
-    return rule<impl::detail::Op##Fn<Expr>>(u, fu);
+    return rule<impl::detail::Op##Fn<Expr>>(u, f);
     DDX_UNARY_MATH_TABLE(DDX_RT_PARTIAL)
 #undef DDX_RT_PARTIAL
   default:
@@ -44,33 +53,15 @@ template <typename Fn>
 }
 
 // (d/dl, d/dr) of a two-argument op, given the node for the result.
-[[nodiscard]] inline std::pair<Expr, Expr>
+[[nodiscard]] inline constexpr std::pair<Expr, Expr>
 partials(OpCode op, const Expr &l, const Expr &r, const Expr &f) {
+  using T = Expr;
   switch (op) {
-  case OpCode::Add:
-    return {Expr{1}, Expr{1}};
-  case OpCode::Mul:
-    return {r, l};
-  case OpCode::Div:
-    return {Expr{1} / r, -f / r};
-  case OpCode::Pow:
-    return {r * pow(l, r - Expr{1}), f * log(l)};
-  case OpCode::Atan2: {
-    const Expr d = l * l + r * r;
-    return {r / d, -l / d};
-  }
-  case OpCode::Hypot:
-    return {l / f, r / f};
-  // max/min are (l + r +/- |l - r|)/2, so the partial is the step that picks
-  // the winner, written with the ops we have rather than a comparison.
-  case OpCode::Max: {
-    const Expr s = (l - r) / abs(l - r);
-    return {(Expr{1} + s) / Expr{2}, (Expr{1} - s) / Expr{2}};
-  }
-  case OpCode::Min: {
-    const Expr s = (l - r) / abs(l - r);
-    return {(Expr{1} - s) / Expr{2}, (Expr{1} + s) / Expr{2}};
-  }
+#define DDX_RT_PARTIALS(fn, Op, label, functor, dL, dR)                        \
+  case OpCode::Op:                                                             \
+    return {dL, dR};
+    DDX_RT_BINARY_TABLE(DDX_RT_PARTIALS)
+#undef DDX_RT_PARTIALS
   default:
     return {Expr{0}, Expr{0}};
   }
@@ -90,7 +81,7 @@ struct Gradient {
 //
 // The sweep appends to the same builder it reads: new nodes land above the
 // snapshot, so reverse id order stays a topological order of what came before.
-[[nodiscard]] inline Gradient gradient(Builder &b, NodeId root) {
+[[nodiscard]] inline constexpr Gradient gradient(Builder &b, NodeId root) {
   const auto n = static_cast<NodeId>(b.size());
   std::vector<NodeId> adj(n, no_node);
   adj[root] = b.constant(1.0);
@@ -101,6 +92,9 @@ struct Gradient {
         adj[child] == no_node ? c : (Expr{b, adj[child]} + Expr{b, c}).id(b);
   };
 
+  // Explicitly indexed, not a filtered view: the body writes adjoints into
+  // entries this traversal has not reached yet, and a lazy filter would be
+  // reading state the loop is still changing.
   for (NodeId v = n; v-- > 0;) {
     if (adj[v] == no_node) {
       continue;
@@ -123,18 +117,19 @@ struct Gradient {
     }
   }
 
-  Gradient g{.value = root, .partial = {}};
-  g.partial.reserve(b.symbols().size());
-  for (std::uint32_t s = 0; s < b.symbols().size(); ++s) {
-    NodeId found = no_node;
-    for (NodeId v = 0; v < n; ++v) {
-      if (b[v].op == OpCode::Var && b[v].slot == s) {
-        found = adj[v];
-        break;
-      }
-    }
-    g.partial.push_back(found == no_node ? b.constant(0.0) : found);
+  // One pass to collect the leaves, rather than re-scanning the graph per
+  // symbol.
+  Gradient g{.value = root,
+             .partial = std::vector<NodeId>(b.symbols().size(), no_node)};
+  for (const auto [v, node] : std::views::enumerate(b.nodes().first(n)) |
+                                  std::views::filter([](const auto &entry) {
+                                    return std::get<1>(entry).op == OpCode::Var;
+                                  })) {
+    g.partial[node.slot] = adj[v];
   }
+  // A symbol the expression never mentions has no leaf, so no adjoint reached
+  // it; those partials are the literal zero.
+  std::ranges::replace(g.partial, no_node, b.constant(0.0));
   return g;
 }
 

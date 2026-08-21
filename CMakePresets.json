@@ -1,0 +1,79 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "with-jit",
+      "hidden": true,
+      "cacheVariables": {
+        "DDX_BUILD_JIT": "ON",
+        "LLVM_DIR": "/usr/lib/llvm-20/lib/cmake/llvm"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "description": "The header-only core, no third-party dependencies.",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "The header-only core, optimised.",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "relwithdebinfo",
+      "displayName": "RelWithDebInfo",
+      "description": "Optimised with debug info; what the benchmarks are profiled under.",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+    {
+      "name": "debug_with_jit",
+      "displayName": "Debug + JIT",
+      "description": "Runtime graph and LLVM backend. Kernels compile at -O1, which still vectorises.",
+      "inherits": [ "with-jit", "debug" ]
+    },
+    {
+      "name": "release_with_jit",
+      "displayName": "Release + JIT",
+      "description": "Runtime graph and LLVM backend. Kernels compile at -O3.",
+      "inherits": [ "with-jit", "release" ]
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo" },
+    { "name": "debug_with_jit", "configurePreset": "debug_with_jit" },
+    { "name": "release_with_jit", "configurePreset": "release_with_jit" }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" }
+    },
+    { "name": "debug", "inherits": "base", "configurePreset": "debug" },
+    { "name": "release", "inherits": "base", "configurePreset": "release" },
+    { "name": "relwithdebinfo", "inherits": "base", "configurePreset": "relwithdebinfo" },
+    { "name": "debug_with_jit", "inherits": "base", "configurePreset": "debug_with_jit" },
+    { "name": "release_with_jit", "inherits": "base", "configurePreset": "release_with_jit" }
+  ]
+}
